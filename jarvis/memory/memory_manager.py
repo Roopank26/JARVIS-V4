@@ -1,0 +1,113 @@
+"""
+Unified memory manager for JARVIS.
+Combines session and long-term memory systems.
+"""
+
+from typing import Any, Dict, List, Optional
+from pathlib import Path
+
+from jarvis.memory.base import MemoryBase, MemoryCategory
+from jarvis.memory.session import SessionMemory
+from jarvis.memory.long_term import LongTermMemory
+
+
+class MemoryManager(MemoryBase):
+    """
+    Unified memory system combining:
+    - Session memory (in-memory, current conversation)
+    - Long-term memory (persistent JSON, across sessions)
+    """
+
+    def __init__(self, memory_path: Optional[Path] = None):
+        self.session = SessionMemory()
+        self.long_term = LongTermMemory(memory_path)
+
+    def remember(self, key: str, value: Any, category: str = "general") -> None:
+        """Store information in long-term memory."""
+        self.long_term.remember(key, value, category)
+
+    def recall(self, query: str) -> List[Dict[str, Any]]:
+        """Recall from long-term memory based on query."""
+        return self.long_term.recall(query)
+
+    def forget(self, key: str, category: str = "general") -> bool:
+        """Remove information from long-term memory."""
+        return self.long_term.forget(key, category)
+
+    def format_for_prompt(self) -> str:
+        """Format memory as a string for inclusion in prompts."""
+        return self.long_term.format_for_prompt()
+
+    def clear(self) -> None:
+        """Clear all memory (both session and long-term)."""
+        self.session.clear()
+        self.long_term.clear()
+
+    # Session-specific methods
+    def add_user_message(self, content: str) -> None:
+        """Add a user message to session history."""
+        self.session.add_user_message(content)
+
+    def add_assistant_message(self, content: str) -> None:
+        """Add an assistant message to session history."""
+        self.session.add_assistant_message(content)
+
+    def add_tool_result(self, tool_name: str, result: str) -> None:
+        """Add a tool result to session history."""
+        self.session.add_tool_message(tool_name, result)
+
+    def get_context(self, max_messages: int = 20) -> str:
+        """Get formatted conversation context."""
+        return self.session.get_context_string(max_messages)
+
+    def get_history_summary(self) -> Dict[str, Any]:
+        """Get summary of session history."""
+        return self.session.get_history_summary()
+
+    # Long-term specific methods
+    def update_identity(self, key: str, value: Any) -> bool:
+        """Quick update for identity facts."""
+        return self.long_term.remember(key, value, MemoryCategory.IDENTITY)
+
+    def update_preference(self, key: str, value: Any) -> bool:
+        """Quick update for preferences."""
+        return self.long_term.remember(key, value, MemoryCategory.PREFERENCES)
+
+    def update_project(self, key: str, value: Any) -> bool:
+        """Quick update for projects."""
+        return self.long_term.remember(key, value, MemoryCategory.PROJECTS)
+
+    def get_identity(self) -> Dict[str, Any]:
+        """Get identity information."""
+        return self.long_term.get_identity()
+
+    def get_preferences(self) -> Dict[str, Any]:
+        """Get user preferences."""
+        return self.long_term.get_preferences()
+
+    def get_projects(self) -> Dict[str, Any]:
+        """Get user projects."""
+        return self.long_term.get_projects()
+
+    def get_full_memory(self) -> Dict[str, Dict]:
+        """Get the full long-term memory structure."""
+        return self.long_term.load()
+
+
+# Global memory manager instance
+_memory_manager: Optional[MemoryManager] = None
+
+
+def get_memory_manager() -> MemoryManager:
+    """Get the global memory manager instance."""
+    global _memory_manager
+    if _memory_manager is None:
+        _memory_manager = MemoryManager()
+    return _memory_manager
+
+
+def init_memory_manager(memory_path: Optional[Path] = None) -> MemoryManager:
+    """Initialize the global memory manager."""
+    global _memory_manager
+    _memory_manager = MemoryManager(memory_path)
+    return _memory_manager

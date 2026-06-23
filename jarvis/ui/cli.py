@@ -1,0 +1,313 @@
+"""
+JARVIS CLI - Command-line interface.
+"""
+
+import asyncio
+import sys
+from typing import Optional
+
+try:
+    from rich.console import Console
+    from rich.markdown import Markdown
+    from rich.panel import Panel
+    from rich.prompt import Prompt
+    from rich.table import Table
+    HAS_RICH = True
+except ImportError:
+    HAS_RICH = False
+
+from jarvis.core.agent import JarvisAgent, create_jarvis
+from jarvis.tools.registry import get_registry
+from jarvis.tools.file_tools import (
+    ReadFileTool, WriteFileTool, ListDirectoryTool,
+    FindFilesTool, DeleteFileTool, DiskUsageTool
+)
+from jarvis.tools.terminal_tools import BashTool, RunScriptTool, CreateTempFileTool
+from jarvis.tools.system_tools import (
+    GetSystemInfoTool, OpenAppTool, GetEnvironmentTool,
+    SetEnvironmentTool, GetClipboardTool, SetClipboardTool
+)
+
+
+class JarvisCLI:
+    """
+    Command-line interface for JARVIS.
+    """
+
+    def __init__(self, agent: Optional[JarvisAgent] = None):
+        self.console = Console() if HAS_RICH else None
+        self.agent = agent
+        self._running = False
+
+    def _print(self, message: str, style: str = ""):
+        """Print a message."""
+        if self.console:
+            if style:
+                self.console.print(message, style=style)
+            else:
+                self.console.print(message)
+        else:
+            print(message)
+
+    def _print_panel(self, title: str, content: str):
+        """Print a panel."""
+        if self.console:
+            self.console.print(Panel(content, title=title))
+        else:
+            print(f"=== {title} ===")
+            print(content)
+
+    def _print_markdown(self, content: str):
+        """Print markdown content."""
+        if self.console:
+            self.console.print(Markdown(content))
+        else:
+            print(content)
+
+    def register_tools(self):
+        """Register all tools with the registry."""
+        registry = get_registry()
+
+        # File tools
+        registry.register(ReadFileTool())
+        registry.register(WriteFileTool())
+        registry.register(ListDirectoryTool())
+        registry.register(FindFilesTool())
+        registry.register(DeleteFileTool())
+        registry.register(DiskUsageTool())
+
+        # Terminal tools
+        registry.register(BashTool())
+        registry.register(RunScriptTool())
+        registry.register(CreateTempFileTool())
+
+        # System tools
+        registry.register(GetSystemInfoTool())
+        registry.register(OpenAppTool())
+        registry.register(GetEnvironmentTool())
+        registry.register(SetEnvironmentTool())
+        registry.register(GetClipboardTool())
+        registry.register(SetClipboardTool())
+
+    async def initialize(self, api_key: Optional[str] = None):
+        """Initialize the CLI and agent."""
+        self.register_tools()
+        self.agent = create_jarvis(api_key=api_key)
+        await self.agent.start()
+
+    def print_banner(self):
+        """Print the JARVIS banner."""
+        banner = """
+╔══════════════════════════════════════════════════════╗
+║                                                      ║
+║     ██╗    ██╗ █████╗ ██████╗ ███╗   ██╗██╗  ██╗ ║
+║     ██║    ██║██╔══██╗██╔══██╗████╗  ██║██║ ██╔╝ ║
+║     ██║ █╗ ██║███████║██████╔╝██╔██╗ ██║█████╔╝  ║
+║     ██║███╗██║██╔══██║██╔══██╗██║╚██╗██║██╔═██╗  ║
+║     ╚███╔███╔╝██║  ██║██║  ██║██║ ╚████║██║  ██╗ ║
+║      ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝ ║
+║                                                      ║
+║   Just A Rather Very Intelligent System              ║
+║                                                      ║
+╚══════════════════════════════════════════════════════╝
+        """
+        self._print(banner, style="bold blue")
+
+    def print_help(self):
+        """Print help information."""
+        help_text = """
+# JARVIS Commands
+
+## Direct Commands
+- `help` - Show this help message
+- `tools` - List available tools
+- `status` - Show agent status
+- `memory` - Show stored memory
+- `clear` - Clear the screen
+- `exit` / `quit` - Exit JARVIS
+
+## Interacting with JARVIS
+Just type your request naturally! For example:
+- "Read the file at ~/notes.txt"
+- "List the files in the current directory"
+- "Show me system information"
+- "Create a file called hello.py with hello world"
+- "What is my home directory?"
+
+## Tool Commands
+You can also use tools directly:
+- `read <path>` - Read a file
+- `write <path> <content>` - Write a file
+- `ls <path>` - List directory
+- `find <pattern>` - Find files
+- `bash <command>` - Run shell command
+        """
+        self._print_markdown(help_text)
+
+    def print_tools(self):
+        """Print available tools."""
+        registry = get_registry()
+        tools = registry.get_all()
+
+        if self.console:
+            table = Table(title="Available Tools")
+            table.add_column("Name", style="cyan")
+            table.add_column("Category", style="green")
+            table.add_column("Description")
+
+            for tool in tools:
+                table.add_row(tool.name, tool.category, tool.description)
+
+            self.console.print(table)
+        else:
+            self._print("=== Available Tools ===")
+            for tool in tools:
+                self._print(f"  {tool.name}: {tool.description}")
+
+    def print_status(self):
+        """Print agent status."""
+        if not self.agent:
+            self._print("Agent not initialized", style="red")
+            return
+
+        summary = self.agent.get_history_summary()
+
+        if self.console:
+            table = Table(title="JARVIS Status")
+            table.add_column("Metric", style="cyan")
+            table.add_column("Value", style="green")
+
+            table.add_row("Status", "Running" if self.agent.is_running else "Stopped")
+            table.add_row("Total Messages", str(summary.get("total_messages", 0)))
+            table.add_row("User Messages", str(summary.get("user_messages", 0)))
+            table.add_row("Assistant Messages", str(summary.get("assistant_messages", 0)))
+            table.add_row("Tool Calls", str(summary.get("tool_calls", 0)))
+
+            self.console.print(table)
+        else:
+            self._print("=== JARVIS Status ===")
+            self._print(f"Status: {'Running' if self.agent.is_running else 'Stopped'}")
+            self._print(f"Total Messages: {summary.get('total_messages', 0)}")
+
+    def print_memory(self):
+        """Print stored memory."""
+        if not self.agent:
+            self._print("Agent not initialized", style="red")
+            return
+
+        memory_str = self.agent.memory.format_for_prompt()
+
+        if memory_str:
+            self._print_panel("Long-term Memory", memory_str)
+        else:
+            self._print("No memory stored yet.", style="yellow")
+
+    async def handle_direct_command(self, command: str) -> bool:
+        """
+        Handle a direct command (starting with / or specific keywords).
+
+        Returns:
+            True if command was handled, False otherwise
+        """
+        cmd = command.strip().lower()
+
+        if cmd in ["help", "/help", "-h", "--help"]:
+            self.print_help()
+            return True
+
+        if cmd in ["tools", "/tools"]:
+            self.print_tools()
+            return True
+
+        if cmd in ["status", "/status"]:
+            self.print_status()
+            return True
+
+        if cmd in ["memory", "/memory"]:
+            self.print_memory()
+            return True
+
+        if cmd in ["clear", "/clear", "cls"]:
+            if self.console:
+                self.console.clear()
+            else:
+                import os
+                os.system('cls' if os.name == 'nt' else 'clear')
+            return True
+
+        if cmd in ["exit", "quit", "/exit", "/quit", "q"]:
+            await self.shutdown()
+            return True
+
+        return False
+
+    async def shutdown(self):
+        """Shutdown the CLI."""
+        self._running = False
+        if self.agent:
+            await self.agent.stop()
+        self._print("Goodbye, sir.", style="bold blue")
+
+    async def run(self):
+        """Run the CLI."""
+        self.print_banner()
+
+        # Initialize if needed
+        if not self.agent:
+            await self.initialize()
+
+        self._running = True
+
+        self._print("\nType 'help' for available commands or just ask me anything!\n")
+
+        while self._running:
+            try:
+                # Get input
+                if self.console:
+                    user_input = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: Prompt.ask("[bold cyan]You[/bold cyan]")
+                    )
+                else:
+                    user_input = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: input("You: ")
+                    )
+
+                if not user_input.strip():
+                    continue
+
+                # Check for direct commands
+                if await self.handle_direct_command(user_input):
+                    continue
+
+                # Process through agent
+                self._print("\n[JARVIS] Processing...", style="yellow")
+
+                response = await self.agent.process(user_input)
+
+                self._print(f"\n[bold blue]JARVIS:[/bold blue] {response}\n")
+
+            except KeyboardInterrupt:
+                self._print("\n", end="")
+                break
+            except Exception as e:
+                self._print(f"\nError: {e}", style="red")
+
+        await self.shutdown()
+
+
+async def run_cli(api_key: Optional[str] = None):
+    """Run the JARVIS CLI."""
+    cli = JarvisCLI()
+    await cli.initialize(api_key=api_key)
+    await cli.run()
+
+
+if __name__ == "__main__":
+    # Allow passing API key as argument
+    api_key = None
+    if len(sys.argv) > 1:
+        api_key = sys.argv[1]
+
+    asyncio.run(run_cli(api_key=api_key))

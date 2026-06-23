@@ -1,0 +1,41 @@
+# JARVIS Requirements
+# Core dependencies
+
+# LLM/AI
+google-genai>=0.8.0
+
+# Audio I/O
+sounddevice>=0.4.0
+
+# Voice/Speech (Speech-to-Text & Text-to-Speech)
+gTTS>=2.4.0
+pydub>=0.25.1
+edge-tts>=6.1.0
+pyttsx3>=2.90
+SpeechRecognition>=3.10.0
+
+# Vision/Image processing
+Pillow>=10.0.0
+opencv-python>=4.8.0
+mss>=9.0.0
+numpy>=1.24.0
+
+# System automation
+pyautogui>=0.9.54
+pyperclip>=1.8.0
+
+# Browser automation
+selenium>=4.15.0
+webdriver-manager>=4.0.0
+
+# Web utilities
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# CLI/UI
+rich>=13.0.0
+prompt_toolkit>=3.0.0
+
+# Development
+# pytest>=7.0.0
+# pytest-asyncio>=0.21.0
