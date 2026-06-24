@@ -13,20 +13,31 @@ A cross-platform personal AI assistant combining the best features from Mark-XXX
 - **Planning**: LLM-driven multi-step task planning
 - **Error Recovery**: Automatic retry and replanning on failure
 
+## AI Provider
+
+JARVIS uses **Groq** for fast LLM inference by default. Free tier available.
+
+### Getting a Groq API Key
+
+1. Go to: https://console.groq.com/keys
+2. Sign up for a free account
+3. Create an API key
+4. Copy the key (starts with `gsk_`)
+
 ## Installation
 
 ### Prerequisites
 
 - Python 3.11+
 - pip
-- (Optional) Gemini API key for LLM functionality
+- Groq API key (free at https://console.groq.com)
 
 ### Setup
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd JARVIS
+git clone https://github.com/Roopank26/JARVIS-V4.git
+cd JARVIS-V4
 ```
 
 2. Create a virtual environment (recommended):
@@ -42,10 +53,15 @@ source venv/bin/activate  # Linux/macOS
 pip install -r requirements.txt
 ```
 
-4. Configure API key (optional):
+4. Configure API key:
 ```bash
 mkdir -p ~/.jarvis
-echo '{"gemini_api_key": "your-api-key"}' > ~/.jarvis/api_keys.json
+echo '{"groq_api_key": "gsk_your_key_here"}' > ~/.jarvis/api_keys.json
+```
+
+Or use environment variable:
+```bash
+export GROQ_API_KEY=gsk_your_key_here
 ```
 
 ## Usage

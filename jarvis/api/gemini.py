@@ -1,17 +1,24 @@
 """
-Gemini API client for JARVIS.
+LLM API client for JARVIS.
+Supports Groq (primary) with Gemini fallback.
 """
 
 import os
 import json
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
+logger = logging.getLogger(__name__)
 
-class GeminiClient:
+# Default model for Groq
+DEFAULT_MODEL = "llama-3.3-70b-versatile"
+
+
+class GroqClient:
     """
-    Client for Google's Gemini API.
-    Supports both text and multimodal interactions.
+    Client for Groq API.
+    Fast inference with llama models.
     """
 
     def __init__(self, api_key: Optional[str] = None):
@@ -21,7 +28,7 @@ class GeminiClient:
     def _load_api_key(self) -> Optional[str]:
         """Load API key from config or environment."""
         # Check environment
-        api_key = os.environ.get("GEMINI_API_KEY")
+        api_key = os.environ.get("GROQ_API_KEY")
         if api_key:
             return api_key
 
@@ -33,6 +40,16 @@ class GeminiClient:
             try:
                 with open(config_path, "r") as f:
                     keys = json.load(f)
+                    return keys.get("groq_api_key") or keys.get("groq")
+            except Exception:
+                pass
+
+        # Legacy Gemini key check
+        if config_path.exists():
+            try:
+                with open(config_path, "r") as f:
+                    keys = json.load(f)
+                    # Also accept gemini key as fallback
                     return keys.get("gemini_api_key")
             except Exception:
                 pass
@@ -43,10 +60,11 @@ class GeminiClient:
         """Ensure the API client is initialized."""
         if self._client is None and self.api_key:
             try:
-                from google import genai
-                self._client = genai.Client(api_key=self.api_key)
+                from groq import Groq
+                self._client = Groq(api_key=self.api_key)
+                logger.info("[Groq] Client initialized")
             except ImportError:
-                print("[Gemini] google-genai not installed")
+                logger.warning("[Groq] groq package not installed. Run: pip install groq")
                 return None
         return self._client
 
@@ -56,7 +74,7 @@ class GeminiClient:
         prompt: str = "",
         temperature: float = 0.7,
         max_tokens: int = 2048,
-        model: str = "gemini-2.0-flash"
+        model: str = DEFAULT_MODEL
     ) -> str:
         """
         Generate a text response.
@@ -76,21 +94,22 @@ class GeminiClient:
             return "API client not available"
 
         try:
-            full_prompt = f"{system}\n\n{prompt}" if system else prompt
+            messages = []
+            if system:
+                messages.append({"role": "system", "content": system})
+            messages.append({"role": "user", "content": prompt})
 
-            response = client.models.generate_content(
+            response = client.chat.completions.create(
                 model=model,
-                contents=full_prompt,
-                config={
-                    "temperature": temperature,
-                    "max_output_tokens": max_tokens,
-                }
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens
             )
 
-            return response.text
+            return response.choices[0].message.content
 
         except Exception as e:
-            print(f"[Gemini] Generation error: {e}")
+            logger.error(f"[Groq] Generation error: {e}")
             return f"Error: {e}"
 
     async def generate_with_history(
@@ -99,13 +118,13 @@ class GeminiClient:
         system: str = "",
         temperature: float = 0.7,
         max_tokens: int = 2048,
-        model: str = "gemini-2.0-flash"
+        model: str = DEFAULT_MODEL
     ) -> str:
         """
         Generate response with conversation history.
 
         Args:
-            messages: List of {"role": "user"/"model", "content": "..."}
+            messages: List of {"role": "user"/"assistant", "content": "..."}
             system: System prompt
             temperature: Response creativity
             max_tokens: Maximum response length
@@ -119,33 +138,28 @@ class GeminiClient:
             return "API client not available"
 
         try:
-            contents = []
+            chat_messages = []
 
-            for msg in messages:
-                role = "user" if msg["role"] == "user" else "model"
-                contents.append({
-                    "role": role,
-                    "parts": [msg["content"]]
-                })
-
-            config = {
-                "temperature": temperature,
-                "max_output_tokens": max_tokens,
-            }
-
+            # Add system prompt
             if system:
-                config["system_instruction"] = system
+                chat_messages.append({"role": "system", "content": system})
 
-            response = client.models.generate_content(
+            # Add conversation history
+            for msg in messages:
+                role = "user" if msg["role"] == "user" else "assistant"
+                chat_messages.append({"role": role, "content": msg["content"]})
+
+            response = client.chat.completions.create(
                 model=model,
-                contents=contents,
-                config=config
+                messages=chat_messages,
+                temperature=temperature,
+                max_tokens=max_tokens
             )
 
-            return response.text
+            return response.choices[0].message.content
 
         except Exception as e:
-            print(f"[Gemini] Generation error: {e}")
+            logger.error(f"[Groq] Generation error: {e}")
             return f"Error: {e}"
 
     def is_available(self) -> bool:
@@ -153,27 +167,43 @@ class GeminiClient:
         return self._ensure_client() is not None and self.api_key is not None
 
 
+# Backward compatibility alias
+GeminiClient = GroqClient
+
+
 class SimpleLLMClient:
     """
     Simple LLM client that can work with different backends.
-    Falls back to a simple echo if no API is available.
+    Defaults to Groq, falls back to echo for testing.
     """
 
-    def __init__(self, backend: str = "gemini", **kwargs):
+    def __init__(self, backend: str = "groq", **kwargs):
         self.backend = backend.lower()
         self.config = kwargs
 
-        if backend == "gemini":
-            self._client = GeminiClient(api_key=kwargs.get("api_key"))
+        if backend == "groq":
+            self._client = GroqClient(api_key=kwargs.get("api_key"))
+        elif backend == "gemini":
+            # Legacy Gemini support (if key exists)
+            gemini_key = os.environ.get("GEMINI_API_KEY")
+            if gemini_key:
+                try:
+                    from google import genai
+                    self._client = GeminiClient(api_key=gemini_key)
+                except ImportError:
+                    self._client = None
+            else:
+                self._client = GroqClient(api_key=kwargs.get("api_key"))
         else:
-            self._client = None
+            self._client = GroqClient(api_key=kwargs.get("api_key"))
 
     async def generate(
         self,
         system: str = "",
         prompt: str = "",
         temperature: float = 0.7,
-        max_tokens: int = 2048
+        max_tokens: int = 2048,
+        model: str = DEFAULT_MODEL
     ) -> str:
         """Generate a response."""
         if hasattr(self._client, "generate"):
@@ -181,7 +211,8 @@ class SimpleLLMClient:
                 system=system,
                 prompt=prompt,
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                model=model
             )
 
         # Fallback for testing
@@ -192,7 +223,8 @@ class SimpleLLMClient:
         messages: List[Dict[str, str]],
         system: str = "",
         temperature: float = 0.7,
-        max_tokens: int = 2048
+        max_tokens: int = 2048,
+        model: str = DEFAULT_MODEL
     ) -> str:
         """Generate response with history."""
         if hasattr(self._client, "generate_with_history"):
@@ -200,7 +232,8 @@ class SimpleLLMClient:
                 messages=messages,
                 system=system,
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                model=model
             )
 
         # Fallback

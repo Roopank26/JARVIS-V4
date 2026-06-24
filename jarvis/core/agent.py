@@ -254,8 +254,8 @@ def create_jarvis(
     if api_key:
         config.set_api_key("gemini", api_key)
 
-    # Create LLM client
-    llm = SimpleLLMClient(backend="gemini", api_key=api_key)
+    # Create LLM client (default to Groq)
+    llm = SimpleLLMClient(backend="groq", api_key=api_key)
 
     # Create agent
     agent = JarvisAgent(

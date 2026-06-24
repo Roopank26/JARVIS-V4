@@ -43,8 +43,8 @@ class Config:
     def _set_defaults(self):
         """Set default configuration values."""
         defaults = {
-            "model": "gemini-2.0-flash",
-            "live_model": "models/gemini-2.0-flash",
+            "model": "llama-3.3-70b-versatile",
+            "live_model": "llama-3.3-70b-versatile",
             "voice_enabled": True,
             "language": "en",
             "voice_name": "Charon",
@@ -93,11 +93,11 @@ class Config:
 
     @property
     def model(self) -> str:
-        return self.get("model", "gemini-2.0-flash")
+        return self.get("model", "llama-3.3-70b-versatile")
 
     @property
     def live_model(self) -> str:
-        return self.get("live_model", "models/gemini-2.0-flash")
+        return self.get("live_model", "llama-3.3-70b-versatile")
 
     @property
     def voice_enabled(self) -> bool:

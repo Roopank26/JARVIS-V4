@@ -1,8 +1,8 @@
 # JARVIS Requirements
 # Core dependencies
 
-# LLM/AI
-google-genai>=0.8.0
+# LLM/AI - Groq (primary)
+groq>=0.4.0
 
 # Audio I/O
 sounddevice>=0.4.0
