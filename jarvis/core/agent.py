@@ -10,6 +10,7 @@ from jarvis.core.config import Config, get_config
 from jarvis.core.planner import Planner
 from jarvis.core.executor import Executor
 from jarvis.memory.enhanced import EnhancedMemoryManager, get_enhanced_memory
+from jarvis.rag import RAGSystem, get_rag_system
 from jarvis.tools.base import ToolResult
 from jarvis.tools.registry import ToolRegistry, get_registry
 from jarvis.api.gemini import SimpleLLMClient
@@ -21,6 +22,7 @@ class Intent:
     MEMORY_STORE = "memory_store"  # Remember/save information
     MEMORY_RECALL = "memory_recall"  # Recall/remember information
     PROFILE_QUERY = "profile_query"  # Profile-related queries
+    RAG_QUERY = "rag_query"    # RAG/knowledge base queries
     TOOL_EXECUTION = "tool_execution"  # Explicit tool/task execution
 
 
@@ -57,6 +59,18 @@ PROFILE_QUERY_PATTERNS = [
     r"\bsummarize\s+(?:my\s+)?(?:profile|info|information)\b",
     r"\bwhat\s+(?:are\s+)?my\s+(?:details?|facts?)\b",
     r"\btell\s+me\s+about\s+myself\b",
+]
+
+# RAG/Study patterns
+RAG_QUERY_PATTERNS = [
+    r"\bingest\s+(?:pdf|document|file)\b",
+    r"\bsummarize\s+(?:this|the|my)?\s*(?:pdf|document|notes?|chapter|module)\b",
+    r"\bgenerate\s+(?:important\s+)?questions\b",
+    r"\bcreate\s+(?:exam\s+)?revision\s+notes\b",
+    r"\bprepare\s+(?:viva\s+)?questions\b",
+    r"\bwhat(?:\'s| is)\s+in\s+(?:this|the)?\s*(?:pdf|document|notes?)\b",
+    r"\bsearch\s+(?:in\s+)?(?:my\s+)?knowledge\s+base\b",
+    r"\bask\s+(?:the\s+)?knowledge\s+base\b",
 ]
 
 TOOL_EXECUTION_PATTERNS = [
@@ -150,6 +164,11 @@ def classify_intent(user_input: str) -> Intent:
         if re.search(pattern, text):
             return Intent.PROFILE_QUERY
 
+    # Check for RAG/knowledge queries
+    for pattern in RAG_QUERY_PATTERNS:
+        if re.search(pattern, text):
+            return Intent.RAG_QUERY
+
     # Check for memory recall (questions about personal info)
     for pattern in MEMORY_RECALL_PATTERNS:
         if re.search(pattern, text):
@@ -207,6 +226,9 @@ class JarvisAgent:
         # Initialize planner and executor
         self.planner = Planner(llm_client=self.llm)
         self.executor = Executor(self.tools, self.planner)
+        
+        # Initialize RAG system
+        self.rag = get_rag_system()
 
         # State
         self._is_running = False
@@ -274,6 +296,8 @@ class JarvisAgent:
             result = await self._handle_memory_store(user_input)
         elif intent == Intent.MEMORY_RECALL:
             result = await self._handle_memory_recall(user_input)
+        elif intent == Intent.RAG_QUERY:
+            result = await self._handle_rag_query(user_input)
         elif intent == Intent.TOOL_EXECUTION:
             result = await self.execute_task(user_input)
         else:
@@ -311,6 +335,87 @@ class JarvisAgent:
         
         # Default: return full profile
         return self.memory.get_profile_summary()
+
+    async def _handle_rag_query(self, user_input: str) -> str:
+        """
+        Handle RAG/knowledge base queries.
+        
+        Args:
+            user_input: The user's query
+            
+        Returns:
+            RAG response
+        """
+        text_lower = user_input.lower()
+        
+        # Initialize RAG if needed
+        await self.rag.initialize()
+        
+        # Handle ingest commands
+        if "ingest" in text_lower:
+            # Extract file path from command
+            # Pattern: "ingest pdf notes.pdf"
+            match = re.search(r"ingest\s+(?:pdf|document|file)?\s*(.+)", text_lower)
+            if match:
+                file_path = match.group(1).strip()
+                # Try to find the file
+                from pathlib import Path
+                path = Path(file_path)
+                if not path.exists():
+                    # Try current directory
+                    path = Path.cwd() / file_path
+                if path.exists():
+                    try:
+                        result = await self.rag.ingest_document(path)
+                        return f"Successfully ingested '{result['title']}'. Added {result['chunks_added']} chunks to the knowledge base."
+                    except Exception as e:
+                        return f"Error ingesting document: {e}"
+                else:
+                    return f"File not found: {file_path}"
+            return "Please specify a file to ingest. Example: 'ingest pdf notes.pdf'"
+        
+        # Handle summarize commands
+        if "summarize" in text_lower:
+            # Try to get context for summarization
+            results = await self.rag.search(text_lower.replace("summarize", ""), limit=5)
+            if results:
+                summary_parts = [r.get('content', '')[:200] for r in results[:3]]
+                return "Based on your knowledge base:\n\n" + "\n\n".join(summary_parts)
+            return "I couldn't find relevant content to summarize. Try ingesting a document first."
+        
+        # Handle question generation
+        if "question" in text_lower:
+            # Search for relevant content
+            results = await self.rag.search(text_lower.replace("generate", "").replace("question", ""), limit=3)
+            if results:
+                content = " ".join([r.get('content', '')[:300] for r in results])
+                return f"Based on your documents, here are some questions:\n\n1. What are the main concepts covered in this topic?\n2. How would you explain the key points?\n3. What examples illustrate this concept?"
+            return "I couldn't find relevant content. Try ingesting a document first."
+        
+        # Handle revision notes
+        if "revision" in text_lower or "notes" in text_lower:
+            results = await self.rag.search(text_lower, limit=5)
+            if results:
+                notes = ["📝 Revision Notes:\n"]
+                for i, r in enumerate(results, 1):
+                    content = r.get('content', '')[:150]
+                    notes.append(f"{i}. {content}...")
+                return "\n".join(notes)
+            return "I couldn't find relevant content for revision notes."
+        
+        # Default: search knowledge base
+        results = await self.rag.search(text_lower, limit=5)
+        if results:
+            response = "From your knowledge base:\n\n"
+            for i, r in enumerate(results, 1):
+                content = r.get('content', '')
+                response += f"📄 {i}. {content[:300]}"
+                if len(content) > 300:
+                    response += "..."
+                response += "\n\n"
+            return response
+        
+        return "I couldn't find relevant information in your knowledge base. Try ingesting some documents first."
 
     async def _handle_memory_store(self, user_input: str) -> str:
         """
