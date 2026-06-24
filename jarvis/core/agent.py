@@ -25,6 +25,7 @@ class Intent:
     RAG_QUERY = "rag_query"    # RAG/knowledge base queries
     PROVIDER_QUERY = "provider_query"  # Provider/model status queries
     VOICE_STATUS = "voice_status"  # Voice system status queries
+    REPO_QUERY = "repo_query"  # Repository analysis queries
     TOOL_EXECUTION = "tool_execution"  # Explicit tool/task execution
 
 
@@ -128,6 +129,21 @@ TOOL_EXECUTION_PATTERNS = [
     r"^\s*docker\s+",
 ]
 
+# Repository analysis patterns
+REPO_PATTERNS = [
+    r"\banalyze\s+(?:this\s+)?repository\b",
+    r"\bshow\s+(?:the\s+)?architecture\b",
+    r"\bfind\s+(?:all\s+)?TODO(?:s)?\b",
+    r"\bfind\s+security\s+(?:issues?|vulnerabilities)\b",
+    r"\bfind\s+duplicat(?:e|ed)\s+code\b",
+    r"\bfind\s+dead\s+code\b",
+    r"\bshow\s+dependency\s+graph\b",
+    r"\bgenerate\s+(?:repo|repository)\s+(?:docs?|documentation)\b",
+    r"\bcreate\s+UML\s+(?:diagram|overview)\b",
+    r"\breview\s+(?:this\s+)?repository\b",
+    r"\bscan\s+repository\b",
+]
+
 # Questions that should stay in chat mode
 CHAT_ONLY_PATTERNS = [
     r"^(what is|what's)\s",
@@ -205,6 +221,11 @@ def classify_intent(user_input: str) -> Intent:
     for pattern in PROVIDER_QUERY_PATTERNS:
         if re.search(pattern, text):
             return Intent.PROVIDER_QUERY
+
+    # Check for repository analysis queries
+    for pattern in REPO_PATTERNS:
+        if re.search(pattern, text):
+            return Intent.REPO_QUERY
 
     # Check for memory recall (questions about personal info)
     for pattern in MEMORY_RECALL_PATTERNS:
@@ -337,6 +358,8 @@ class JarvisAgent:
             result = await self._handle_rag_query(user_input)
         elif intent == Intent.VOICE_STATUS:
             result = await self._handle_voice_status(user_input)
+        elif intent == Intent.REPO_QUERY:
+            result = await self._handle_repo_query(user_input)
         elif intent == Intent.PROVIDER_QUERY:
             result = await self._handle_provider_query(user_input)
         elif intent == Intent.TOOL_EXECUTION:
@@ -458,17 +481,113 @@ class JarvisAgent:
         
         return "I couldn't find relevant information in your knowledge base. Try ingesting some documents first."
 
+    async def _handle_repo_query(self, user_input: str) -> str:
+        """Handle repository analysis queries."""
+        from pathlib import Path
+
+        text = user_input.lower()
+
+        try:
+            from jarvis.repo.analyzer import RepositoryAnalyzer
+            from jarvis.repo.security import SecurityScanner
+
+            # Determine the repo path (current directory)
+            repo_path = Path.cwd()
+
+            analyzer = RepositoryAnalyzer(repo_path)
+            scanner = SecurityScanner()
+
+            # Route based on query
+            if "analyze repository" in text or "scan repository" in text:
+                result = analyzer.analyze()
+                return analyzer.format_summary()
+
+            elif "architecture" in text or "show architecture" in text:
+                arch = analyzer.get_architecture()
+                lines = ["[Repository Architecture]", "=" * 40, ""]
+                lines.append("Modules:")
+                for module, files in arch.get("modules", {}).items():
+                    lines.append(f"  📁 {module}/")
+                    for f in files[:5]:
+                        lines.append(f"      - {f}")
+                return "\n".join(lines)
+
+            elif "todo" in text or "find todos" in text:
+                todos = analyzer.find_todos()
+                if not todos:
+                    return "No TODO comments found."
+                lines = [f"[TODOs Found: {len(todos)}]", "=" * 40, ""]
+                for todo in todos[:20]:
+                    lines.append(f"[{todo['file']}:{todo['line']}] {todo['content']}")
+                return "\n".join(lines)
+
+            elif "security" in text or "vulnerabilit" in text:
+                issues = scanner.scan_directory(str(repo_path))
+                if not issues:
+                    return "No security issues found. Your code looks secure! 🔒"
+                summary = scanner.get_summary()
+                return scanner.format_report()
+
+            elif "dependency" in text:
+                deps = analyzer.get_dependencies()
+                lines = ["[Dependencies]", "=" * 40, ""]
+                for file, imports in list(deps.items())[:20]:
+                    if imports:
+                        lines.append(f"📄 {file}:")
+                        for imp in imports[:10]:
+                            lines.append(f"    - {imp}")
+                return "\n".join(lines)
+
+            elif "documentation" in text or "generate docs" in text:
+                return analyzer.generate_documentation()
+
+            elif "review repository" in text:
+                # Full review
+                stats = analyzer.get_statistics()
+                todos = analyzer.find_todos()
+                security = scanner.scan_directory(str(repo_path))
+                summary = scanner.get_summary()
+
+                lines = [
+                    "[Repository Review]",
+                    "=" * 50,
+                    "",
+                    f"📁 Files: {stats.total_files}",
+                    f"📝 Lines: {stats.total_lines:,}",
+                    f"⚙️ Functions: {stats.total_functions}",
+                    f"🏛️ Classes: {stats.total_classes}",
+                    f"📋 TODOs: {len(todos)}",
+                    f"⚠️ Security Issues: {summary['total']}",
+                    "",
+                ]
+
+                if summary['by_severity']['critical'] > 0 or summary['by_severity']['high'] > 0:
+                    lines.append("⚠️ ACTION REQUIRED: Fix critical/high security issues!")
+                else:
+                    lines.append("✅ Code quality looks good!")
+
+                return "\n".join(lines)
+
+            else:
+                # Default: run full analysis
+                return analyzer.format_summary()
+
+        except ImportError:
+            return "Repository analysis not available. Ensure jarvis.repo module is installed."
+        except Exception as e:
+            return f"Repository analysis error: {e}"
+
     async def _handle_voice_status(self, user_input: str) -> str:
         """Handle voice system status queries."""
         try:
             from jarvis.voice.voice_runtime import get_voice_runtime, VoiceRuntime
-            
+
             runtime = get_voice_runtime()
             if runtime is None:
                 return "Voice system not initialized. Run: python setup_voice.sh (Linux) or setup_voice.ps1 (Windows)"
-            
+
             return runtime.format_status()
-            
+
         except ImportError:
             return "Voice runtime not available. Install dependencies: pip install faster-whisper sounddevice"
         except Exception as e:
