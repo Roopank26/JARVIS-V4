@@ -107,7 +107,7 @@ TOOL_EXECUTION_PATTERNS = [
     r"^\s*(write|create|edit|modify)\s+(file|document)",
     r"^\s*(delete|remove)\s+(file|document)",
     r"^\s*(list|show)\s+(files|directory|folder)",
-    r"^\s*(search|find|grep)\s+",
+    r"^\s*(search|grep)\s+[^T]",
     r"^\s*(create|delete)\s+directory",
     # Terminal
     r"^\s*(run|execute|start)\s+(command|script|program)",
@@ -133,7 +133,7 @@ TOOL_EXECUTION_PATTERNS = [
 REPO_PATTERNS = [
     r"\banalyze\s+(?:this\s+)?repository\b",
     r"\bshow\s+(?:the\s+)?architecture\b",
-    r"\bfind\s+(?:all\s+)?TODO(?:s)?\b",
+    r"\bfind\s+(?:all\s+)?(?:TODO|FIXME|HACK)s?\b",
     r"\bfind\s+security\s+(?:issues?|vulnerabilities)\b",
     r"\bfind\s+duplicat(?:e|ed)\s+code\b",
     r"\bfind\s+dead\s+code\b",
@@ -224,7 +224,7 @@ def classify_intent(user_input: str) -> Intent:
 
     # Check for repository analysis queries
     for pattern in REPO_PATTERNS:
-        if re.search(pattern, text):
+        if re.search(pattern, text, re.IGNORECASE):
             return Intent.REPO_QUERY
 
     # Check for memory recall (questions about personal info)
