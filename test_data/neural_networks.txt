@@ -1,0 +1,61 @@
+# Neural Networks: A Comprehensive Overview
+
+## Introduction
+
+Neural networks are computing systems inspired by biological neural networks that constitute animal brains. These systems learn to perform tasks by considering examples, generally without being programmed with task-specific rules.
+
+## History
+
+The first neural network, the perceptron, was introduced by Frank Rosenblatt in 1957. It was a simple binary classifier.
+
+## Architecture
+
+### Neurons
+A neuron is the basic unit of a neural network. It receives inputs, processes them using weighted connections, applies an activation function, and produces an output.
+
+### Layers
+Neural networks consist of three types of layers:
+1. Input Layer: Receives the initial data
+2. Hidden Layers: Process information through weighted connections
+3. Output Layer: Produces the final prediction
+
+### Activation Functions
+Common activation functions include:
+- ReLU: f(x) = max(0, x)
+- Sigmoid: f(x) = 1 / (1 + e^(-x))
+- Tanh: f(x) = (2 / (1 + e^(-2x))) - 1
+
+## Types of Neural Networks
+
+### Feedforward Neural Networks
+The simplest type where data flows in one direction from input to output.
+
+### Convolutional Neural Networks (CNN)
+Specialized for processing grid-like data such as images.
+
+### Recurrent Neural Networks (RNN)
+Designed for sequential data with feedback connections.
+
+### Transformer Networks
+Based on self-attention mechanisms, revolutionizing NLP.
+
+## Training
+
+### Backpropagation
+The algorithm used to train neural networks by propagating errors backward through the network.
+
+### Gradient Descent
+An optimization algorithm that minimizes the loss function.
+
+## Applications
+Neural networks power many modern AI applications:
+- Image recognition and computer vision
+- Natural language processing
+- Speech recognition
+- Autonomous vehicles
+
+## Deep Learning
+Deep learning refers to neural networks with many hidden layers. These networks can learn complex representations of data.
+
+## Conclusion
+Neural networks have transformed artificial intelligence.
