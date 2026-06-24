@@ -7,7 +7,7 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any, AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -53,6 +53,7 @@ class BaseLLMProvider(ABC):
         self.config = config
         self._available = True
         self._last_error: Optional[str] = None
+        self._available_models: List[str] = []
 
     @property
     def is_available(self) -> bool:
@@ -63,6 +64,11 @@ class BaseLLMProvider(ABC):
     def last_error(self) -> Optional[str]:
         """Get last error message."""
         return self._last_error
+
+    @property
+    def available_models(self) -> List[str]:
+        """Get available models for this provider."""
+        return self._available_models
 
     @abstractmethod
     async def generate(self, prompt: str, **kwargs) -> LLMResponse:
@@ -166,7 +172,7 @@ class OllamaProvider(BaseLLMProvider):
             raise
 
     async def check_health(self) -> bool:
-        """Check if Ollama is running."""
+        """Check if Ollama is running and store available models."""
         try:
             import aiohttp
             async with aiohttp.ClientSession() as session:
@@ -174,6 +180,7 @@ class OllamaProvider(BaseLLMProvider):
                     if resp.status == 200:
                         data = await resp.json()
                         models = data.get("models", [])
+                        self._available_models = [m["name"] for m in models]
                         logger.info(f"Ollama available, {len(models)} models")
                         return True
                     return False
@@ -182,6 +189,14 @@ class OllamaProvider(BaseLLMProvider):
 
     async def list_models(self) -> List[str]:
         """List available Ollama models."""
+        if self._available_models:
+            return self._available_models
+        # Refresh if not cached
+        self._available_models = await self._fetch_models()
+        return self._available_models
+
+    async def _fetch_models(self) -> List[str]:
+        """Fetch models from Ollama API."""
         try:
             import aiohttp
             async with aiohttp.ClientSession() as session:
@@ -307,12 +322,21 @@ class ProviderManager:
     """
     Manages multiple LLM providers with automatic fallback.
     Priority: Ollama (local) → Groq (cloud) → OpenAI → Anthropic
+    
+    JARVIS uses local models first and only falls back to cloud when local is unavailable.
     """
+
+    # Provider priority order (local first)
+    PROVIDER_PRIORITY = [
+        ProviderType.OLLAMA,  # Local - highest priority
+        ProviderType.GROQ,   # Cloud fallback
+    ]
 
     def __init__(self):
         self.providers: Dict[ProviderType, BaseLLMProvider] = {}
         self.primary_provider: Optional[ProviderType] = None
         self._initialized = False
+        self._startup_diagnostics: Dict[str, Any] = {}
 
     def add_provider(self, provider: BaseLLMProvider) -> None:
         """Add a provider to the manager."""
@@ -323,26 +347,92 @@ class ProviderManager:
         if provider_type in self.providers:
             self.primary_provider = provider_type
 
-    async def initialize(self) -> bool:
-        """Initialize providers in priority order."""
-        # Try Ollama first (local)
+    def set_model(self, model: str) -> bool:
+        """
+        Switch to a specific model across providers.
+        If model exists in Ollama, use Ollama. Otherwise, use Groq.
+        """
+        # Check if model is in Ollama
         if ProviderType.OLLAMA in self.providers:
-            if await self.providers[ProviderType.OLLAMA].check_health():
+            ollama = self.providers[ProviderType.OLLAMA]
+            if model in ollama.available_models or model == ollama.model:
+                ollama.model = model
                 self.primary_provider = ProviderType.OLLAMA
-                logger.info("Using Ollama as primary provider")
-                self._initialized = True
+                logger.info(f"Switched to Ollama model: {model}")
                 return True
 
-        # Fall back to Groq
-        if ProviderType.GROQ in self.providers:
-            if await self.providers[ProviderType.GROQ].check_health():
-                self.primary_provider = ProviderType.GROQ
-                logger.info("Using Groq as primary provider")
-                self._initialized = True
+        # Check if model is available in any other provider
+        for provider_type, provider in self.providers.items():
+            if hasattr(provider, 'model'):
+                provider.model = model
+                self.primary_provider = provider_type
+                logger.info(f"Switched to {provider_type.value} model: {model}")
                 return True
+
+        return False
+
+    async def initialize(self) -> bool:
+        """
+        Initialize providers in priority order (local first).
+        Returns startup diagnostics for logging.
+        """
+        self._startup_diagnostics = {"providers": {}, "primary": None}
+
+        # Check all providers and store their status
+        for provider_type in self.PROVIDER_PRIORITY:
+            if provider_type in self.providers:
+                provider = self.providers[provider_type]
+                try:
+                    is_healthy = await provider.check_health()
+                    self._startup_diagnostics["providers"][provider_type.value] = {
+                        "available": is_healthy,
+                        "model": provider.model,
+                        "models": provider.available_models,
+                    }
+                    logger.info(f"[Provider] {provider_type.value.capitalize()}: {'detected' if is_healthy else 'not available'}")
+                    if is_healthy and self.primary_provider is None:
+                        self.primary_provider = provider_type
+                except Exception as e:
+                    self._startup_diagnostics["providers"][provider_type.value] = {
+                        "available": False,
+                        "error": str(e),
+                    }
+                    logger.warning(f"[Provider] {provider_type.value}: error - {e}")
+
+        # Log startup summary
+        if self.primary_provider:
+            provider = self.providers[self.primary_provider]
+            models = provider.available_models
+            logger.info(f"[Provider] Selected: {self.primary_provider.value}")
+            if models:
+                logger.info(f"[Provider] Models available: {', '.join(models)}")
+            self._startup_diagnostics["primary"] = self.primary_provider.value
+            self._initialized = True
+            return True
 
         self._initialized = False
-        return self._initialized
+        return False
+
+    def get_startup_diagnostics(self) -> Dict[str, Any]:
+        """Get startup diagnostics for logging."""
+        return self._startup_diagnostics
+
+    def format_status(self) -> str:
+        """Format provider status for display."""
+        lines = ["[Provider Status]", "=" * 40]
+
+        for provider_type, provider in self.providers.items():
+            is_primary = provider_type == self.primary_provider
+            status = "✓ PRIMARY" if is_primary else "○ available" if provider.is_available else "✗ unavailable"
+            
+            lines.append(f"\n{provider_type.value.upper()}:")
+            lines.append(f"  Status: {status}")
+            lines.append(f"  Model: {provider.model}")
+            
+            if hasattr(provider, 'available_models') and provider.available_models:
+                lines.append(f"  Available models: {', '.join(provider.available_models)}")
+
+        return "\n".join(lines)
 
     async def generate(self, prompt: str, **kwargs) -> LLMResponse:
         """Generate response using available providers with fallback."""

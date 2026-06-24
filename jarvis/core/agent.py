@@ -23,6 +23,7 @@ class Intent:
     MEMORY_RECALL = "memory_recall"  # Recall/remember information
     PROFILE_QUERY = "profile_query"  # Profile-related queries
     RAG_QUERY = "rag_query"    # RAG/knowledge base queries
+    PROVIDER_QUERY = "provider_query"  # Provider/model status queries
     TOOL_EXECUTION = "tool_execution"  # Explicit tool/task execution
 
 
@@ -71,6 +72,16 @@ RAG_QUERY_PATTERNS = [
     r"\bwhat(?:\'s| is)\s+in\s+(?:this|the)?\s*(?:pdf|document|notes?)\b",
     r"\bsearch\s+(?:in\s+)?(?:my\s+)?knowledge\s+base\b",
     r"\bask\s+(?:the\s+)?knowledge\s+base\b",
+]
+
+# Provider/Model patterns
+PROVIDER_QUERY_PATTERNS = [
+    r"\bprovider\s+status\b",
+    r"\blist\s+models?\b",
+    r"\bswitch\s+provider\b",
+    r"\bwhich\s+(?:model|provider|AI)\b",
+    r"\bcurrent\s+(?:model|provider)\b",
+    r"\bprovider\s+info\b",
 ]
 
 TOOL_EXECUTION_PATTERNS = [
@@ -168,6 +179,11 @@ def classify_intent(user_input: str) -> Intent:
     for pattern in RAG_QUERY_PATTERNS:
         if re.search(pattern, text):
             return Intent.RAG_QUERY
+
+    # Check for provider/model queries
+    for pattern in PROVIDER_QUERY_PATTERNS:
+        if re.search(pattern, text):
+            return Intent.PROVIDER_QUERY
 
     # Check for memory recall (questions about personal info)
     for pattern in MEMORY_RECALL_PATTERNS:
@@ -298,6 +314,8 @@ class JarvisAgent:
             result = await self._handle_memory_recall(user_input)
         elif intent == Intent.RAG_QUERY:
             result = await self._handle_rag_query(user_input)
+        elif intent == Intent.PROVIDER_QUERY:
+            result = await self._handle_provider_query(user_input)
         elif intent == Intent.TOOL_EXECUTION:
             result = await self.execute_task(user_input)
         else:
@@ -416,6 +434,36 @@ class JarvisAgent:
             return response
         
         return "I couldn't find relevant information in your knowledge base. Try ingesting some documents first."
+
+    async def _handle_provider_query(self, user_input: str) -> str:
+        """Handle provider/model queries."""
+        from jarvis.api.providers import get_provider_manager, ProviderType
+
+        text = user_input.lower()
+        manager = get_provider_manager()
+
+        # List models
+        if "list model" in text:
+            if manager.primary_provider == ProviderType.OLLAMA:
+                ollama = manager.providers.get(ProviderType.OLLAMA)
+                if ollama and ollama.available_models:
+                    models = "\n".join(["  - " + m for m in ollama.available_models])
+                    return f"Available models:\n{models}"
+                return "No local models detected. Run `ollama pull <model>` to download."
+            return "List models requires Ollama to be running."
+
+        # Switch provider
+        if "switch provider" in text or "switch to" in text:
+            match = re.search(r"switch.?(?:provider|to)\s+(.+)", text)
+            if match:
+                model = match.group(1).strip()
+                if manager.set_model(model):
+                    return f"Switched to model: {model}"
+                return f"Could not switch to model: {model}"
+            return "Usage: switch provider <model_name>"
+
+        # Provider status (default)
+        return manager.format_status()
 
     async def _handle_memory_store(self, user_input: str) -> str:
         """

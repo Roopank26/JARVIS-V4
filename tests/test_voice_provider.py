@@ -63,6 +63,7 @@ class TestProviderManager:
         manager = ProviderManager()
         assert manager.providers == {}
         assert manager.primary_provider is None
+        assert manager._initialized is False
 
     def test_add_provider(self):
         """Test adding a provider."""
@@ -94,6 +95,24 @@ class TestProviderManager:
         available = manager.get_available_providers()
         assert isinstance(available, list)
 
+    def test_format_status(self):
+        """Test formatting provider status."""
+        manager = ProviderManager()
+        config = LLMConfig(provider=ProviderType.OLLAMA, model="qwen3:8b")
+        provider = OllamaProvider(config)
+        manager.add_provider(provider)
+        
+        status = manager.format_status()
+        assert "OLLAMA" in status
+        assert "qwen3:8b" in status
+
+    def test_provider_priority(self):
+        """Test provider priority order."""
+        assert ProviderType.OLLAMA in ProviderManager.PROVIDER_PRIORITY
+        assert ProviderType.GROQ in ProviderManager.PROVIDER_PRIORITY
+        # Ollama should be first (local priority)
+        assert ProviderManager.PROVIDER_PRIORITY[0] == ProviderType.OLLAMA
+
 
 class TestOllamaProvider:
     """Tests for OllamaProvider."""
@@ -110,6 +129,12 @@ class TestOllamaProvider:
         config = LLMConfig(provider=ProviderType.OLLAMA, base_url="http://custom:11434")
         provider = OllamaProvider(config)
         assert provider.base_url == "http://custom:11434"
+
+    def test_available_models_initially_empty(self):
+        """Test that available_models is empty on init."""
+        config = LLMConfig(provider=ProviderType.OLLAMA)
+        provider = OllamaProvider(config)
+        assert provider.available_models == []
 
 
 class TestGroqProvider:
@@ -146,6 +171,20 @@ class TestLLMConfig:
         assert config.model == "custom-model"
         assert config.max_tokens == 1000
         assert config.temperature == 0.5
+
+
+class TestProviderSelection:
+    """Tests for provider selection logic."""
+
+    def test_ollama_priority_over_groq(self):
+        """Test that Ollama is prioritized over Groq."""
+        assert ProviderManager.PROVIDER_PRIORITY[0] == ProviderType.OLLAMA
+        assert ProviderManager.PROVIDER_PRIORITY[1] == ProviderType.GROQ
+
+    def test_startup_diagnostics_initialization(self):
+        """Test startup diagnostics are initialized."""
+        manager = ProviderManager()
+        assert manager._startup_diagnostics == {}
 
 
 if __name__ == "__main__":
