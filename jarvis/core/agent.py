@@ -24,6 +24,7 @@ class Intent:
     PROFILE_QUERY = "profile_query"  # Profile-related queries
     RAG_QUERY = "rag_query"    # RAG/knowledge base queries
     PROVIDER_QUERY = "provider_query"  # Provider/model status queries
+    VOICE_STATUS = "voice_status"  # Voice system status queries
     TOOL_EXECUTION = "tool_execution"  # Explicit tool/task execution
 
 
@@ -75,6 +76,15 @@ RAG_QUERY_PATTERNS = [
 ]
 
 # Provider/Model patterns
+# Voice Status patterns
+VOICE_STATUS_PATTERNS = [
+    r"\bvoice\s+status\b",
+    r"\bvoice\s+check\b",
+    r"\bshow\s+voice\b",
+    r"\bmic\s+status\b",
+    r"\baudio\s+status\b",
+]
+
 PROVIDER_QUERY_PATTERNS = [
     r"\bprovider\s+status\b",
     r"\blist\s+models?\b",
@@ -185,6 +195,11 @@ def classify_intent(user_input: str) -> Intent:
     for pattern in RAG_QUERY_PATTERNS:
         if re.search(pattern, text):
             return Intent.RAG_QUERY
+
+    # Check for voice status queries
+    for pattern in VOICE_STATUS_PATTERNS:
+        if re.search(pattern, text):
+            return Intent.VOICE_STATUS
 
     # Check for provider/model queries
     for pattern in PROVIDER_QUERY_PATTERNS:
@@ -320,6 +335,8 @@ class JarvisAgent:
             result = await self._handle_memory_recall(user_input)
         elif intent == Intent.RAG_QUERY:
             result = await self._handle_rag_query(user_input)
+        elif intent == Intent.VOICE_STATUS:
+            result = await self._handle_voice_status(user_input)
         elif intent == Intent.PROVIDER_QUERY:
             result = await self._handle_provider_query(user_input)
         elif intent == Intent.TOOL_EXECUTION:
@@ -440,6 +457,22 @@ class JarvisAgent:
             return response
         
         return "I couldn't find relevant information in your knowledge base. Try ingesting some documents first."
+
+    async def _handle_voice_status(self, user_input: str) -> str:
+        """Handle voice system status queries."""
+        try:
+            from jarvis.voice.voice_runtime import get_voice_runtime, VoiceRuntime
+            
+            runtime = get_voice_runtime()
+            if runtime is None:
+                return "Voice system not initialized. Run: python setup_voice.sh (Linux) or setup_voice.ps1 (Windows)"
+            
+            return runtime.format_status()
+            
+        except ImportError:
+            return "Voice runtime not available. Install dependencies: pip install faster-whisper sounddevice"
+        except Exception as e:
+            return f"Voice status error: {e}"
 
     async def _handle_provider_query(self, user_input: str) -> str:
         """Handle provider/model queries."""
