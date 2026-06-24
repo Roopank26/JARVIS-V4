@@ -1,8 +1,9 @@
 """
 JARVIS Main Agent
-The core AI assistant that combines all components.
+The core AI assistant that combines all components with intent classification.
 """
 
+import re
 from typing import Any, Callable, Dict, List, Optional
 
 from jarvis.core.config import Config, get_config
@@ -14,32 +15,159 @@ from jarvis.tools.registry import ToolRegistry, get_registry
 from jarvis.api.gemini import SimpleLLMClient
 
 
+# Intent types
+class Intent:
+    CHAT = "chat"              # General conversation/questions
+    MEMORY_STORE = "memory_store"  # Remember/save information
+    MEMORY_RECALL = "memory_recall"  # Recall/remember information
+    TOOL_EXECUTION = "tool_execution"  # Explicit tool/task execution
+
+
+# Keywords for intent classification
+MEMORY_STORE_PATTERNS = [
+    r"^\s*remember\b",           # Starts with "remember"
+    r"^\s*save\b",                # Starts with "save"
+    r"\bkeep in mind\b",
+    r"\bstore\b",
+    r"\bnote that\b",
+    r"\bsave that\b",
+    r"^\s*note\b",
+    r"\bi like\b",
+    r"\bi prefer\b",
+    r"\bi hate\b",
+]
+
+MEMORY_RECALL_PATTERNS = [
+    r"\bwhat(?:\'s| is)\s+my\b",  # "what is my" or "what's my"
+    r"\brecall\b",
+    r"\bremember\?",
+    r"\bdo you remember\b",
+    r"\bwhat do you know about me\b",
+    r"\btell me about.*me\b",
+    r"\bmy preferences\b",
+    r"\bremind me\b",
+]
+
+TOOL_EXECUTION_PATTERNS = [
+    # File operations
+    r"^\s*(read|open|view|display)\s+(file|document)",
+    r"^\s*(write|create|edit|modify)\s+(file|document)",
+    r"^\s*(delete|remove)\s+(file|document)",
+    r"^\s*(list|show)\s+(files|directory|folder)",
+    r"^\s*(search|find|grep)\s+",
+    r"^\s*(create|delete)\s+directory",
+    # Terminal
+    r"^\s*(run|execute|start)\s+(command|script|program)",
+    r"^\s*(install|uninstall)\s+",
+    r"^\s*(kill|stop)\s+(process|app)",
+    # Apps
+    r"^\s*(open|launch|start)\s+\w+",
+    r"^\s*(close|quit)\s+\w+",
+    # Specific tools
+    r"^\s*cd\s+",
+    r"^\s*ls\s+",
+    r"^\s*cat\s+",
+    r"^\s*mkdir\s+",
+    r"^\s*rm\s+",
+    r"^\s*cp\s+",
+    r"^\s*mv\s+",
+    r"^\s*pip\s+",
+    r"^\s*git\s+",
+    r"^\s*docker\s+",
+]
+
+# Questions that should stay in chat mode
+CHAT_ONLY_PATTERNS = [
+    r"^(what is|what's)\s",
+    r"^(who is|who's)\s",
+    r"^(how do I|how can I|how to)\s",
+    r"^(why do I|why does)\s",
+    r"^(explain|tell me about|describe)\s",
+    r"^(give me|show me)\s",
+    r"^(can you|could you)\s",
+    r"^\s*(what|who|why|how|when|where)\b",
+    r"\?$",  # Ends with question mark
+    # Study/learning plans
+    r"create.*study\s+plan",
+    r"make.*plan\s+for",
+    r"help me study",
+    r"learning.*plan",
+    r"study.*guide",
+]
+
+
 SYSTEM_PROMPT = """You are JARVIS, Just A Rather Very Intelligent System.
 You are a helpful AI assistant that can help users with various tasks.
 
 Your capabilities:
+- Answer questions about any topic
+- Remember personal facts and preferences
 - File operations (read, write, list, search, delete)
 - Terminal/command execution
-- System information and control
-- Memory of personal facts and preferences
 - Planning and executing multi-step tasks
 
 Guidelines:
 - Be concise and helpful
-- Use tools to accomplish tasks - never guess
+- Answer factual questions directly without using tools
+- Use tools only when explicitly needed for system operations
 - Remember personal information for future reference
 - Execute commands safely and report results clearly
 - Address the user respectfully
 
-Available tools:
-{tools}
-
 Personal memory:
 {memory}
 
-Remember to use the appropriate tool for each task. If you need to run a command, use bash.
-If you need to read a file, use read_file. If you need to write a file, use write_file.
+Available tools (use only when system operations are needed):
+{tools}
 """
+
+
+def classify_intent(user_input: str) -> Intent:
+    """
+    Classify the user input into an intent category.
+    
+    Args:
+        user_input: The user's message
+        
+    Returns:
+        Intent type
+    """
+    text = user_input.lower().strip()
+    
+    # Check for memory recall FIRST (questions about personal info)
+    for pattern in MEMORY_RECALL_PATTERNS:
+        if re.search(pattern, text):
+            return Intent.MEMORY_RECALL
+    
+    # Check for memory store (explicit remember commands)
+    # Only if it's not a question
+    if "?" not in user_input:
+        for pattern in MEMORY_STORE_PATTERNS:
+            if re.search(pattern, text):
+                return Intent.MEMORY_STORE
+    
+    # Check for explicit tool execution patterns
+    for pattern in TOOL_EXECUTION_PATTERNS:
+        if re.search(pattern, text):
+            return Intent.TOOL_EXECUTION
+    
+    # Check for chat-only patterns (questions, explanations, plans)
+    for pattern in CHAT_ONLY_PATTERNS:
+        if re.search(pattern, text):
+            return Intent.CHAT
+    
+    # Default to chat for conversational input
+    # Short inputs or casual language
+    if len(text) < 30 or any(casual in text for casual in 
+        ["hey", "hi ", "hello", "thanks", "thank you", "please"]):
+        return Intent.CHAT
+    
+    # If it sounds like a question or explanation, stay in chat
+    if text.endswith("?") or text.startswith(("what", "how", "why", "who", "explain")):
+        return Intent.CHAT
+    
+    # Default to chat mode
+    return Intent.CHAT
 
 
 class JarvisAgent:
@@ -119,28 +247,100 @@ class JarvisAgent:
         # Add to session memory
         self.memory.add_user_message(user_input)
 
-        # Check if input looks like a task to execute
-        task_keywords = ["do ", "execute ", "run ", "create ", "find ", "open ", "search ",
-                        "tell me about", "what is", "show me", "list "]
+        # Classify intent
+        intent = classify_intent(user_input)
 
-        is_task = any(user_input.lower().startswith(kw) for kw in task_keywords)
-
-        # Simple heuristic: longer inputs or specific keywords are tasks
-        if len(user_input) > 50 or any(kw in user_input.lower() for kw in
-            ["帮我", "请", "could you", "can you", "please", "would you"]):
-            is_task = True
-
-        if is_task:
-            # Execute as a task
+        # Route based on intent
+        if intent == Intent.MEMORY_STORE:
+            result = await self._handle_memory_store(user_input)
+        elif intent == Intent.MEMORY_RECALL:
+            result = await self._handle_memory_recall(user_input)
+        elif intent == Intent.TOOL_EXECUTION:
             result = await self.execute_task(user_input)
-            self.memory.add_assistant_message(result)
-            return result
         else:
-            # Process as a query
-            response = await self.answer_query(user_input)
-            self.memory.add_assistant_message(response)
-            return response
+            # CHAT - answer directly without tools
+            result = await self.answer_query(user_input)
 
+        self.memory.add_assistant_message(result)
+        return result
+
+    async def _handle_memory_store(self, user_input: str) -> str:
+        """
+        Handle memory storage requests.
+        
+        Args:
+            user_input: The user's message containing info to remember
+            
+        Returns:
+            Confirmation message
+        """
+        text = user_input.lower()
+        
+        # Extract what to remember
+        # Pattern: "remember my [key] is [value]"
+        match = re.search(r"remember\s+(?:my\s+)?(.+?)\s+is\s+(.+)", text)
+        if match:
+            key = match.group(1).strip()
+            value = match.group(2).strip()
+            self.memory.remember(key, value, "personal")
+            return f"Got it! I'll remember that your {key} is {value}."
+        
+        # Pattern: "save that I like [thing]"
+        match = re.search(r"(?:save that\s+)?I\s+(?:like|prefer|hate|enjoy)\s+(.+)", text)
+        if match:
+            value = match.group(1).strip()
+            self.memory.remember("preference", value, "personal")
+            return f"Noted! You {user_input.split()[2]} {value}."
+        
+        # Pattern: "my favorite is X"
+        match = re.search(r"(?:my\s+)?favorite\s+(?:.+?)\s+is\s+(.+)", text)
+        if match:
+            value = match.group(1).strip()
+            self.memory.remember("favorite", value, "personal")
+            return f"Alright! Your favorite is {value}."
+        
+        # Default: store the whole thing
+        self.memory.remember("fact", user_input, "personal")
+        return "I'll keep that in mind."
+    
+    async def _handle_memory_recall(self, user_input: str) -> str:
+        """
+        Handle memory recall requests.
+        
+        Args:
+            user_input: The user's query
+            
+        Returns:
+            Retrieved information
+        """
+        text = user_input.lower()
+        
+        # Try to extract what to recall
+        # Pattern: "what is my favorite X"
+        match = re.search(r"what(?:\'s| is)\s+my\s+(?:favorite\s+)?(.+)", text)
+        if match:
+            query = match.group(1).strip()
+            results = self.memory.recall(query)
+            if results:
+                return f"You mentioned that your {query} is {results[0].get('value', 'something')}"
+            return f"I don't have any information about your {query} stored yet."
+        
+        # Pattern: "do you remember my X"
+        match = re.search(r"(?:do you\s+)?remember\s+(?:my\s+)?(.+)", text)
+        if match:
+            query = match.group(1).strip()
+            results = self.memory.recall(query)
+            if results:
+                return f"Yes! Your {query} is {results[0].get('value', 'stored')}"
+            return f"I don't have that information stored yet."
+        
+        # Default: search memory
+        results = self.memory.recall(text)
+        if results:
+            return f"From what you've told me: {results[0].get('value', 'something')}"
+        
+        return "I don't have any relevant information stored yet. Is there something specific you'd like me to remember?"
+    
     async def execute_task(self, task: str) -> str:
         """
         Execute a task using the planner and executor.
@@ -169,7 +369,7 @@ class JarvisAgent:
 
     async def answer_query(self, query: str) -> str:
         """
-        Answer a query using the LLM.
+        Answer a query using the LLM (no tools).
 
         Args:
             query: The user's question
@@ -252,7 +452,7 @@ def create_jarvis(
 
     # Set API key if provided
     if api_key:
-        config.set_api_key("gemini", api_key)
+        config.set_api_key("groq", api_key)
 
     # Create LLM client (default to Groq)
     llm = SimpleLLMClient(backend="groq", api_key=api_key)
