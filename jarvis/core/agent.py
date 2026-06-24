@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, List, Optional
 from jarvis.core.config import Config, get_config
 from jarvis.core.planner import Planner
 from jarvis.core.executor import Executor
-from jarvis.memory.memory_manager import MemoryManager
+from jarvis.memory.enhanced import EnhancedMemoryManager, get_enhanced_memory
 from jarvis.tools.base import ToolResult
 from jarvis.tools.registry import ToolRegistry, get_registry
 from jarvis.api.gemini import SimpleLLMClient
@@ -20,6 +20,7 @@ class Intent:
     CHAT = "chat"              # General conversation/questions
     MEMORY_STORE = "memory_store"  # Remember/save information
     MEMORY_RECALL = "memory_recall"  # Recall/remember information
+    PROFILE_QUERY = "profile_query"  # Profile-related queries
     TOOL_EXECUTION = "tool_execution"  # Explicit tool/task execution
 
 
@@ -46,6 +47,16 @@ MEMORY_RECALL_PATTERNS = [
     r"\btell me about.*me\b",
     r"\bmy preferences\b",
     r"\bremind me\b",
+]
+
+# Profile query patterns
+PROFILE_QUERY_PATTERNS = [
+    r"\bwho\s+am\s+i\b",
+    r"\bwhat\s+do\s+you\s+know\s+about\s+me\b",
+    r"\bmy\s+profile\b",
+    r"\bsummarize\s+(?:my\s+)?(?:profile|info|information)\b",
+    r"\bwhat\s+(?:are\s+)?my\s+(?:details?|facts?)\b",
+    r"\btell\s+me\s+about\s+myself\b",
 ]
 
 TOOL_EXECUTION_PATTERNS = [
@@ -134,7 +145,12 @@ def classify_intent(user_input: str) -> Intent:
     """
     text = user_input.lower().strip()
     
-    # Check for memory recall FIRST (questions about personal info)
+    # Check for profile queries FIRST
+    for pattern in PROFILE_QUERY_PATTERNS:
+        if re.search(pattern, text):
+            return Intent.PROFILE_QUERY
+
+    # Check for memory recall (questions about personal info)
     for pattern in MEMORY_RECALL_PATTERNS:
         if re.search(pattern, text):
             return Intent.MEMORY_RECALL
@@ -178,12 +194,13 @@ class JarvisAgent:
     def __init__(
         self,
         config: Optional[Config] = None,
-        memory_manager: Optional[MemoryManager] = None,
+        memory_manager: Optional[EnhancedMemoryManager] = None,
         tool_registry: Optional[ToolRegistry] = None,
         llm_client: Optional[Any] = None
     ):
         self.config = config or get_config()
-        self.memory = memory_manager or MemoryManager()
+        # Use enhanced memory manager for better profile support
+        self.memory = memory_manager or get_enhanced_memory()
         self.tools = tool_registry or get_registry()
         self.llm = llm_client or SimpleLLMClient()
 
@@ -251,7 +268,9 @@ class JarvisAgent:
         intent = classify_intent(user_input)
 
         # Route based on intent
-        if intent == Intent.MEMORY_STORE:
+        if intent == Intent.PROFILE_QUERY:
+            result = await self._handle_profile_query(user_input)
+        elif intent == Intent.MEMORY_STORE:
             result = await self._handle_memory_store(user_input)
         elif intent == Intent.MEMORY_RECALL:
             result = await self._handle_memory_recall(user_input)
@@ -263,6 +282,35 @@ class JarvisAgent:
 
         self.memory.add_assistant_message(result)
         return result
+
+
+    async def _handle_profile_query(self, user_input: str) -> str:
+        """
+        Handle profile-related queries.
+        
+        Args:
+            user_input: The user's query
+            
+        Returns:
+            Profile information
+        """
+        text_lower = user_input.lower()
+        
+        # Handle "who am I" or summary requests
+        if any(pattern in text_lower for pattern in ["who am i", "my profile", "summarize", "about me", "what do you know"]):
+            return self.memory.get_profile_summary()
+        
+        # Handle specific field queries
+        field_match = re.search(r"what\s+is\s+my\s+(\w+)", text_lower)
+        if field_match:
+            field = field_match.group(1)
+            info = self.memory.profile.get(field)
+            if info:
+                return f"Your {field.replace('_', ' ')} is: {info}"
+            return f"I don't have information about your {field.replace('_', ' ')} stored yet."
+        
+        # Default: return full profile
+        return self.memory.get_profile_summary()
 
     async def _handle_memory_store(self, user_input: str) -> str:
         """
