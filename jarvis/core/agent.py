@@ -78,10 +78,16 @@ RAG_QUERY_PATTERNS = [
 PROVIDER_QUERY_PATTERNS = [
     r"\bprovider\s+status\b",
     r"\blist\s+models?\b",
+    r"\bshow\s+models?\b",
     r"\bswitch\s+provider\b",
+    r"\bswitch\s+to\b",
     r"\bwhich\s+(?:model|provider|AI)\b",
     r"\bcurrent\s+(?:model|provider)\b",
     r"\bprovider\s+info\b",
+    r"\bbenchmark\b",
+    r"\bcompare\s+\S+\s+(?:vs|with|and)\s+\S+",
+    r"\buse\s+model\b",
+    r"\bwhat\s+model\b",
 ]
 
 TOOL_EXECUTION_PATTERNS = [
@@ -443,22 +449,45 @@ class JarvisAgent:
         manager = get_provider_manager()
 
         # List models
-        if "list model" in text:
-            if manager.primary_provider == ProviderType.OLLAMA:
-                ollama = manager.providers.get(ProviderType.OLLAMA)
-                if ollama and ollama.available_models:
-                    models = "\n".join(["  - " + m for m in ollama.available_models])
-                    return f"Available models:\n{models}"
-                return "No local models detected. Run `ollama pull <model>` to download."
-            return "List models requires Ollama to be running."
+        if "list model" in text or "show models" in text:
+            return f"Available models:\n{manager.format_models()}"
+
+        # Current model
+        if "current model" in text or "what model" in text:
+            model = manager.get_current_model()
+            return f"Current Model: {model}"
+
+        # Benchmark models
+        if "benchmark" in text:
+            results = await manager.benchmark_models()
+            if results:
+                lines = ["[Benchmark Results]", "=" * 40]
+                for model, data in results.items():
+                    if "error" in data:
+                        lines.append(f"\n{model}: ERROR - {data['error']}")
+                    else:
+                        lines.append(f"\n{model}:")
+                        lines.append(f"  Latency: {data['latency']}s")
+                        lines.append(f"  Tokens: {data['tokens']}")
+                        lines.append(f"  Provider: {data['provider']}")
+                return "\n".join(lines)
+            return "No benchmark results available"
+
+        # Compare models
+        if "compare" in text:
+            match = re.search(r"compare\s+(.+?)\s+(?:vs|with|and)\s+(.+)", text)
+            if match:
+                model1, model2 = match.group(1).strip(), match.group(2).strip()
+                return manager.compare_models(model1, model2)
+            return "Usage: compare model1 vs model2"
 
         # Switch provider
-        if "switch provider" in text or "switch to" in text:
-            match = re.search(r"switch.?(?:provider|to)\s+(.+)", text)
+        if "switch provider" in text or "switch to" in text or "use model" in text:
+            match = re.search(r"(?:switch|use|to)\s+(?:provider\s+)?(\S+)", text)
             if match:
                 model = match.group(1).strip()
                 if manager.set_model(model):
-                    return f"Switched to model: {model}"
+                    return f"Provider switched successfully to {model}"
                 return f"Could not switch to model: {model}"
             return "Usage: switch provider <model_name>"
 
