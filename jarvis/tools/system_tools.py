@@ -68,6 +68,28 @@ class GetSystemInfoTool(ReadOnlyTool):
 class OpenAppTool(WriteTool):
     """Open an application or URL."""
 
+    # Common Windows application aliases
+    WINDOWS_ALIASES = {
+        "notepad": "notepad.exe",
+        "calc": "calc.exe",
+        "calculator": "calc.exe",
+        "cmd": "cmd.exe",
+        "powershell": "powershell.exe",
+        "explorer": "explorer.exe",
+        "word": "winword.exe",
+        "excel": "excel.exe",
+        "browser": "msedge.exe",
+        "edge": "msedge.exe",
+        "chrome": "chrome.exe",
+        "firefox": "firefox.exe",
+        "paint": "mspaint.exe",
+        "taskmgr": "taskmgr.exe",
+        "taskmanager": "taskmgr.exe",
+        "control": "control.exe",
+        "settings": "ms-settings:",
+        "regedit": "regedit.exe",
+    }
+
     @property
     def name(self) -> str:
         return "open_app"
@@ -97,6 +119,11 @@ class OpenAppTool(WriteTool):
             "required": ["target"]
         }
 
+    def _resolve_windows_alias(self, target: str) -> str:
+        """Resolve Windows application aliases to executable names."""
+        lower_target = target.lower().strip()
+        return self.WINDOWS_ALIASES.get(lower_target, target)
+
     async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
         try:
             target = input_data["target"]
@@ -109,18 +136,33 @@ class OpenAppTool(WriteTool):
                 if background:
                     cmd.append("-g")
                 cmd.append(target)
+                subprocess.run(cmd, capture_output=True, text=True)
+                
             elif system == "Windows":
-                cmd = ["start"]
-                if background:
-                    cmd.append("/B")
-                cmd.append(target)
+                # Resolve aliases
+                resolved_target = self._resolve_windows_alias(target)
+                
+                # Use os.startfile() for best Windows compatibility
+                # Falls back to cmd /c start if os.startfile fails
+                try:
+                    # os.startfile works for files, URLs, and registered applications
+                    os.startfile(resolved_target)
+                except (OSError, AttributeError):
+                    # Fallback: use cmd /c start
+                    # The empty string after "start" prevents it from treating
+                    # the target as a window title
+                    if background:
+                        subprocess.run(["cmd", "/c", "start", "/B", "", resolved_target], 
+                                       capture_output=True, text=True)
+                    else:
+                        subprocess.run(["cmd", "/c", "start", "", resolved_target], 
+                                       capture_output=True, text=True)
             else:  # Linux
                 cmd = ["xdg-open"]
                 if background:
                     cmd = ["nohup"] + cmd
                 cmd.append(target)
-
-            subprocess.run(cmd, capture_output=True, text=True)
+                subprocess.run(cmd, capture_output=True, text=True)
 
             return ToolResult(success=True, output=f"Opened: {target}")
 
