@@ -25,6 +25,8 @@ class Intent:
     RAG_QUERY = "rag_query"    # RAG/knowledge base queries
     PROVIDER_QUERY = "provider_query"  # Provider/model status queries
     VOICE_STATUS = "voice_status"  # Voice system status queries
+    VOICE_CONTROL = "voice_control"  # Voice start/stop/listen
+    VOICE_CONFIG = "voice_config"  # Voice calibration/test/devices
     REPO_QUERY = "repo_query"  # Repository analysis queries
     TOOL_EXECUTION = "tool_execution"  # Explicit tool/task execution
 
@@ -84,6 +86,26 @@ VOICE_STATUS_PATTERNS = [
     r"\bshow\s+voice\b",
     r"\bmic\s+status\b",
     r"\baudio\s+status\b",
+]
+
+VOICE_CONTROL_PATTERNS = [
+    r"\bvoice\s+start\b",
+    r"\bvoice\s+stop\b",
+    r"\bvoice\s+listen\b",
+    r"\bvoice\s+pause\b",
+    r"\bstart\s+voice\b",
+    r"\bstop\s+voice\b",
+    r"\blistening\s+(?:on|start|begin)\b",
+]
+
+VOICE_CONFIG_PATTERNS = [
+    r"\bvoice\s+calibrate\b",
+    r"\bvoice\s+test\b",
+    r"\bvoice\s+devices\b",
+    r"\blist\s+(?:audio|mic|input)\s+devices\b",
+    r"\btest\s+(?:microphone|mic|speaker)\b",
+    r"\bcalibrate\s+voice\b",
+    r"\bset\s+(?:mic|microphone|speaker)\b",
 ]
 
 PROVIDER_QUERY_PATTERNS = [
@@ -216,6 +238,16 @@ def classify_intent(user_input: str) -> Intent:
     for pattern in VOICE_STATUS_PATTERNS:
         if re.search(pattern, text):
             return Intent.VOICE_STATUS
+
+    # Check for voice control commands (start/stop/listen)
+    for pattern in VOICE_CONTROL_PATTERNS:
+        if re.search(pattern, text):
+            return Intent.VOICE_CONTROL
+
+    # Check for voice config commands (calibrate/test/devices)
+    for pattern in VOICE_CONFIG_PATTERNS:
+        if re.search(pattern, text):
+            return Intent.VOICE_CONFIG
 
     # Check for provider/model queries
     for pattern in PROVIDER_QUERY_PATTERNS:
@@ -358,6 +390,10 @@ class JarvisAgent:
             result = await self._handle_rag_query(user_input)
         elif intent == Intent.VOICE_STATUS:
             result = await self._handle_voice_status(user_input)
+        elif intent == Intent.VOICE_CONTROL:
+            result = await self._handle_voice_control(user_input)
+        elif intent == Intent.VOICE_CONFIG:
+            result = await self._handle_voice_config(user_input)
         elif intent == Intent.REPO_QUERY:
             result = await self._handle_repo_query(user_input)
         elif intent == Intent.PROVIDER_QUERY:
@@ -592,6 +628,205 @@ class JarvisAgent:
             return "Voice runtime not available. Install dependencies: pip install faster-whisper sounddevice"
         except Exception as e:
             return f"Voice status error: {e}"
+
+    async def _handle_voice_control(self, user_input: str) -> str:
+        """Handle voice control commands (start/stop/listen)."""
+        text = user_input.lower()
+        
+        try:
+            from jarvis.voice.voice_runtime import get_voice_runtime
+            
+            runtime = get_voice_runtime()
+            if runtime is None:
+                return "Voice system not initialized."
+            
+            # Voice start / listen
+            if any(x in text for x in ["start", "listen", "begin", "activate"]):
+                if runtime._running:
+                    return "Voice is already listening."
+                runtime._running = True
+                return "Voice activated. I'm listening..."
+            
+            # Voice stop / pause
+            if any(x in text for x in ["stop", "pause", "deactivate", "silence"]):
+                if not runtime._running:
+                    return "Voice is already stopped."
+                runtime._running = False
+                return "Voice deactivated."
+            
+            return "Usage: voice start | voice stop"
+            
+        except ImportError:
+            return "Voice runtime not available."
+        except Exception as e:
+            return f"Voice control error: {e}"
+
+    async def _handle_voice_config(self, user_input: str) -> str:
+        """Handle voice configuration commands (calibrate/test/devices)."""
+        text = user_input.lower()
+        
+        try:
+            # List audio devices
+            if "devices" in text or "list" in text:
+                return await self._list_audio_devices()
+            
+            # Test microphone
+            if "test" in text and "mic" in text or "microphone" in text:
+                return await self._test_microphone()
+            
+            # Test speaker
+            if "test" in text and "speaker" in text:
+                return await self._test_speaker()
+            
+            # Calibrate
+            if "calibrate" in text:
+                return await self._calibrate_voice()
+            
+            return "Usage: voice devices | voice test mic | voice test speaker | voice calibrate"
+            
+        except ImportError:
+            return "Voice configuration not available. Install sounddevice."
+        except Exception as e:
+            return f"Voice config error: {e}"
+
+    async def _list_audio_devices(self) -> str:
+        """List available audio input and output devices."""
+        try:
+            import sounddevice as sd
+            devices = sd.query_devices()
+            
+            lines = ["[Audio Devices]", "=" * 40]
+            lines.append(f"\nDefault Input: {sd.query_devices(kind='input')['name']}")
+            lines.append(f"Default Output: {sd.query_devices(kind='output')['name']}")
+            lines.append("\nAll Devices:")
+            
+            if isinstance(devices, dict):
+                devices = [devices]
+            
+            for i, dev in enumerate(devices):
+                dev_type = "Input" if dev['max_input_channels'] > 0 else "Output"
+                lines.append(f"\n  [{i}] {dev['name']}")
+                lines.append(f"      Type: {dev_type}, Channels: {dev['max_input_channels'] or dev['max_output_channels']}")
+                lines.append(f"      Sample Rate: {dev['default_samplerate']} Hz")
+            
+            return "\n".join(lines)
+            
+        except ImportError:
+            return "sounddevice not installed. Install with: pip install sounddevice"
+        except Exception as e:
+            return f"Error listing devices: {e}"
+
+    async def _test_microphone(self) -> str:
+        """Test microphone input."""
+        try:
+            import sounddevice as sd
+            import numpy as np
+            
+            def audio_callback(indata, frames, time_info, status):
+                if status:
+                    logger.warning(f"Audio status: {status}")
+                audio_data = indata.flatten()
+                rms = np.sqrt(np.mean(audio_data.astype(np.float32) ** 2))
+                level = min(100, int(rms / 100))
+                
+            lines = ["[Microphone Test]", "=" * 40]
+            lines.append("\nListening for 3 seconds...")
+            lines.append("Speak into your microphone now.\n")
+            
+            try:
+                stream = sd.InputStream(callback=audio_callback, channels=1, samplerate=16000)
+                with stream:
+                    sd.sleep(3000)
+                lines.append("✓ Microphone is working!")
+                lines.append("Audio levels detected successfully.")
+            except Exception as e:
+                lines.append(f"✗ Microphone test failed: {e}")
+            
+            return "\n".join(lines)
+            
+        except ImportError:
+            return "sounddevice not installed."
+        except Exception as e:
+            return f"Microphone test error: {e}"
+
+    async def _test_speaker(self) -> str:
+        """Test speaker output."""
+        try:
+            import sounddevice as sd
+            
+            lines = ["[Speaker Test]", "=" * 40]
+            lines.append("\nPlaying test tone...")
+            
+            try:
+                # Generate a simple sine wave tone
+                import numpy as np
+                frequency = 440  # Hz (A4 note)
+                duration = 0.5   # seconds
+                sample_rate = 44100
+                
+                t = np.linspace(0, duration, int(sample_rate * duration))
+                tone = np.sin(2 * np.pi * frequency * t)
+                
+                # Play
+                sd.play(tone, sample_rate)
+                sd.wait()
+                
+                lines.append("✓ Speaker is working!")
+                lines.append(f"Played {frequency}Hz test tone for {duration}s.")
+            except Exception as e:
+                lines.append(f"✗ Speaker test failed: {e}")
+            
+            return "\n".join(lines)
+            
+        except ImportError:
+            return "sounddevice not installed."
+        except Exception as e:
+            return f"Speaker test error: {e}"
+
+    async def _calibrate_voice(self) -> str:
+        """Calibrate voice recognition settings."""
+        try:
+            import sounddevice as sd
+            import numpy as np
+            
+            lines = ["[Voice Calibration]", "=" * 40]
+            lines.append("\nCalibrating microphone...")
+            lines.append("Please remain silent for 2 seconds, then speak.")
+            
+            try:
+                audio_levels = []
+                
+                def callback(indata, frames, time_info, status):
+                    audio_data = indata.flatten()
+                    rms = np.sqrt(np.mean(audio_data.astype(np.float32) ** 2))
+                    audio_levels.append(rms)
+                
+                # Listen for background noise
+                stream = sd.InputStream(callback=callback, channels=1, samplerate=16000)
+                with stream:
+                    sd.sleep(2000)
+                
+                if audio_levels:
+                    avg_noise = np.mean(audio_levels)
+                    suggested_threshold = int(avg_noise * 3)
+                    
+                    lines.append("\n✓ Calibration complete!")
+                    lines.append(f"Average noise level: {avg_noise:.1f}")
+                    lines.append(f"Suggested threshold: {suggested_threshold}")
+                    lines.append("\nTo update your voice config, run:")
+                    lines.append(f"  voice_config.json set energy_threshold={suggested_threshold}")
+                else:
+                    lines.append("✗ Could not capture audio levels.")
+                    
+            except Exception as e:
+                lines.append(f"✗ Calibration failed: {e}")
+            
+            return "\n".join(lines)
+            
+        except ImportError:
+            return "sounddevice not installed."
+        except Exception as e:
+            return f"Calibration error: {e}"
 
     async def _handle_provider_query(self, user_input: str) -> str:
         """Handle provider/model queries."""

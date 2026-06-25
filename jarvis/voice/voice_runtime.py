@@ -8,8 +8,8 @@ import logging
 import os
 import json
 from pathlib import Path
-from typing import Optional, Callable, Awaitable, Dict, Any
-from dataclasses import dataclass, asdict
+from typing import Optional, Callable, Awaitable, Dict, Any, List
+from dataclasses import dataclass, field, asdict
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -22,6 +22,52 @@ class VoiceComponentStatus(Enum):
     READY = "ready"
     ERROR = "error"
     DISABLED = "disabled"
+
+
+@dataclass
+class ComponentInitResult:
+    """Result of component initialization."""
+    success: bool
+    status: VoiceComponentStatus
+    message: str = ""
+    error: Optional[str] = None
+    
+    @classmethod
+    def ok(cls, status: VoiceComponentStatus = VoiceComponentStatus.READY, message: str = "") -> "ComponentInitResult":
+        return cls(success=True, status=status, message=message)
+    
+    @classmethod
+    def fail(cls, error: str, status: VoiceComponentStatus = VoiceComponentStatus.ERROR) -> "ComponentInitResult":
+        return cls(success=False, status=status, message="", error=error)
+
+
+@dataclass
+class VoiceInitResult:
+    """Result of voice runtime initialization."""
+    wake_word: ComponentInitResult
+    stt: ComponentInitResult
+    tts: ComponentInitResult
+    ready: bool = False
+    
+    @classmethod
+    def from_components(cls, wake_word, stt, tts) -> "VoiceInitResult":
+        """Create from component instances."""
+        results = cls(
+            wake_word=ComponentInitResult.ok() if (wake_word and wake_word.status == VoiceComponentStatus.READY) else ComponentInitResult.fail("Not initialized"),
+            stt=ComponentInitResult.ok() if (stt and stt.status == VoiceComponentStatus.READY) else ComponentInitResult.fail("Not initialized"),
+            tts=ComponentInitResult.ok() if (tts and tts.status == VoiceComponentStatus.READY) else ComponentInitResult.fail("Not initialized"),
+        )
+        results.ready = all([results.wake_word.success, results.stt.success, results.tts.success])
+        return results
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "wake_word": {"status": self.wake_word.status.value, "success": self.wake_word.success, "error": self.wake_word.error},
+            "stt": {"status": self.stt.status.value, "success": self.stt.success, "error": self.stt.error},
+            "tts": {"status": self.tts.status.value, "success": self.tts.success, "error": self.tts.error},
+            "ready": self.ready
+        }
 
 
 @dataclass
@@ -75,10 +121,10 @@ class VoiceComponent:
         self.error_message: Optional[str] = None
         self._instance = None
     
-    async def initialize(self) -> bool:
-        """Initialize the component."""
+    async def initialize(self) -> ComponentInitResult:
+        """Initialize the component. Subclasses must implement this."""
         self.status = VoiceComponentStatus.INITIALIZING
-        raise NotImplementedError
+        raise NotImplementedError("Subclasses must implement initialize()")
     
     async def shutdown(self) -> None:
         """Shutdown the component."""
@@ -95,7 +141,7 @@ class FasterWhisperSTT(VoiceComponent):
         self._instance = None
         self._model = None
     
-    async def initialize(self) -> bool:
+    async def initialize(self) -> ComponentInitResult:
         """Initialize faster-whisper model."""
         self.status = VoiceComponentStatus.INITIALIZING
         
@@ -120,18 +166,24 @@ class FasterWhisperSTT(VoiceComponent):
             )
             self.status = VoiceComponentStatus.READY
             logger.info("STT initialized successfully")
-            return True
+            return ComponentInitResult.ok(
+                status=VoiceComponentStatus.READY,
+                message=f"Model '{self.config.stt_model}' loaded"
+            )
             
         except ImportError as e:
             self.status = VoiceComponentStatus.DISABLED
             self.error_message = f"faster-whisper not installed: {e}"
             logger.warning(f"STT disabled: {e}")
-            return False
+            return ComponentInitResult.fail(
+                str(e),
+                status=VoiceComponentStatus.DISABLED
+            )
         except Exception as e:
             self.status = VoiceComponentStatus.ERROR
             self.error_message = str(e)
             logger.error(f"STT initialization failed: {e}")
-            return False
+            return ComponentInitResult.fail(str(e))
     
     async def transcribe(self, audio_path: str) -> Optional[str]:
         """Transcribe audio file."""
@@ -173,7 +225,7 @@ class PiperTTS(VoiceComponent):
         self.config = config
         self._session = None
     
-    async def initialize(self) -> bool:
+    async def initialize(self) -> ComponentInitResult:
         """Initialize Piper TTS."""
         self.status = VoiceComponentStatus.INITIALIZING
         
@@ -195,19 +247,25 @@ class PiperTTS(VoiceComponent):
             
             self.status = VoiceComponentStatus.READY
             logger.info("TTS initialized successfully")
-            return True
+            return ComponentInitResult.ok(
+                status=VoiceComponentStatus.READY,
+                message="Connected to Piper TTS server"
+            )
             
         except ImportError:
             # Fallback to command-line piper
             self._command_mode = True
             self.status = VoiceComponentStatus.READY
             logger.info("TTS initialized (command mode)")
-            return True
+            return ComponentInitResult.ok(
+                status=VoiceComponentStatus.READY,
+                message="Using command-line Piper"
+            )
         except Exception as e:
             self.status = VoiceComponentStatus.ERROR
             self.error_message = str(e)
             logger.warning(f"TTS initialization failed: {e}")
-            return False
+            return ComponentInitResult.fail(str(e))
     
     async def speak(self, text: str) -> Optional[bytes]:
         """Convert text to speech and return audio bytes."""
@@ -278,7 +336,7 @@ class OpenWakeWord(VoiceComponent):
         self._predictor = None
         self._running = False
     
-    async def initialize(self) -> bool:
+    async def initialize(self) -> ComponentInitResult:
         """Initialize OpenWakeWord model."""
         self.status = VoiceComponentStatus.INITIALIZING
         
@@ -293,7 +351,10 @@ class OpenWakeWord(VoiceComponent):
                 self._framework = "vad"
                 logger.info("Using VAD-based wake word detection")
                 self.status = VoiceComponentStatus.READY
-                return True
+                return ComponentInitResult.ok(
+                    status=VoiceComponentStatus.READY,
+                    message="Using VAD-based wake word detection"
+                )
             
             # Initialize model
             self._predictor = WakeWordClassifier(
@@ -311,18 +372,24 @@ class OpenWakeWord(VoiceComponent):
             
             self.status = VoiceComponentStatus.READY
             logger.info("Wake word detection initialized")
-            return True
+            return ComponentInitResult.ok(
+                status=VoiceComponentStatus.READY,
+                message=f"Wake word '{self.config.wake_word}' ready"
+            )
             
         except ImportError:
             self.status = VoiceComponentStatus.DISABLED
             self.error_message = "openwakeword not installed"
             logger.warning("Wake word disabled (use 'pip install openwakeword')")
-            return False
+            return ComponentInitResult.fail(
+                "openwakeword not installed",
+                status=VoiceComponentStatus.DISABLED
+            )
         except Exception as e:
             self.status = VoiceComponentStatus.ERROR
             self.error_message = str(e)
             logger.error(f"Wake word initialization failed: {e}")
-            return False
+            return ComponentInitResult.fail(str(e))
     
     async def detect(self, audio_chunk: bytes) -> bool:
         """Detect wake word in audio chunk."""
@@ -387,23 +454,29 @@ class VoiceRuntime:
         self.on_transcription: Optional[Callable[[str], None]] = None
         self.on_response: Optional[Callable[[str], None]] = None
     
-    async def initialize(self) -> Dict[str, VoiceComponentStatus]:
+    async def initialize(self) -> VoiceInitResult:
         """Initialize all voice components."""
-        results = {}
-        
         # Initialize wake word
         self.wake_word = OpenWakeWord(self.config)
-        results["wake_word"] = (await self.wake_word.initialize())
+        wake_result = await self.wake_word.initialize()
         
         # Initialize STT
         self.stt = FasterWhisperSTT(self.config)
-        results["stt"] = (await self.stt.initialize())
+        stt_result = await self.stt.initialize()
         
         # Initialize TTS
         self.tts = PiperTTS(self.config)
-        results["tts"] = (await self.tts.initialize())
+        tts_result = await self.tts.initialize()
         
-        return {k: v.status for k, v in results.items()}
+        # Build VoiceInitResult from individual results
+        result = VoiceInitResult(
+            wake_word=wake_result,
+            stt=stt_result,
+            tts=tts_result,
+            ready=wake_result.success and stt_result.success and tts_result.success
+        )
+        
+        return result
     
     async def shutdown(self) -> None:
         """Shutdown all voice components."""
