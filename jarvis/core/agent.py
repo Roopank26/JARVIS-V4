@@ -23,6 +23,7 @@ class Intent:
     MEMORY_RECALL = "memory_recall"  # Recall/remember information
     PROFILE_QUERY = "profile_query"  # Profile-related queries
     RAG_QUERY = "rag_query"    # RAG/knowledge base queries
+    RESEARCH = "research"      # Research/web search queries
     PROVIDER_QUERY = "provider_query"  # Provider/model status queries
     OLLAMA_QUERY = "ollama_query"  # Ollama-specific commands
     GROQ_QUERY = "groq_query"  # Groq-specific commands
@@ -78,6 +79,23 @@ RAG_QUERY_PATTERNS = [
     r"\bwhat(?:\'s| is)\s+in\s+(?:this|the)?\s*(?:pdf|document|notes?)\b",
     r"\bsearch\s+(?:in\s+)?(?:my\s+)?knowledge\s+base\b",
     r"\bask\s+(?:the\s+)?knowledge\s+base\b",
+]
+
+# Research patterns
+RESEARCH_PATTERNS = [
+    r"\bresearch\s+(?:about|on|for)\b",
+    r"\bsearch\s+(?:the\s+web\s+)?(?:for\s+)?(?:info|information)\b",
+    r"\bweb\s+search\b",
+    r"\bsearch\s+the\s+web\b",
+    r"\bfind\s+info(?:rmation)?\b",
+    r"\blatest\s+news\s+(?:on|about)\b",
+    r"\bmonitor\s+(?:topic|news|reddit|hackernews|arxiv)\b",
+    r"\bgenerate\s+(?:research\s+)?report\b",
+    r"\bdeep\s+research\b",
+    r"\bfollow\s+(?:topic|story|news)\b",
+    r"\bcompare\s+(?:sources?|articles?|papers)\b",
+    r"\bcitation\b",
+    r"\bhow\s+do\s+I\s+cite\b",
 ]
 
 # Provider/Model patterns
@@ -259,7 +277,6 @@ def classify_intent(user_input: str) -> Intent:
     for pattern in RAG_QUERY_PATTERNS:
         if re.search(pattern, text):
             return Intent.RAG_QUERY
-
     # Check for voice status queries
     for pattern in VOICE_STATUS_PATTERNS:
         if re.search(pattern, text):
@@ -307,6 +324,11 @@ def classify_intent(user_input: str) -> Intent:
             if re.search(pattern, text):
                 return Intent.MEMORY_STORE
     
+    # Check for research queries BEFORE tool execution (higher priority)
+    for pattern in RESEARCH_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return Intent.RESEARCH
+
     # Check for explicit tool execution patterns
     for pattern in TOOL_EXECUTION_PATTERNS:
         if re.search(pattern, text):
@@ -424,6 +446,8 @@ class JarvisAgent:
             result = await self._handle_memory_recall(user_input)
         elif intent == Intent.RAG_QUERY:
             result = await self._handle_rag_query(user_input)
+        elif intent == Intent.RESEARCH:
+            result = await self._handle_research(user_input)
         elif intent == Intent.VOICE_STATUS:
             result = await self._handle_voice_status(user_input)
         elif intent == Intent.VOICE_CONTROL:
@@ -475,6 +499,97 @@ class JarvisAgent:
         
         # Default: return full profile
         return self.memory.get_profile_summary()
+
+    async def _handle_research(self, user_input: str) -> str:
+        """Handle research and web search queries."""
+        from jarvis.research.research_agent import get_research_agent
+        
+        text = user_input.lower()
+        agent = get_research_agent()
+        
+        # Monitor news
+        if "monitor" in text or "news" in text:
+            source = "hackernews"
+            if "reddit" in text:
+                source = "reddit"
+            elif "arxiv" in text:
+                source = "arxiv"
+            
+            match = re.search(r"(?:monitor|news)\s+(?:on\s+)?(?:about\s+)?(.+)", text)
+            topic = match.group(1).strip() if match else "artificial intelligence"
+            
+            results = await agent.monitor_topic(topic, source)
+            if results:
+                lines = [f"[{source.replace('hackernews', 'Hacker News').title()} News: {topic}]", "=" * 40]
+                for i, item in enumerate(results[:5], 1):
+                    lines.append(f"\n{i}. {item.get('title', 'No title')}")
+                    if item.get('url'):
+                        lines.append(f"   URL: {item.get('url')}")
+                    if item.get('points'):
+                        lines.append(f"   Points: {item.get('points')}")
+                    if item.get('score'):
+                        lines.append(f"   Score: {item.get('score')}")
+                return "\n".join(lines)
+            return f"No news found for topic: {topic}"
+        
+        # Research topic
+        if "research" in text or "search" in text or "find" in text:
+            # Extract query
+            match = re.search(r"(?:research|search|find)\s+(?:about|on|for)?\s*(.+)", text)
+            query = match.group(1).strip() if match else user_input
+            
+            # Remove common prefixes
+            for prefix in ["web search ", "search for ", "research about ", "find information "]:
+                if query.startswith(prefix):
+                    query = query[len(prefix):]
+            
+            if len(query) < 3:
+                return "Please provide a research topic. Example: research about AI trends"
+            
+            try:
+                result = await agent.research(query)
+                
+                lines = [f"[Research: {query}]", "=" * 40]
+                lines.append(f"\nFound {len(result.sources)} sources\n")
+                
+                if result.summary:
+                    lines.append(f"Summary: {result.summary[:300]}...")
+                
+                lines.append("\n\nSources:")
+                for i, source in enumerate(result.sources[:5], 1):
+                    lines.append(f"\n{i}. {source.title}")
+                    lines.append(f"   {source.url}")
+                
+                return "\n".join(lines)
+                
+            except Exception as e:
+                logger.error(f"Research error: {e}")
+                return f"Research failed: {str(e)}"
+        
+        # Generate report
+        if "report" in text:
+            match = re.search(r"(?:generate\s+)?(?:research\s+)?report\s+(?:on\s+)?(.+)", text)
+            if match:
+                query = match.group(1).strip()
+                try:
+                    result = await agent.research(query)
+                    report = agent.generate_report(query, result, format="markdown")
+                    return f"Report generated:\n\n{report[:2000]}..."
+                except Exception as e:
+                    return f"Report generation failed: {e}"
+            return "Usage: generate report on <topic>"
+        
+        # Citations
+        if "citation" in text:
+            return """[Citation Help]
+JARVIS can generate citations for web sources. After doing a research query, I can format citations in:
+- APA style
+- MLA style
+- Chicago style
+
+Example: research about AI, then I'll cite the sources."""
+        
+        return "Research commands:\n- research <topic> - Search the web\n- monitor news on <topic> - Track news\n- generate report on <topic> - Create a report\n- citation - Learn about citations"
 
     async def _handle_rag_query(self, user_input: str) -> str:
         """
