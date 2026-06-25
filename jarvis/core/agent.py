@@ -24,6 +24,7 @@ class Intent:
     PROFILE_QUERY = "profile_query"  # Profile-related queries
     RAG_QUERY = "rag_query"    # RAG/knowledge base queries
     RESEARCH = "research"      # Research/web search queries
+    DESKTOP = "desktop"      # Desktop automation commands
     PROVIDER_QUERY = "provider_query"  # Provider/model status queries
     OLLAMA_QUERY = "ollama_query"  # Ollama-specific commands
     GROQ_QUERY = "groq_query"  # Groq-specific commands
@@ -96,6 +97,24 @@ RESEARCH_PATTERNS = [
     r"\bcompare\s+(?:sources?|articles?|papers)\b",
     r"\bcitation\b",
     r"\bhow\s+do\s+I\s+cite\b",
+]
+
+# Desktop automation patterns
+DESKTOP_PATTERNS = [
+    r"\b(?:open|launch|start)\s+\w+\b",  # open Chrome, launch VS Code
+    r"\b(?:close|quit)\s+(?:window|app|application)\b",
+    r"\b(?:minimize|maximize)\s+(?:window)?\b",
+    r"\b(?:focus|switch to)\s+\w+\b",  # focus Chrome
+    r"\blist\s+windows?\b",
+    r"\bshow\s+windows?\b",
+    r"\bscreenshot\b",
+    r"\bcopy\s+(?:to\s+)?clipboard\b",
+    r"\bpaste\s+(?:from\s+)?clipboard\b",
+    r"\b(?:ctrl|control)\+[a-z]\b",  # ctrl+c
+    r"\balt\+[a-z]\b",  # alt+f4
+    r"\btype\s+\S+\b",
+    r"\bkey(?:press)?\s+\S+\b",
+    r"\bwindow\s+(?:manage|management)\b",
 ]
 
 # Provider/Model patterns
@@ -329,6 +348,11 @@ def classify_intent(user_input: str) -> Intent:
         if re.search(pattern, text, re.IGNORECASE):
             return Intent.RESEARCH
 
+    # Check for desktop automation commands
+    for pattern in DESKTOP_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return Intent.DESKTOP
+
     # Check for explicit tool execution patterns
     for pattern in TOOL_EXECUTION_PATTERNS:
         if re.search(pattern, text):
@@ -448,6 +472,8 @@ class JarvisAgent:
             result = await self._handle_rag_query(user_input)
         elif intent == Intent.RESEARCH:
             result = await self._handle_research(user_input)
+        elif intent == Intent.DESKTOP:
+            result = await self._handle_desktop_automation(user_input)
         elif intent == Intent.VOICE_STATUS:
             result = await self._handle_voice_status(user_input)
         elif intent == Intent.VOICE_CONTROL:
@@ -499,6 +525,94 @@ class JarvisAgent:
         
         # Default: return full profile
         return self.memory.get_profile_summary()
+
+    async def _handle_desktop_automation(self, user_input: str) -> str:
+        """Handle desktop automation commands."""
+        from jarvis.desktop.automation import get_desktop_automation
+        
+        text = user_input.lower()
+        automation = get_desktop_automation()
+        
+        # List windows
+        if "list windows" in text or "show windows" in text:
+            windows = await automation.list_windows()
+            return automation.format_windows_list(windows)
+        
+        # Screenshot
+        if "screenshot" in text:
+            path = await automation.take_screenshot()
+            if path:
+                return f"Screenshot saved to: {path}"
+            return "Failed to take screenshot."
+        
+        # Launch app
+        if any(k in text for k in ["open ", "launch ", "start "]):
+            match = re.search(r"(?:open|launch|start)\s+(\S+)", text)
+            if match:
+                app = match.group(1).strip()
+                success = await automation.launch_app(app)
+                if success:
+                    return f"Launched: {app}"
+                return f"Failed to launch: {app}"
+        
+        # Close window
+        if "close" in text and "window" in text:
+            match = re.search(r"close\s+(?:window\s+)?(.+)", text)
+            if match:
+                title = match.group(1).strip()
+                success = await automation.close_window(title)
+                if success:
+                    return f"Closed window: {title}"
+                return f"Failed to close: {title}"
+        
+        # Focus window
+        if "focus" in text or "switch to" in text:
+            match = re.search(r"(?:focus|switch to)\s+(\S+)", text)
+            if match:
+                title = match.group(1).strip()
+                success = await automation.focus_window(title)
+                if success:
+                    return f"Focused: {title}"
+                return f"Failed to focus: {title}"
+        
+        # Clipboard operations
+        if "get clipboard" in text or "show clipboard" in text:
+            content = await automation.get_clipboard()
+            if content:
+                return f"Clipboard: {content[:200]}..."
+            return "Clipboard is empty."
+        
+        if "copy" in text and "clipboard" in text:
+            # Copy is usually handled by tool execution
+            return "Copy what to clipboard? Use: copy <text> to clipboard"
+        
+        # Type text
+        if text.startswith("type "):
+            text_to_type = text[5:].strip()
+            success = await automation.type_text(text_to_type)
+            if success:
+                return f"Typed: {text_to_type}"
+            return "Failed to type text."
+        
+        # Hotkeys
+        hotkey_match = re.search(r"(ctrl|control|alt)\+([a-z])", text)
+        if hotkey_match:
+            key = hotkey_match.group(2)
+            mod = hotkey_match.group(1)
+            success = await automation.execute_hotkey([mod, key])
+            if success:
+                return f"Executed: {mod}+{key}"
+            return "Failed to execute hotkey."
+        
+        return """Desktop commands:
+- list windows - Show open windows
+- open <app> - Launch an application
+- close window <name> - Close a window
+- focus <window> - Focus a window
+- screenshot - Take a screenshot
+- type <text> - Type text
+- get clipboard - Show clipboard content
+- <ctrl/alt>+<key> - Execute hotkey"""
 
     async def _handle_research(self, user_input: str) -> str:
         """Handle research and web search queries."""

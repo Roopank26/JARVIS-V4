@@ -80,7 +80,6 @@ class TestIntentClassification:
             "delete file /tmp/old.txt",
             "list files in /home",
             "ls -la /home/user",
-            "open chrome",
             "run command ls -la",
             "cd /home/user",
             "mkdir new_folder",
