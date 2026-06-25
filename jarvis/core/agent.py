@@ -24,6 +24,8 @@ class Intent:
     PROFILE_QUERY = "profile_query"  # Profile-related queries
     RAG_QUERY = "rag_query"    # RAG/knowledge base queries
     PROVIDER_QUERY = "provider_query"  # Provider/model status queries
+    OLLAMA_QUERY = "ollama_query"  # Ollama-specific commands
+    GROQ_QUERY = "groq_query"  # Groq-specific commands
     VOICE_STATUS = "voice_status"  # Voice system status queries
     VOICE_CONTROL = "voice_control"  # Voice start/stop/listen
     VOICE_CONFIG = "voice_config"  # Voice calibration/test/devices
@@ -121,6 +123,30 @@ PROVIDER_QUERY_PATTERNS = [
     r"\bcompare\s+\S+\s+(?:vs|with|and)\s+\S+",
     r"\buse\s+model\b",
     r"\bwhat\s+model\b",
+]
+
+OLLAMA_PATTERNS = [
+    r"\bollama\s+status\b",
+    r"\bollama\s+list\b",
+    r"\bollama\s+show\b",
+    r"\bollama\s+ps\b",
+    r"\bollama\s+run\b",
+    r"\bollama\s+pull\b",
+    r"\bollama\s+delete\b",
+    r"\bollama\s+models\b",
+    r"\bdownload\s+(?:a\s+)?(?:ollama\s+)?model\b",
+    r"\bremove\s+(?:ollama\s+)?model\b",
+    r"\bstart\s+ollama\b",
+]
+
+GROQ_PATTERNS = [
+    r"\bgroq\s+status\b",
+    r"\bgroq\s+models\b",
+    r"\bgroq\s+api\b",
+    r"\bgroq\s+key\b",
+    r"\buse\s+groq\b",
+    r"\bcloud\s+AI\b",
+    r"\bset\s+groq\b",
 ]
 
 TOOL_EXECUTION_PATTERNS = [
@@ -253,6 +279,16 @@ def classify_intent(user_input: str) -> Intent:
     for pattern in PROVIDER_QUERY_PATTERNS:
         if re.search(pattern, text):
             return Intent.PROVIDER_QUERY
+
+    # Check for Ollama-specific commands
+    for pattern in OLLAMA_PATTERNS:
+        if re.search(pattern, text):
+            return Intent.OLLAMA_QUERY
+
+    # Check for Groq-specific commands
+    for pattern in GROQ_PATTERNS:
+        if re.search(pattern, text):
+            return Intent.GROQ_QUERY
 
     # Check for repository analysis queries
     for pattern in REPO_PATTERNS:
@@ -398,6 +434,10 @@ class JarvisAgent:
             result = await self._handle_repo_query(user_input)
         elif intent == Intent.PROVIDER_QUERY:
             result = await self._handle_provider_query(user_input)
+        elif intent == Intent.OLLAMA_QUERY:
+            result = await self._handle_ollama_query(user_input)
+        elif intent == Intent.GROQ_QUERY:
+            result = await self._handle_groq_query(user_input)
         elif intent == Intent.TOOL_EXECUTION:
             result = await self.execute_task(user_input)
         else:
@@ -827,6 +867,113 @@ class JarvisAgent:
             return "sounddevice not installed."
         except Exception as e:
             return f"Calibration error: {e}"
+
+    async def _handle_ollama_query(self, user_input: str) -> str:
+        """Handle Ollama-specific commands."""
+        text = user_input.lower()
+        
+        try:
+            import aiohttp
+            import subprocess
+            
+            # Ollama status
+            if any(x in text for x in ["status", "ps"]):
+                try:
+                    result = subprocess.run(["ollama", "ps"], capture_output=True, text=True, timeout=5)
+                    if result.returncode == 0:
+                        return f"[Ollama Status]\n{result.stdout}"
+                    return "Ollama is not running. Start with: ollama serve"
+                except FileNotFoundError:
+                    return "Ollama is not installed. Install from: https://ollama.ai"
+                except Exception as e:
+                    return f"Ollama status error: {e}"
+            
+            # List models
+            if any(x in text for x in ["list", "models", "show"]):
+                try:
+                    result = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=10)
+                    if result.returncode == 0:
+                        return f"[Ollama Models]\n{result.stdout}"
+                    return "Could not list Ollama models."
+                except FileNotFoundError:
+                    return "Ollama is not installed."
+                except Exception as e:
+                    return f"Error listing models: {e}"
+            
+            # Pull/download model
+            if any(x in text for x in ["pull", "download", "run"]):
+                match = re.search(r"(?:pull|download|run)\s+(?:model\s+)?(\S+)", text)
+                if match:
+                    model = match.group(1).strip()
+                    return f"To download '{model}', run:\n  ollama pull {model}\n\nOr in your terminal:\n  ollama run {model}"
+                return "Usage: ollama pull <model_name>"
+            
+            # Delete/remove model
+            if "delete" in text or "remove" in text:
+                match = re.search(r"(?:delete|remove)\s+(?:model\s+)?(\S+)", text)
+                if match:
+                    model = match.group(1).strip()
+                    return f"To remove '{model}', run:\n  ollama delete {model}\n\n⚠️ This will delete the model locally."
+                return "Usage: ollama delete <model_name>"
+            
+            # Start Ollama
+            if "start" in text or "serve" in text:
+                return "To start Ollama, run:\n  ollama serve\n\nOr install as a service."
+            
+            return "Ollama commands: status | list | pull <model> | delete <model>"
+            
+        except Exception as e:
+            return f"Ollama error: {e}"
+
+    async def _handle_groq_query(self, user_input: str) -> str:
+        """Handle Groq-specific commands."""
+        text = user_input.lower()
+        
+        try:
+            from jarvis.api.providers import get_provider_manager, ProviderType
+            
+            manager = get_provider_manager()
+            
+            # Groq status
+            if "status" in text:
+                if ProviderType.GROQ in manager.providers:
+                    groq = manager.providers[ProviderType.GROQ]
+                    if groq.is_available:
+                        return f"[Groq Status]\n✓ Connected\nModel: {groq.model}"
+                    return f"[Groq Status]\n✗ Unavailable\nError: {groq.last_error}"
+                return "[Groq Status]\n○ Not configured"
+            
+            # List Groq models
+            if "models" in text:
+                return """[Groq Available Models]
+- llama-3.3-70b-versatile (default)
+- llama-3.1-8b-instant
+- mixtral-8x7b-32768
+- gemma2-9b-it
+
+Set Groq model:
+  switch to groq"""
+            
+            # API key
+            if "api" in text or "key" in text:
+                return """[Groq API Key Setup]
+1. Get a free API key from: https://console.groq.com/keys
+2. Set it in config:
+   - Linux/Mac: export GROQ_API_KEY=your_key
+   - Windows: $env:GROQ_API_KEY = 'your_key'
+3. Or edit config/api_config.json"""
+            
+            # Use Groq
+            if "use groq" in text or "switch to groq" in text:
+                if ProviderType.GROQ in manager.providers:
+                    manager.set_primary(ProviderType.GROQ)
+                    return "Switched to Groq (cloud AI)."
+                return "Groq is not configured. Set your API key first."
+            
+            return "Groq commands: status | models | api | use groq"
+            
+        except Exception as e:
+            return f"Groq error: {e}"
 
     async def _handle_provider_query(self, user_input: str) -> str:
         """Handle provider/model queries."""
