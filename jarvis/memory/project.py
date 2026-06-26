@@ -34,7 +34,7 @@ class ProjectContext:
     def to_dict(self) -> Dict:
         """Convert to dictionary for serialization."""
         data = asdict(self)
-        data["path"] = str(self.path)
+        data["path"] = self.path.as_posix()  # Use POSIX format for cross-platform compatibility
         data["last_active"] = self.last_active.isoformat()
         data["created_at"] = self.created_at.isoformat()
         return data

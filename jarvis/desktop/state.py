@@ -187,7 +187,12 @@ class StartupManager:
     def _install_systemd(self) -> bool:
         """Install systemd user service."""
         import sys
+        import os
         from pathlib import Path
+        
+        # Use HOME environment variable (respects test overrides)
+        home_dir = Path(os.environ.get("HOME", str(Path.home())))
+        user_name = os.environ.get("USER", "root")
         
         service_content = f"""[Unit]
 Description=JARVIS Desktop Assistant
@@ -195,18 +200,18 @@ After=network.target
 
 [Service]
 Type=simple
-User={Path.home().name}
+User={user_name}
 WorkingDirectory={Path.cwd()}
 ExecStart={sys.executable} -m jarvis.desktop run
 Restart=on-failure
 RestartSec=10
-StandardOutput=append:{Path.home()}/.jarvis/jarvis.log
-StandardError=append:{Path.home()}/.jarvis/jarvis.log
+StandardOutput=append:{home_dir}/.jarvis/jarvis.log
+StandardError=append:{home_dir}/.jarvis/jarvis.log
 
 [Install]
 WantedBy=default.target
 """
-        service_path = Path.home() / ".config" / "systemd" / "user" / "jarvis.service"
+        service_path = home_dir / ".config" / "systemd" / "user" / "jarvis.service"
         service_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:

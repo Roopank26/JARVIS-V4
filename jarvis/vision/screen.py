@@ -34,7 +34,7 @@ class ScreenCapture:
         """Initialize mss."""
         try:
             import mss
-            self._mss = mss.mss()
+            self._mss = mss.MSS()
         except ImportError:
             print("[Vision] mss not available")
 
