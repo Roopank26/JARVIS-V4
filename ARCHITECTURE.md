@@ -637,10 +637,100 @@ jarvis/
 ```
 
 ### Test Coverage
-- **289 tests passing**
+- **289+ tests passing**
 - All core functionality verified
 
 ---
 
-*Document Version: 1.0.1*
+## 8. Background Task Lifecycle
+
+JARVIS uses asyncio for concurrent background operations. Proper task management is critical for clean shutdown and test stability.
+
+### 8.1 Task Types
+
+| Task | Purpose | Storage | Cancellation |
+|------|---------|---------|--------------|
+| `_scheduler_task` | Run scheduled tasks (reminders, daily summaries) | `_scheduler_task` | On `stop()` |
+| `_index_task` | Index project files for search | `_index_task` | On `stop()` |
+| `_state_task` (VoiceListener) | Manage voice state machine | `_state_task` | On `stop()` |
+| `_listen_task` (VoiceListener) | Continuous voice listening loop | `_listen_task` | On `stop()` |
+| `_task` (WakeWordEngine) | Wake word detection loop | `_task` | On `stop()` |
+
+### 8.2 Task Creation Pattern
+
+All background tasks must be stored in instance variables:
+
+```python
+# ✅ Correct - task is stored
+self._scheduler_task = asyncio.create_task(self._run_scheduler())
+
+# ❌ Wrong - task is orphaned
+asyncio.create_task(self._run_scheduler())
+```
+
+### 8.3 Conditional Task Creation
+
+Tasks should only start based on configuration:
+
+```python
+if self.config.enable_background_tasks:
+    self._scheduler_task = asyncio.create_task(self._run_scheduler())
+
+if self.config.auto_index_projects and self.config.enable_background_tasks:
+    self._index_task = asyncio.create_task(self._index_projects())
+```
+
+### 8.4 Graceful Shutdown
+
+The `stop()` method cancels all background tasks:
+
+```python
+async def stop(self) -> bool:
+    """Stop the desktop assistant."""
+    
+    # Cancel background tasks
+    for task in (self._scheduler_task, self._index_task):
+        if task:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+    
+    self._scheduler_task = None
+    self._index_task = None
+    
+    # Stop other components...
+```
+
+### 8.5 Testing Strategy
+
+Tests disable background tasks to prevent hangs:
+
+```python
+config = DesktopConfig(
+    enable_background_tasks=False,
+    auto_index_projects=False,
+)
+assistant = DesktopAssistant(config)
+```
+
+Regression tests verify:
+- ✅ Scheduler task stored when created
+- ✅ Scheduler task cancelled on shutdown
+- ✅ Index task cancelled on shutdown
+- ✅ No pending asyncio tasks after stop
+- ✅ Background tasks disabled by config
+- ✅ Start/stop completes in under 2 seconds
+
+### 8.6 Anti-Patterns to Avoid
+
+1. **Orphaned tasks** - Always store `asyncio.create_task()` results
+2. **Unbounded scanning** - Never recursively scan user home directories
+3. **Missing cancellation** - Always cancel tasks in `stop()`
+4. **Ignoring CancelledError** - Handle gracefully with try/except
+
+---
+
+*Document Version: 1.1.0*
 *Generated: 2026-06-23*
