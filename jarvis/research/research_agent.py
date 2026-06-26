@@ -59,7 +59,7 @@ class WebSearcher:
     
     async def search(self, query: str, source: str = "auto") -> List[Dict[str, str]]:
         """
-        Search the web for a query.
+        Search the web for a query with automatic fallback chain.
         
         Args:
             query: Search query
@@ -68,14 +68,123 @@ class WebSearcher:
         Returns:
             List of search results with title, url, snippet
         """
-        # Try Tavily first if available
+        # Try sources in order until we get results
+        
+        # 1. Try Tavily first if available
         if self._tavily_available and source in ("auto", "tavily"):
             results = await self._search_tavily(query)
             if results:
+                logger.info(f"Using Tavily: {len(results)} results")
                 return results
         
-        # Fallback to DuckDuckGo Lite
-        return await self._search_duckduckgo(query)
+        # 2. Try Wikipedia API (free, reliable)
+        results = await self._search_wikipedia(query)
+        if results:
+            logger.info(f"Using Wikipedia: {len(results)} results")
+            return results
+        
+        # 3. Try DuckDuckGo Lite
+        results = await self._search_duckduckgo(query)
+        if results:
+            logger.info(f"Using DuckDuckGo Lite: {len(results)} results")
+            return results
+        
+        # 4. Try DuckDuckGo HTML as final fallback
+        results = await self._search_ddg_html(query)
+        if results:
+            logger.info(f"Using DuckDuckGo HTML: {len(results)} results")
+            return results
+        
+        logger.warning(f"No search results for: {query}")
+        return []
+
+    async def _search_wikipedia(self, query: str) -> List[Dict[str, str]]:
+        """Search using Wikipedia API (free, no key needed)."""
+        try:
+            import aiohttp
+            
+            url = "https://en.wikipedia.org/w/api.php"
+            params = {
+                "action": "opensearch",
+                "search": query,
+                "limit": self.max_results,
+                "format": "json"
+            }
+            
+            headers = {
+                "User-Agent": "JARVIS-Research/1.0 (research agent)"
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params, headers=headers, timeout=10) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        results = []
+                        
+                        # Wikipedia API returns a list: [query, titles, descriptions, urls]
+                        if isinstance(data, list) and len(data) >= 4:
+                            titles = data[1]
+                            descriptions = data[2]
+                            urls = data[3]
+                            
+                            for i, title in enumerate(titles[:self.max_results]):
+                                results.append({
+                                    "url": urls[i] if i < len(urls) else f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}",
+                                    "title": title,
+                                    "snippet": descriptions[i] if i < len(descriptions) else "",
+                                    "source": "Wikipedia"
+                                })
+                        
+                        return results
+                        
+        except Exception as e:
+            logger.debug(f"Wikipedia search error: {e}")
+        
+        return []
+
+    async def _search_ddg_html(self, query: str) -> List[Dict[str, str]]:
+        """Final fallback: DuckDuckGo HTML."""
+        try:
+            import aiohttp
+            
+            url = f"https://html.duckduckgo.com/html/?q={query.replace(' ', '+')}"
+            
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, timeout=10) as resp:
+                    if resp.status == 200:
+                        html = await resp.text()
+                        return self._parse_ddg_html_results(html)
+                        
+        except Exception as e:
+            logger.debug(f"DuckDuckGo HTML fallback error: {e}")
+        
+        return []
+
+    def _parse_ddg_html_results(self, html: str) -> List[Dict[str, str]]:
+        """Parse results from DuckDuckGo HTML."""
+        results = []
+        
+        result_pattern = r'<a class="result__a" href="([^"]+)">([^<]+)</a>'
+        
+        for match in re.finditer(result_pattern, html):
+            url = match.group(1)
+            title = re.sub(r'<[^>]+>', '', match.group(2))
+            
+            if url.startswith("http"):
+                results.append({
+                    "url": url,
+                    "title": title.strip(),
+                    "snippet": ""
+                })
+            
+            if len(results) >= self.max_results:
+                break
+        
+        return results
     
     async def _search_tavily(self, query: str) -> List[Dict[str, str]]:
         """Search using Tavily API."""
