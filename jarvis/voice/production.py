@@ -12,7 +12,7 @@ import wave
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import numpy as np
 
@@ -837,3 +837,164 @@ def create_voice_pipeline(config: Optional[VoiceConfig] = None) -> VoicePipeline
         Configured VoicePipeline instance
     """
     return VoicePipeline(config)
+
+
+# Voice diagnostics functions
+
+def get_voice_diagnostics() -> Dict[str, Any]:
+    """
+    Get comprehensive voice system diagnostics.
+    
+    Returns:
+        Dictionary with component statuses and system info.
+    """
+    from jarvis.voice.audio import check_audio_availability
+    import platform
+    import shutil
+    
+    diagnostics = {
+        "system": {
+            "platform": platform.system(),
+            "python_version": platform.python_version(),
+            "architecture": platform.machine(),
+        },
+        "audio": {},
+        "stt": {},
+        "tts": {},
+        "wake_word": {},
+    }
+    
+    # Check audio availability
+    audio_status = check_audio_availability()
+    diagnostics["audio"] = audio_status
+    
+    # Check microphone
+    try:
+        import sounddevice as sd
+        devices = sd.query_devices()
+        if devices:
+            if isinstance(devices, list):
+                mics = [d for d in devices if d.get("max_input_channels", 0) > 0]
+                diagnostics["audio"]["microphones"] = len(mics)
+                if mics:
+                    diagnostics["audio"]["default_mic"] = mics[0].get("name", "Unknown")
+            else:
+                diagnostics["audio"]["default_mic"] = devices.get("name", "Unknown")
+    except Exception as e:
+        diagnostics["audio"]["mic_error"] = str(e)
+    
+    # Check speakers
+    try:
+        import sounddevice as sd
+        devices = sd.query_devices()
+        if devices:
+            if isinstance(devices, list):
+                speakers = [d for d in devices if d.get("max_output_channels", 0) > 0]
+                diagnostics["audio"]["speakers"] = len(speakers)
+                if speakers:
+                    diagnostics["audio"]["default_speaker"] = speakers[0].get("name", "Unknown")
+    except Exception as e:
+        diagnostics["audio"]["speaker_error"] = str(e)
+    
+    # STT check
+    diagnostics["stt"]["whisper_available"] = audio_status["whisper"]
+    diagnostics["stt"]["can_listen"] = audio_status["can_listen"]
+    
+    # TTS check
+    diagnostics["tts"]["gtts_available"] = audio_status["gtts"]
+    diagnostics["tts"]["pyttsx3_available"] = audio_status["pyttsx3"]
+    diagnostics["tts"]["can_speak"] = audio_status["can_speak"]
+    
+    # FFmpeg check
+    try:
+        result = shutil.run(["ffmpeg", "-version"], capture_output=True, timeout=5)
+        if result.returncode == 0:
+            version_line = result.stdout.decode().split("\n")[0]
+            diagnostics["audio"]["ffmpeg"] = version_line
+    except Exception as e:
+        diagnostics["audio"]["ffmpeg_error"] = str(e)
+    
+    return diagnostics
+
+
+def format_voice_diagnostics(diagnostics: Dict[str, Any]) -> str:
+    """Format voice diagnostics for display."""
+    lines = ["┌─ Voice System Diagnostics ─────────────────", "│"]
+    
+    # System info
+    sys_info = diagnostics.get("system", {})
+    lines.append(f"│ System: {sys_info.get('platform', 'Unknown')}")
+    lines.append(f"│ Python: {sys_info.get('python_version', 'Unknown')}")
+    lines.append("│")
+    
+    # Audio
+    audio = diagnostics.get("audio", {})
+    lines.append("│ Audio Status:")
+    
+    if audio.get("sounddevice"):
+        lines.append("│   ✓ sounddevice installed")
+    else:
+        lines.append("│   ✗ sounddevice not installed")
+    
+    if audio.get("microphone"):
+        lines.append(f"│   ✓ Microphone detected ({audio.get('microphones', 1)})")
+        if audio.get("default_mic"):
+            lines.append(f"│     → {audio.get('default_mic')[:40]}")
+    else:
+        lines.append("│   ✗ No microphone detected")
+    
+    if audio.get("speakers"):
+        lines.append(f"│   ✓ Speakers detected ({audio.get('speakers', 1)})")
+    else:
+        lines.append("│   ✗ No speakers detected")
+    
+    if audio.get("ffmpeg"):
+        lines.append(f"│   ✓ FFmpeg installed")
+    else:
+        lines.append("│   ✗ FFmpeg not installed")
+    
+    lines.append("│")
+    
+    # STT
+    stt = diagnostics.get("stt", {})
+    lines.append("│ Speech-to-Text:")
+    if stt.get("whisper_available"):
+        lines.append("│   ✓ Whisper available (offline STT)")
+    else:
+        lines.append("│   ✗ Whisper not installed")
+    
+    if stt.get("can_listen"):
+        lines.append("│   ✓ Ready to listen")
+    else:
+        lines.append("│   ✗ Cannot listen (check microphone)")
+    
+    lines.append("│")
+    
+    # TTS
+    tts = diagnostics.get("tts", {})
+    lines.append("│ Text-to-Speech:")
+    if tts.get("gtts_available"):
+        lines.append("│   ✓ gTTS available (online TTS)")
+    if tts.get("pyttsx3_available"):
+        lines.append("│   ✓ pyttsx3 available (offline TTS)")
+    
+    if tts.get("can_speak"):
+        lines.append("│   ✓ Ready to speak")
+    else:
+        lines.append("│   ✗ Cannot speak (no TTS engine)")
+    
+    lines.append("│")
+    lines.append("└" + "─" * 42)
+    
+    return "\n".join(lines)
+
+
+async def run_voice_doctor() -> str:
+    """
+    Run comprehensive voice system diagnostics.
+    
+    Returns:
+        Formatted diagnostics output.
+    """
+    diagnostics = get_voice_diagnostics()
+    return format_voice_diagnostics(diagnostics)
