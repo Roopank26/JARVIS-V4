@@ -5,12 +5,15 @@ Provides voice command input and voice response output.
 
 import asyncio
 import io
+import logging
 import threading
 import wave
 import tempfile
 from pathlib import Path
 from typing import Optional, Callable, Awaitable
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -23,12 +26,70 @@ class AudioConfig:
     output_device: Optional[int] = None
     silence_threshold: float = 500.0
     silence_duration: float = 1.5
+    # Provider settings
+    use_whisper: bool = True  # Use Whisper if available
+    whisper_model: str = "base"  # tiny, base, small, medium, large
+    use_gtts: bool = True  # Use gTTS for TTS if available
+
+
+def check_audio_availability() -> dict:
+    """Check which audio components are available."""
+    status = {
+        "microphone": False,
+        "sounddevice": False,
+        "whisper": False,
+        "gtts": False,
+        "pyttsx3": False,
+        "can_listen": False,
+        "can_speak": False,
+    }
+    
+    # Check sounddevice
+    try:
+        import sounddevice as sd
+        status["sounddevice"] = True
+        # Check if microphone is available
+        try:
+            devices = sd.query_devices()
+            if devices:
+                status["microphone"] = True
+        except:
+            pass
+    except ImportError:
+        logger.debug("sounddevice not installed")
+    
+    # Check Whisper
+    try:
+        import whisper
+        status["whisper"] = True
+        status["can_listen"] = status["sounddevice"]
+    except ImportError:
+        logger.debug("whisper not installed")
+    
+    # Check gTTS
+    try:
+        from gtts import gTTS
+        status["gtts"] = True
+        status["can_speak"] = True
+    except ImportError:
+        logger.debug("gTTS not installed")
+    
+    # Check pyttsx3 (offline TTS)
+    try:
+        import pyttsx3
+        status["pyttsx3"] = True
+        if not status["can_speak"]:
+            status["can_speak"] = True
+    except ImportError:
+        logger.debug("pyttsx3 not installed")
+    
+    return status
 
 
 class SpeechToText:
     """
     Speech-to-text using WebRTC VAD for voice activity detection
-    and Google Speech API for transcription.
+    and Whisper for transcription.
     """
 
     def __init__(self, config: Optional[AudioConfig] = None):
@@ -38,6 +99,23 @@ class SpeechToText:
         self._audio_buffer: list = []
         self._silence_frames = 0
         self._speech_frames = 0
+        self._whisper_model = None
+        self._availability = check_audio_availability()
+        
+        # Initialize Whisper if available
+        if self._availability["whisper"]:
+            self._init_whisper()
+
+    def _init_whisper(self):
+        """Initialize Whisper model."""
+        try:
+            import whisper
+            logger.info(f"Loading Whisper model: {self.config.whisper_model}")
+            self._whisper_model = whisper.load_model(self.config.whisper_model)
+            logger.info("Whisper model loaded")
+        except Exception as e:
+            logger.warning(f"Failed to load Whisper: {e}")
+            self._whisper_model = None
 
     async def listen(self, timeout: float = 10.0) -> Optional[str]:
         """
@@ -107,7 +185,27 @@ class SpeechToText:
         return None
 
     async def _transcribe(self, audio_data: bytes) -> Optional[str]:
-        """Transcribe audio using Google Speech Recognition."""
+        """Transcribe audio using Whisper or Google Speech Recognition."""
+        # Try Whisper first (offline, local)
+        if self._whisper_model:
+            try:
+                import numpy as np
+                
+                # Convert bytes to numpy array
+                audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
+                
+                # Transcribe with Whisper
+                result = self._whisper_model.transcribe(audio_np, fp16=False)
+                text = result["text"].strip()
+                
+                if text:
+                    logger.info(f"Whisper transcription: {text[:50]}...")
+                    return text
+                    
+            except Exception as e:
+                logger.warning(f"Whisper transcription failed: {e}")
+        
+        # Fallback to Google Speech Recognition
         try:
             import speech_recognition as sr
 
@@ -124,11 +222,12 @@ class SpeechToText:
             # Try Google Speech Recognition
             try:
                 text = recognizer.recognize_google(audio)
+                logger.info(f"Google STT transcription: {text[:50]}...")
                 return text
             except sr.UnknownValueError:
-                print("[STT] Could not understand audio")
+                logger.warning("[STT] Could not understand audio")
             except sr.RequestError as e:
-                print(f"[STT] Google API error: {e}")
+                logger.warning(f"[STT] Google API error: {e}")
                 # Fallback to offline recognizer
                 try:
                     text = recognizer.recognize_sphinx(audio)
@@ -139,9 +238,9 @@ class SpeechToText:
             Path(wav_path).unlink(missing_ok=True)
 
         except ImportError:
-            print("[STT] speech_recognition not available")
+            logger.warning("[STT] speech_recognition not available")
         except Exception as e:
-            print(f"[STT] Transcribe error: {e}")
+            logger.warning(f"[STT] Transcribe error: {e}")
 
         return None
 
