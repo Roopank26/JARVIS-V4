@@ -101,10 +101,13 @@ class TestProviderManager:
         config = LLMConfig(provider=ProviderType.OLLAMA, model="qwen3:8b")
         provider = OllamaProvider(config)
         provider._available_models = ["qwen3:8b", "deepseek-r1:8b"]
+        provider._available = True
+        manager.primary_provider = ProviderType.OLLAMA
+
         manager.add_provider(provider)
         
         status = manager.format_status()
-        assert "OLLAMA" in status
+        assert "Ollama" in status or "OLLAMA" in status
         assert "qwen3:8b" in status
 
     def test_format_models(self):

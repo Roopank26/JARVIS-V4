@@ -10,7 +10,7 @@ import time
 import json
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any, AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,21 @@ class LLMResponse:
     usage: Optional[Dict[str, int]] = None
     latency: float = 0.0
     error: Optional[str] = None
+
+
+@dataclass
+class ProviderStatus:
+    """Detailed provider status."""
+    name: str
+    provider: ProviderType
+    available: bool
+    current_model: str
+    available_models: List[str] = field(default_factory=list)
+    fallback: Optional[str] = None
+    connection: str = "Unknown"
+    latency_ms: float = 0.0
+    error: Optional[str] = None
+    last_check: Optional[str] = None
 
 
 class BaseLLMProvider(ABC):
@@ -99,12 +114,84 @@ class BaseLLMProvider(ABC):
 
 
 class OllamaProvider(BaseLLMProvider):
-    """Ollama local LLM provider."""
+    """Ollama local LLM provider with fuzzy model matching."""
+
+    # Model aliases for fuzzy matching
+    MODEL_ALIASES = {
+        "qwen": "qwen3:8b",
+        "qwen3": "qwen3:8b",
+        "deepseek": "deepseek-r1:8b",
+        "deepseek-r1": "deepseek-r1:8b",
+        "llama": "llama3.2:3b",
+        "llama3": "llama3.2:3b",
+        "codellama": "codellama:7b",
+        "mistral": "mistral:7b",
+        "mixtral": "mixtral:8x7b",
+        "phi": "phi:3.8b",
+        "phi3": "phi3:14b",
+    }
 
     def __init__(self, config: LLMConfig):
         super().__init__(config)
         self.base_url = config.base_url or "http://localhost:11434"
         self.model = config.model or "qwen3:8b"
+        self._connection_status = "Unknown"
+        self._latency_ms = 0.0
+
+    def _resolve_model(self, model_hint: str) -> str:
+        """
+        Resolve a model hint to a full model name using fuzzy matching.
+        
+        Examples:
+            "qwen3" -> "qwen3:8b" (if available)
+            "deepseek" -> "deepseek-r1:8b" (if available)
+        """
+        hint_lower = model_hint.lower().strip()
+        
+        # Direct match check first
+        for avail_model in self._available_models:
+            if avail_model.lower() == hint_lower:
+                return avail_model
+        
+        # Check if it's an alias
+        if hint_lower in self.MODEL_ALIASES:
+            resolved = self.MODEL_ALIASES[hint_lower]
+            # Check if resolved model is available
+            for avail_model in self._available_models:
+                if resolved.lower() in avail_model.lower():
+                    return avail_model
+            # Return the alias even if not available (will error later)
+            return resolved
+        
+        # Partial match - check if hint is contained in any model name
+        for avail_model in self._available_models:
+            if hint_lower in avail_model.lower():
+                return avail_model
+        
+        # No match found - return original hint
+        return model_hint
+
+    def switch_model(self, model_hint: str) -> bool:
+        """
+        Switch to a model using fuzzy matching.
+        
+        Args:
+            model_hint: Model name, alias, or partial match
+            
+        Returns:
+            True if model switch successful
+        """
+        resolved = self._resolve_model(model_hint)
+        
+        # Verify the resolved model is actually available
+        if resolved in self._available_models:
+            self.model = resolved
+            logger.info(f"Ollama switched to model: {resolved}")
+            return True
+        
+        # If not available, try to pull it
+        logger.warning(f"Model '{resolved}' not found. Available: {self._available_models}")
+        return False
 
     async def generate(self, prompt: str, **kwargs) -> LLMResponse:
         """Generate response using Ollama."""
@@ -128,6 +215,8 @@ class OllamaProvider(BaseLLMProvider):
                 async with session.post(url, json=payload, timeout=self.config.timeout) as resp:
                     if resp.status == 200:
                         data = await resp.json()
+                        self._connection_status = "Connected"
+                        self._latency_ms = (time.time() - start) * 1000
                         return LLMResponse(
                             content=data.get("response", ""),
                             provider=ProviderType.OLLAMA,
@@ -138,11 +227,13 @@ class OllamaProvider(BaseLLMProvider):
                         error = await resp.text()
                         self._last_error = f"HTTP {resp.status}: {error}"
                         self._available = False
+                        self._connection_status = f"Error: {resp.status}"
                         raise Exception(self._last_error)
 
         except aiohttp.ClientError as e:
             self._last_error = f"Connection error: {e}"
             self._available = False
+            self._connection_status = "Connection Failed"
             raise Exception(self._last_error)
         except Exception as e:
             self._last_error = str(e)
@@ -174,18 +265,28 @@ class OllamaProvider(BaseLLMProvider):
 
     async def check_health(self) -> bool:
         """Check if Ollama is running and store available models."""
+        start = time.time()
         try:
             import aiohttp
             async with aiohttp.ClientSession() as session:
                 async with session.get(f"{self.base_url}/api/tags", timeout=5.0) as resp:
+                    self._latency_ms = (time.time() - start) * 1000
                     if resp.status == 200:
                         data = await resp.json()
                         models = data.get("models", [])
                         self._available_models = [m["name"] for m in models]
-                        logger.info(f"Ollama available, {len(models)} models")
+                        self._connection_status = "Connected"
+                        self._available = True
+                        logger.info(f"Ollama available, {len(models)} models: {self._available_models}")
                         return True
+                    self._connection_status = f"Error: {resp.status}"
+                    self._available = False
                     return False
-        except Exception:
+        except Exception as e:
+            self._last_error = str(e)
+            self._connection_status = "Connection Failed"
+            self._available = False
+            logger.warning(f"Ollama health check failed: {e}")
             return False
 
     async def list_models(self) -> List[str]:
@@ -194,6 +295,20 @@ class OllamaProvider(BaseLLMProvider):
             return self._available_models
         await self.check_health()
         return self._available_models
+
+    def get_status(self) -> "ProviderStatus":
+        """Get detailed provider status."""
+        return ProviderStatus(
+            name="Ollama",
+            provider=ProviderType.OLLAMA,
+            available=self._available,
+            current_model=self.model,
+            available_models=self._available_models.copy(),
+            fallback="Groq",
+            connection=self._connection_status,
+            latency_ms=self._latency_ms,
+            error=self._last_error
+        )
 
 
 class GroqProvider(BaseLLMProvider):
@@ -343,15 +458,17 @@ class ProviderManager:
             self.primary_provider = provider_type
 
     def set_model(self, model: str) -> bool:
-        """Switch to a specific model across providers."""
-        # Normalize model name
-        model_lower = model.lower().strip()
-        if not model_lower.endswith(":8b") and ":" not in model_lower:
-            model_lower = model_lower + ":8b"
-
-        # Check if model is in Ollama
+        """Switch to a specific model using fuzzy matching."""
+        # Check if model is in Ollama (use fuzzy matching)
         if ProviderType.OLLAMA in self.providers:
             ollama = self.providers[ProviderType.OLLAMA]
+            # Use Ollama's fuzzy model matching
+            if hasattr(ollama, 'switch_model'):
+                if ollama.switch_model(model):
+                    self.primary_provider = ProviderType.OLLAMA
+                    return True
+            # Fallback to simple matching
+            model_lower = model.lower().strip()
             for avail_model in ollama.available_models:
                 if model_lower in avail_model.lower():
                     ollama.model = avail_model
@@ -435,24 +552,42 @@ class ProviderManager:
         return self._startup_diagnostics
 
     def format_status(self) -> str:
-        """Format provider status for display."""
-        lines = ["[Provider Status]", "=" * 40]
-
-        for provider_type, provider in self.providers.items():
-            is_primary = provider_type == self.primary_provider
-            status = "✓ PRIMARY" if is_primary else "○ available" if provider.is_available else "✗ unavailable"
-
-            lines.append(f"\n{provider_type.value.upper()}:")
-            lines.append(f"  Status: {status}")
-            lines.append(f"  Model: {provider.model}")
-
+        """Format detailed provider status for display."""
+        lines = ["┌─ Provider Status ─", "│", "│ Provider:"]
+        
+        # Determine current provider
+        current_provider = "None"
+        if self.primary_provider and self.primary_provider in self.providers:
+            provider = self.providers[self.primary_provider]
+            current_provider = self.primary_provider.value.capitalize()
+            lines.append(f"│   {current_provider}")
+            lines.append(f"│")
+            lines.append(f"│ Current Model:")
+            lines.append(f"│   {provider.model}")
+            lines.append(f"│")
+            lines.append(f"│ Available Models:")
             if provider.available_models:
-                lines.append("  Available models:")
                 for model in provider.available_models:
-                    marker = " ← DEFAULT" if model == self.DEFAULT_MODEL else ""
-                    marker = " ← REASONING" if "deepseek" in model.lower() else marker
-                    lines.append(f"    • {model}{marker}")
-
+                    marker = " ←" if model == provider.model else ""
+                    lines.append(f"│   • {model}{marker}")
+            else:
+                lines.append(f"│   (none)")
+            lines.append(f"│")
+            lines.append(f"│ Fallback:")
+            lines.append(f"│   Groq")
+            lines.append(f"│")
+            # Connection status for Ollama
+            if hasattr(provider, '_connection_status'):
+                lines.append(f"│ Connection:")
+                lines.append(f"│   {provider._connection_status}")
+                lines.append(f"│")
+            if hasattr(provider, '_latency_ms') and provider._latency_ms > 0:
+                lines.append(f"│ Latency:")
+                lines.append(f"│   {provider._latency_ms:.0f} ms")
+        
+        lines.append("│")
+        lines.append("└" + "─" * 20)
+        
         return "\n".join(lines)
 
     def format_models(self) -> str:
