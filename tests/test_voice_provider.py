@@ -266,8 +266,9 @@ class TestModelSwitching:
         provider._available_models = ["qwen3:8b", "deepseek-r1:8b"]
         manager.add_provider(provider)
         
-        result = manager.set_model("qwen3")
-        assert result is True
+        success, model = manager.set_model("qwen3")
+        assert success is True
+        assert model == "qwen3:8b"
         assert manager.primary_provider == ProviderType.OLLAMA
 
     def test_set_model_normalizes_name(self):
@@ -279,8 +280,9 @@ class TestModelSwitching:
         provider._available_models = ["qwen3:8b"]
         manager.add_provider(provider)
         
-        result = manager.set_model("qwen3")
-        assert result is True
+        success, model = manager.set_model("qwen3")
+        assert success is True
+        assert model == "qwen3:8b"
         assert provider.model == "qwen3:8b"
 
     def test_get_current_model(self):

@@ -114,7 +114,7 @@ class BaseLLMProvider(ABC):
 
 
 class OllamaProvider(BaseLLMProvider):
-    """Ollama local LLM provider with fuzzy model matching."""
+    """Ollama local LLM provider with comprehensive model management."""
 
     # Model aliases for fuzzy matching
     MODEL_ALIASES = {
@@ -137,6 +137,14 @@ class OllamaProvider(BaseLLMProvider):
         self.model = config.model or "qwen3:8b"
         self._connection_status = "Unknown"
         self._latency_ms = 0.0
+        # Model metadata cache
+        self._model_cache: Dict[str, Dict] = {}
+        self._cache_time: float = 0
+        self._cache_ttl: float = 300  # 5 minutes
+
+    def _is_cache_valid(self) -> bool:
+        """Check if model cache is still valid."""
+        return time.time() - self._cache_time < self._cache_ttl and bool(self._available_models)
 
     def _resolve_model(self, model_hint: str) -> str:
         """
@@ -171,7 +179,7 @@ class OllamaProvider(BaseLLMProvider):
         # No match found - return original hint
         return model_hint
 
-    def switch_model(self, model_hint: str) -> bool:
+    def switch_model(self, model_hint: str) -> tuple:
         """
         Switch to a model using fuzzy matching.
         
@@ -179,7 +187,7 @@ class OllamaProvider(BaseLLMProvider):
             model_hint: Model name, alias, or partial match
             
         Returns:
-            True if model switch successful
+            Tuple of (success, resolved_model_name)
         """
         resolved = self._resolve_model(model_hint)
         
@@ -187,11 +195,11 @@ class OllamaProvider(BaseLLMProvider):
         if resolved in self._available_models:
             self.model = resolved
             logger.info(f"Ollama switched to model: {resolved}")
-            return True
+            return True, resolved
         
-        # If not available, try to pull it
+        # If not available, log warning but still try
         logger.warning(f"Model '{resolved}' not found. Available: {self._available_models}")
-        return False
+        return False, resolved
 
     async def generate(self, prompt: str, **kwargs) -> LLMResponse:
         """Generate response using Ollama."""
@@ -457,16 +465,23 @@ class ProviderManager:
         if provider_type in self.providers:
             self.primary_provider = provider_type
 
-    def set_model(self, model: str) -> bool:
-        """Switch to a specific model using fuzzy matching."""
+    def set_model(self, model: str) -> tuple:
+        """Switch to a specific model using fuzzy matching.
+        
+        Returns:
+            Tuple of (success, model_name)
+        """
         # Check if model is in Ollama (use fuzzy matching)
         if ProviderType.OLLAMA in self.providers:
             ollama = self.providers[ProviderType.OLLAMA]
             # Use Ollama's fuzzy model matching
             if hasattr(ollama, 'switch_model'):
-                if ollama.switch_model(model):
+                success, resolved = ollama.switch_model(model)
+                if success:
                     self.primary_provider = ProviderType.OLLAMA
-                    return True
+                    return True, resolved
+                # Even if not found, return what was resolved
+                return False, resolved
             # Fallback to simple matching
             model_lower = model.lower().strip()
             for avail_model in ollama.available_models:
@@ -474,7 +489,7 @@ class ProviderManager:
                     ollama.model = avail_model
                     self.primary_provider = ProviderType.OLLAMA
                     logger.info(f"Switched to Ollama model: {avail_model}")
-                    return True
+                    return True, avail_model
 
         # Check other providers
         for provider_type, provider in self.providers.items():
@@ -482,9 +497,9 @@ class ProviderManager:
                 provider.model = model
                 self.primary_provider = provider_type
                 logger.info(f"Switched to {provider_type.value} model: {model}")
-                return True
+                return True, model
 
-        return False
+        return False, model
 
     def get_best_model_for_task(self, prompt: str) -> str:
         """Intelligently select the best model for a given task."""
@@ -553,41 +568,57 @@ class ProviderManager:
 
     def format_status(self) -> str:
         """Format detailed provider status for display."""
-        lines = ["┌─ Provider Status ─", "│", "│ Provider:"]
-        
+        lines = ["┌─ Provider Status ──────────────────", "│"]
+
         # Determine current provider
-        current_provider = "None"
         if self.primary_provider and self.primary_provider in self.providers:
             provider = self.providers[self.primary_provider]
             current_provider = self.primary_provider.value.capitalize()
-            lines.append(f"│   {current_provider}")
+            lines.append(f"│ Provider: {current_provider}")
             lines.append(f"│")
-            lines.append(f"│ Current Model:")
-            lines.append(f"│   {provider.model}")
+            lines.append(f"│ Current Model: {provider.model}")
             lines.append(f"│")
-            lines.append(f"│ Available Models:")
-            if provider.available_models:
-                for model in provider.available_models:
-                    marker = " ←" if model == provider.model else ""
-                    lines.append(f"│   • {model}{marker}")
-            else:
-                lines.append(f"│   (none)")
+            
+            # Show context length if available
+            if hasattr(provider, 'get_model_info'):
+                model_info = provider.get_model_info(provider.model)
+                ctx = model_info.get('context_length', 0)
+                if ctx:
+                    lines.append(f"│ Context Length: {ctx:,} tokens")
+                    lines.append(f"│")
+            
+            lines.append(f"│ Available Models ({len(provider.available_models)}):")
+            for model in provider.available_models:
+                marker = " ←" if model == provider.model else ""
+                ctx_info = ""
+                if hasattr(provider, 'get_model_info'):
+                    info = provider.get_model_info(model)
+                    ctx = info.get('context_length', 0)
+                    if ctx:
+                        ctx_info = f" ({ctx:,} ctx)"
+                lines.append(f"│   • {model}{ctx_info}{marker}")
+            
+            if not provider.available_models:
+                lines.append(f"│   (none detected)")
+            
             lines.append(f"│")
-            lines.append(f"│ Fallback:")
-            lines.append(f"│   Groq")
+            lines.append(f"│ Fallback: Groq")
             lines.append(f"│")
-            # Connection status for Ollama
+            
             if hasattr(provider, '_connection_status'):
-                lines.append(f"│ Connection:")
-                lines.append(f"│   {provider._connection_status}")
-                lines.append(f"│")
+                lines.append(f"│ Connection: {provider._connection_status}")
             if hasattr(provider, '_latency_ms') and provider._latency_ms > 0:
-                lines.append(f"│ Latency:")
-                lines.append(f"│   {provider._latency_ms:.0f} ms")
-        
+                lines.append(f"│ Latency: {provider._latency_ms:.0f} ms")
+        else:
+            lines.append("│ Provider: None")
+            lines.append("│")
+            lines.append("│ Status: No provider available")
+            lines.append("│")
+            lines.append("│ Will use cloud fallback (Groq)")
+
         lines.append("│")
-        lines.append("└" + "─" * 20)
-        
+        lines.append("└" + "─" * 34)
+
         return "\n".join(lines)
 
     def format_models(self) -> str:
