@@ -220,6 +220,14 @@ class NewsMonitor:
         "arxiv": "https://export.arxiv.org/api/query?search_query=all:{query}&max_results=5",
     }
     
+    # AI-focused news sources
+    AI_NEWS_SOURCES = {
+        "techcrunch": "https://techcrunch.com/category/artificial-intelligence/feed/",
+        "venturebeat_ai": "https://venturebeat.com/category/ai/feed/",
+        "arxiv_cs_ai": "https://export.arxiv.org/rss/cs.AI",
+        "mit_ai": "https://news.mit.edu/rss/topic/artificial-intelligence2",
+    }
+    
     def __init__(self):
         self.tracked_topics: Dict[str, datetime] = {}
     
@@ -255,8 +263,94 @@ class NewsMonitor:
                     return []
                     
         except Exception as e:
-            logger.error(f"News fetch error ({source}): {e}")
+            logger.warning(f"News fetch error ({source}): {e}")
             return []
+    
+    async def fetch_latest_ai_news(self, hours: int = 24) -> List[Dict[str, Any]]:
+        """
+        Fetch the latest AI news from multiple sources.
+        
+        Args:
+            hours: Number of hours to look back
+            
+        Returns:
+            List of latest AI news items sorted by date
+        """
+        all_news = []
+        
+        # Try Hacker News AI topic
+        try:
+            import aiohttp
+            url = "https://hn.algolia.com/api/v1/search?query=AI+artificial+intelligence&tags=story&numericFilters=created_at_i>{}".format(
+                int((datetime.now() - timedelta(hours=hours)).timestamp())
+            )
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=15) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        for hit in data.get("hits", [])[:15]:
+                            all_news.append({
+                                "title": hit.get("title", ""),
+                                "url": hit.get("url", "") or f"https://news.ycombinator.com/item?id={hit.get('objectID')}",
+                                "points": hit.get("points", 0),
+                                "date": hit.get("created_at", ""),
+                                "source": "Hacker News",
+                                "source_icon": "📰"
+                            })
+        except Exception as e:
+            logger.warning(f"HN fetch error: {e}")
+        
+        # Try TechCrunch AI
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.get(self.AI_NEWS_SOURCES["techcrunch"], timeout=15) as resp:
+                    if resp.status == 200:
+                        text = await resp.text()
+                        items = self._parse_rss_news(text, "TechCrunch")
+                        all_news.extend(items)
+        except Exception as e:
+            logger.warning(f"TechCrunch fetch error: {e}")
+        
+        # Try MIT AI
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.get(self.AI_NEWS_SOURCES["mit_ai"], timeout=15) as resp:
+                    if resp.status == 200:
+                        text = await resp.text()
+                        items = self._parse_rss_news(text, "MIT News")
+                        all_news.extend(items)
+        except Exception as e:
+            logger.warning(f"MIT AI fetch error: {e}")
+        
+        # Sort by date (newest first)
+        all_news.sort(key=lambda x: x.get("date", ""), reverse=True)
+        
+        return all_news[:20]
+    
+    def _parse_rss_news(self, xml: str, source_name: str) -> List[Dict[str, Any]]:
+        """Parse RSS/Atom news feed."""
+        results = []
+        
+        entries = re.findall(r'<item>(.*?)</item>', xml, re.DOTALL)
+        for entry in entries[:10]:
+            title_match = re.search(r'<title[^>]*>([^<]+)</title>', entry)
+            link_match = re.search(r'<link[^>]*>([^<]+)</link>', entry)
+            date_match = re.search(r'<pubDate>([^<]+)</pubDate>', entry)
+            desc_match = re.search(r'<description[^>]*>([^<]+)</description>', entry)
+            
+            if title_match:
+                results.append({
+                    "title": title_match.group(1).strip(),
+                    "url": link_match.group(1).strip() if link_match else "",
+                    "date": date_match.group(1).strip() if date_match else "",
+                    "snippet": desc_match.group(1)[:200] if desc_match else "",
+                    "source": source_name,
+                    "source_icon": "📰"
+                })
+        
+        return results
     
     def _parse_json_news(self, data: Dict, source: str) -> List[Dict[str, Any]]:
         """Parse JSON news response."""
@@ -601,6 +695,18 @@ class ResearchAgent:
             List of news items
         """
         return await self.news_monitor.fetch_news(topic, source)
+    
+    async def get_latest_ai_news(self, hours: int = 24) -> List[Dict[str, Any]]:
+        """
+        Get the latest AI news from multiple sources.
+        
+        Args:
+            hours: Number of hours to look back
+            
+        Returns:
+            List of latest AI news items
+        """
+        return await self.news_monitor.fetch_latest_ai_news(hours=hours)
     
     def generate_report(
         self,
