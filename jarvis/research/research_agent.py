@@ -38,78 +38,177 @@ class ResearchResult:
 
 
 class WebSearcher:
-    """Web search functionality."""
+    """Web search functionality using Tavily API or DuckDuckGo Lite."""
     
-    # Search engines/APIs (using free alternatives)
-    SERP_API_PATTERNS = {
-        "duckduckgo": "https://duckduckgo.com/html/?q={query}",
-        "ddg_lite": "https://lite.duckduckgo.com/50x/?q={query}",
-    }
-    
-    def __init__(self, max_results: int = 10):
+    def __init__(self, max_results: int = 10, api_key: str = None):
         self.max_results = max_results
+        self.api_key = api_key
+        self._tavily_available = False
+        self._init_tavily()
     
-    async def search(self, query: str, source: str = "duckduckgo") -> List[Dict[str, str]]:
+    def _init_tavily(self):
+        """Initialize Tavily API if available."""
+        try:
+            import os
+            self.api_key = self.api_key or os.environ.get("TAVILY_API_KEY")
+            if self.api_key:
+                self._tavily_available = True
+                logger.info("Tavily API configured for web search")
+        except Exception:
+            pass
+    
+    async def search(self, query: str, source: str = "auto") -> List[Dict[str, str]]:
         """
         Search the web for a query.
         
         Args:
             query: Search query
-            source: Search source (duckduckgo)
+            source: Search source (auto, tavily, duckduckgo)
             
         Returns:
             List of search results with title, url, snippet
         """
+        # Try Tavily first if available
+        if self._tavily_available and source in ("auto", "tavily"):
+            results = await self._search_tavily(query)
+            if results:
+                return results
+        
+        # Fallback to DuckDuckGo Lite
+        return await self._search_duckduckgo(query)
+    
+    async def _search_tavily(self, query: str) -> List[Dict[str, str]]:
+        """Search using Tavily API."""
         try:
             import aiohttp
             
-            url_template = self.SERP_API_PATTERNS.get(source, self.SERP_API_PATTERNS["duckduckgo"])
-            url = url_template.format(query=query.replace(" ", "+"))
+            async with aiohttp.ClientSession() as session:
+                url = "https://api.tavily.com/search"
+                headers = {"Content-Type": "application/json"}
+                payload = {
+                    "api_key": self.api_key,
+                    "query": query,
+                    "max_results": self.max_results,
+                    "include_answer": True,
+                    "include_raw_content": False
+                }
+                
+                async with session.post(url, json=payload, headers=headers, timeout=15) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        results = []
+                        for item in data.get("results", []):
+                            results.append({
+                                "url": item.get("url", ""),
+                                "title": item.get("title", ""),
+                                "snippet": item.get("content", "")[:300]
+                            })
+                        logger.info(f"Tavily returned {len(results)} results")
+                        return results
+                    else:
+                        logger.warning(f"Tavily search failed: HTTP {resp.status}")
+                        return []
+                        
+        except Exception as e:
+            logger.warning(f"Tavily search error: {e}")
+            return []
+    
+    async def _search_duckduckgo(self, query: str) -> List[Dict[str, str]]:
+        """Search using DuckDuckGo Lite."""
+        try:
+            import aiohttp
+            
+            # Use the lite version
+            url = f"https://lite.duckduckgo.com/lite/?q={query.replace(' ', '+')}"
             
             headers = {
-                "User-Agent": "Mozilla/5.0 (compatible; JARVIS/1.0; Research Bot)"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             }
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=headers, timeout=10) as resp:
                     if resp.status == 200:
                         html = await resp.text()
-                        return self._parse_results(html)
+                        return self._parse_ddg_results(html)
                     else:
-                        logger.warning(f"Search failed: HTTP {resp.status}")
-                        return []
+                        # Try Bing API as final fallback
+                        return await self._search_bing(query)
                         
-        except ImportError:
-            logger.error("aiohttp required for web search. Install: pip install aiohttp")
-            return []
         except Exception as e:
-            logger.error(f"Search error: {e}")
+            logger.warning(f"DuckDuckGo search error: {e}")
             return []
     
-    def _parse_results(self, html: str) -> List[Dict[str, str]]:
-        """Parse search results from HTML."""
+    async def _search_bing(self, query: str) -> List[Dict[str, str]]:
+        """Search using Bing API (free tier)."""
+        try:
+            import aiohttp
+            
+            # Bing Search API v7 (limited free tier)
+            # Note: This requires a subscription for production use
+            url = "https://api.bing.microsoft.com/v7.0/search"
+            api_key = os.environ.get("BING_API_KEY")
+            
+            if not api_key:
+                logger.debug("Bing API key not configured")
+                return []
+            
+            headers = {"Ocp-Apim-Subscription-Key": api_key}
+            params = {"q": query, "count": self.max_results}
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, params=params, timeout=10) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        results = []
+                        for item in data.get("webPages", {}).get("value", []):
+                            results.append({
+                                "url": item.get("url", ""),
+                                "title": item.get("name", ""),
+                                "snippet": item.get("snippet", "")[:300]
+                            })
+                        return results
+                        
+        except Exception:
+            pass
+        
+        return []
+    
+    def _parse_ddg_results(self, html: str) -> List[Dict[str, str]]:
+        """Parse search results from DuckDuckGo Lite HTML."""
         results = []
         
-        # Simple regex-based parsing for DuckDuckGo HTML
-        result_pattern = r'<a class="result__a" href="([^"]+)">([^<]+)</a>.*?<a class="result__snippet"[^>]*>([^<]+)</a>'
+        # Pattern for DuckDuckGo Lite results
+        result_pattern = r'<a rel="nofollow" href="([^"]+)">([^<]+)</a>'
+        snippet_pattern = r'<p class="result-description">([^<]+)</p>'
         
-        for match in re.finditer(result_pattern, html, re.DOTALL):
-            url, title, snippet = match.groups()
-            # Clean HTML entities
-            snippet = re.sub(r'<[^>]+>', '', snippet)
-            snippet = snippet.replace("&quot;", '"').replace("&amp;", "&")
-            title = re.sub(r'<[^>]+>', '', title)
+        # Find all result blocks
+        blocks = re.split(r'<div class="result">', html)
+        
+        for block in blocks[1:]:
+            url_match = re.search(result_pattern, block)
+            snippet_match = re.search(snippet_pattern, block)
             
-            results.append({
-                "url": url,
-                "title": title.strip(),
-                "snippet": snippet.strip()[:300]
-            })
-            
-            if len(results) >= self.max_results:
-                break
+            if url_match:
+                url = url_match.group(1)
+                title = re.sub(r'<[^>]+>', '', url_match.group(2))
+                snippet = ""
+                if snippet_match:
+                    snippet = re.sub(r'<[^>]+>', '', snippet_match.group(1))
+                
+                if not url.startswith("/"):
+                    results.append({
+                        "url": url,
+                        "title": title.strip(),
+                        "snippet": snippet.strip()[:300]
+                    })
+                
+                if len(results) >= self.max_results:
+                    break
         
         return results
+    
+    # Alias for backwards compatibility
+    _parse_results = _parse_ddg_results
 
 
 class NewsMonitor:
