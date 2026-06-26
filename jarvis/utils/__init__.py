@@ -16,12 +16,70 @@ from typing import Any, Dict, List, Optional, Callable, Set
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 
+# Import standard logging first (before custom module)
+import logging as _logging
+
+# Import new utilities
+from jarvis.utils.logging import get_logger, configure_logging, setup_logging
+from jarvis.utils.exceptions import (
+    JarvisError,
+    ConfigurationError,
+    ProviderError,
+    VoiceError,
+    MemoryError,
+    RAGError,
+    DesktopError,
+    ToolError,
+    SecurityError,
+    PermissionError,
+    ValidationError,
+    format_exception,
+)
+from jarvis.utils.lifecycle import (
+    LifecycleState,
+    LifecycleComponent,
+    LifecycleManager,
+    lifespan_context,
+    StartupDiagnostics,
+)
+from jarvis.utils.diagnostics import (
+    DiagnosticResult,
+    DiagnosticCheck,
+    DiagnosticsRunner,
+    run_startup_diagnostics,
+)
+
 __all__ = [
+    # Platform utilities
     "get_platform", "is_linux", "is_macos", "is_windows",
     "get_home_dir", "get_jarvis_dir", "get_memory_path", "ensure_jarvis_dir",
-    "truncate_string", "format_path", "Logger", "Timer", "Cache", 
-    "Validator", "generate_id", "format_size", "format_duration",
-    "ensure_dir", "atomic_write", "retry"
+    # String utilities
+    "truncate_string", "format_path",
+    # Logging
+    "get_logger", "configure_logging", "setup_logging",
+    # Time utilities
+    "Timer", "format_duration", "format_size",
+    # Cache
+    "Cache",
+    # Validation
+    "Validator",
+    # ID generation
+    "generate_id",
+    # File utilities
+    "ensure_dir", "atomic_write",
+    # Retry
+    "retry",
+    # Exceptions
+    "JarvisError", "ConfigurationError", "ProviderError", "VoiceError",
+    "MemoryError", "RAGError", "DesktopError", "ToolError",
+    "SecurityError", "PermissionError", "ValidationError",
+    "format_exception",
+    # Lifecycle
+    "LifecycleState", "LifecycleComponent", "LifecycleManager",
+    "lifespan_context", "StartupDiagnostics",
+    # Diagnostics
+    "DiagnosticResult", "DiagnosticCheck", "DiagnosticsRunner",
+    "run_startup_diagnostics",
 ]
 
 
@@ -101,14 +159,14 @@ class Logger:
         'ERROR': '\033[31m', 'CRITICAL': '\033[35m', 'RESET': '\033[0m'
     }
     
-    def __init__(self, name: str, level: int = logging.INFO):
-        self.logger = logging.getLogger(name)
+    def __init__(self, name: str, level: int = _logging.INFO):
+        self.logger = _logging.getLogger(name)
         self.logger.setLevel(level)
         self._colored = sys.stderr.isatty()
         
         if not self.logger.handlers:
-            handler = logging.StreamHandler()
-            handler.setFormatter(logging.Formatter(
+            handler = _logging.StreamHandler()
+            handler.setFormatter(_logging.Formatter(
                 '%(asctime)s - %(levelname)s - %(message)s', datefmt='%H:%M:%S'
             ))
             self.logger.addHandler(handler)
