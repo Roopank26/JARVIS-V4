@@ -64,8 +64,8 @@ class TestExceptions:
         assert "Exception:" in format_exception(Exception("Test"))
 
 
-class TestLifecycleComponent(LifecycleComponent):
-    """Test lifecycle component."""
+class _TestableLifecycleComponent(LifecycleComponent):
+    """Test lifecycle component (renamed to avoid pytest collection)."""
     
     def __init__(self, name: str = "test"):
         super().__init__(name)
@@ -85,7 +85,7 @@ class TestLifecycle:
     @pytest.mark.asyncio
     async def test_component_start_stop(self):
         """Test component start and stop."""
-        component = TestLifecycleComponent()
+        component = _TestableLifecycleComponent()
         
         # Start
         assert await component.start()
@@ -103,7 +103,7 @@ class TestLifecycle:
     async def test_lifecycle_manager(self):
         """Test lifecycle manager."""
         manager = LifecycleManager()
-        component = TestLifecycleComponent()
+        component = _TestableLifecycleComponent()
         
         manager.register(component)
         
@@ -116,7 +116,7 @@ class TestLifecycle:
     @pytest.mark.asyncio
     async def test_component_add_task(self):
         """Test adding tasks to component."""
-        component = TestLifecycleComponent()
+        component = _TestableLifecycleComponent()
         
         async def background_task():
             await asyncio.sleep(0.1)

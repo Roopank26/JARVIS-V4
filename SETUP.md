@@ -56,6 +56,26 @@ pip install pyautogui pyperclip
 pip install rich prompt_toolkit
 ```
 
+#### FFmpeg (Optional - for audio features)
+
+FFmpeg is required for some audio processing features like video-to-audio conversion:
+
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt install ffmpeg
+```
+
+**macOS:**
+```bash
+brew install ffmpeg
+```
+
+**Windows:**
+Download from https://ffmpeg.org/download.html or use winget:
+```bash
+winget install ffmpeg
+```
+
 ### 4. Configure API Keys
 
 #### Gemini API Key
