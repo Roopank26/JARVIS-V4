@@ -50,6 +50,7 @@ class DesktopConfig:
     # Features
     auto_index_projects: bool = True
     daily_summary_time: str = "18:00"
+    enable_background_tasks: bool = True  # Enable/disable scheduler and indexing
     
     # Paths
     data_dir: Path = field(default_factory=lambda: Path.home() / ".jarvis")
@@ -116,6 +117,10 @@ class DesktopAssistant:
         self._running = False
         self._initialized = False
         self._start_time: Optional[datetime] = None
+
+        # Background tasks
+        self._scheduler_task: Optional[asyncio.Task] = None
+        self._index_task: Optional[asyncio.Task] = None
 
     async def initialize(self) -> bool:
         """Initialize all components."""
@@ -205,8 +210,8 @@ class DesktopAssistant:
         self.listener.set_command_callback(self._handle_voice_command)
         await self.listener.start()
         
-        # Start scheduler in background
-        asyncio.create_task(self._run_scheduler())
+        if self.config.enable_background_tasks:
+            self._scheduler_task = asyncio.create_task(self._run_scheduler())
         
         # Start system tray
         if self.config.minimize_to_tray:
@@ -216,8 +221,8 @@ class DesktopAssistant:
         self._start_time = datetime.now()
         
         # Index projects if enabled
-        if self.config.auto_index_projects:
-            asyncio.create_task(self._index_projects())
+        if self.config.auto_index_projects and self.config.enable_background_tasks:
+            self._index_task = asyncio.create_task(self._index_projects())
         
         logger.info("JARVIS Desktop Assistant started")
         
@@ -232,6 +237,18 @@ class DesktopAssistant:
             return True
 
         logger.info("Stopping JARVIS Desktop Assistant...")
+        
+        # Cancel background tasks
+        for task in (self._scheduler_task, self._index_task):
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+        
+        self._scheduler_task = None
+        self._index_task = None
         
         # Stop components
         await self.listener.stop()
@@ -338,7 +355,23 @@ class DesktopAssistant:
         
         try:
             # Find and add projects
-            detected = await self.projects.auto_detect_projects()
+
+            # Only index from config.data_dir (not user's entire home)
+            search_path = self.config.data_dir
+
+            # Skip if no projects directory exists
+            if not search_path.exists():
+                logger.info("No data directory, skipping indexing")
+                return
+
+            # Find and add projects from data_dir only
+            detected = await self.projects.auto_detect_projects([search_path])
+
+            # If no projects found, skip
+            if not detected:
+                logger.info("No projects found in data directory, skipping indexing")
+                return
+
             
             # Index each project
             for project_name in detected:

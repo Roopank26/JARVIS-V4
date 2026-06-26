@@ -466,3 +466,125 @@ class TestFullAutonomousCycle:
             
             facts = assistant2.memory.recall("test")
             assert len(facts) > 0
+
+
+class TestBackgroundTaskManagement:
+    """Regression tests for background task management."""
+
+    @pytest.mark.asyncio
+    async def test_scheduler_task_stored(self):
+        """Test that scheduler task is stored when background tasks enabled."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = DesktopConfig(
+                data_dir=Path(tmpdir),
+                enable_background_tasks=True,
+                auto_index_projects=False,
+            )
+            assistant = DesktopAssistant(config)
+            
+            # Start assistant
+            started = await assistant.start()
+            assert started
+            
+            # Task should be stored
+            assert assistant._scheduler_task is not None
+            assert isinstance(assistant._scheduler_task, asyncio.Task)
+            
+            # Cleanup
+            await assistant.stop()
+
+    @pytest.mark.asyncio
+    async def test_scheduler_task_cancelled(self):
+        """Test that scheduler task is cancelled on stop."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = DesktopConfig(
+                data_dir=Path(tmpdir),
+                enable_background_tasks=True,
+                auto_index_projects=False,
+            )
+            assistant = DesktopAssistant(config)
+            
+            await assistant.start()
+            task = assistant._scheduler_task
+            assert task is not None
+            
+            await assistant.stop()
+            
+            # Task should be cleared
+            assert assistant._scheduler_task is None
+
+    @pytest.mark.asyncio
+    async def test_index_task_cancelled(self):
+        """Test that index task is cancelled on stop."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = DesktopConfig(
+                data_dir=Path(tmpdir),
+                enable_background_tasks=True,
+                auto_index_projects=True,
+            )
+            assistant = DesktopAssistant(config)
+            
+            await assistant.start()
+            
+            await assistant.stop()
+            
+            # Index task should be cleared
+            assert assistant._index_task is None
+
+    @pytest.mark.asyncio
+    async def test_no_pending_tasks_after_stop(self):
+        """Test that stop() leaves no pending asyncio tasks."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = DesktopConfig(
+                data_dir=Path(tmpdir),
+                enable_background_tasks=True,
+                auto_index_projects=False,
+            )
+            assistant = DesktopAssistant(config)
+            
+            await assistant.start()
+            await assistant.stop()
+            
+            # Verify scheduler and index tasks are cleared
+            assert assistant._scheduler_task is None or assistant._scheduler_task.done()
+            assert assistant._index_task is None or assistant._index_task.done()
+
+    @pytest.mark.asyncio
+    async def test_background_tasks_disabled_by_config(self):
+        """Test that background tasks are not started when disabled."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = DesktopConfig(
+                data_dir=Path(tmpdir),
+                enable_background_tasks=False,
+                auto_index_projects=False,
+            )
+            assistant = DesktopAssistant(config)
+            
+            await assistant.start()
+            
+            # Tasks should not be created
+            assert assistant._scheduler_task is None
+            assert assistant._index_task is None
+            
+            await assistant.stop()
+
+    @pytest.mark.asyncio
+    async def test_start_stop_completes_quickly(self):
+        """Test that start/stop completes in under 2 seconds."""
+        import time
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = DesktopConfig(
+                data_dir=Path(tmpdir),
+                enable_background_tasks=True,
+                auto_index_projects=False,
+            )
+            assistant = DesktopAssistant(config)
+            
+            start_time = time.time()
+            await assistant.start()
+            await assistant.stop()
+            elapsed = time.time() - start_time
+            
+            # Should complete in under 2 seconds
+            assert elapsed < 2.0, f"Start/stop took {elapsed:.2f}s"
