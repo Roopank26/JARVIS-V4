@@ -637,16 +637,154 @@ jarvis/
 ```
 
 ### Test Coverage
-- **289+ tests passing**
+- **319 tests passing**
 - All core functionality verified
 
 ---
 
-## 8. Background Task Lifecycle
+## 8. Production Utilities
+
+### 8.1 Logging
+Centralized logging with rotation, structured output, and multiple handlers.
+
+### 8.2 Exceptions
+Custom exception hierarchy for clear error handling:
+- `JarvisError` (base)
+- `ProviderError`, `VoiceError`, `MemoryError`, `RAGError`
+- `SecurityError`, `ValidationError`
+
+### 8.3 Lifecycle Management
+Lifecycle-aware components with proper startup/shutdown:
+- `LifecycleComponent` abstract base class
+- `LifecycleManager` for multi-component coordination
+- Automatic task cancellation and cleanup
+
+### 8.4 Diagnostics
+System health checks:
+- Python version
+- Platform detection
+- Dependency availability
+- Ollama/Groq connectivity
+- Memory and disk space
+
+---
+
+## 9. Production Voice System
+
+### 9.1 Voice Pipeline
+Wake Word → STT → Intent → Agent → TTS
+
+### 9.2 Wake Word Engines
+- **OpenWakeWord**: Local wake word detection
+- **Fallback**: Audio threshold detection
+
+### 9.3 Speech-to-Text
+- **Faster Whisper**: Fast, accurate local STT
+- **Fallback**: Basic audio analysis
+
+### 9.4 Text-to-Speech
+- **Piper TTS**: High-quality local TTS
+- **Fallback**: pyttsx3/system TTS
+
+### 9.5 Features
+- Interrupt-on-speech
+- Continuous listening mode
+- Streaming audio support
+
+---
+
+## 10. Intelligent Provider Management
+
+### 10.1 Provider Priority
+1. **Ollama** (Local) - Fastest, private
+2. **Groq** (Cloud) - Fast inference
+3. **Fallback** - Other providers
+
+### 10.2 Supported Models
+- qwen3, deepseek-r1, llama3, mistral, gemma (Ollama)
+- llama-3.1-8b-instant, mixtral-8x7b (Groq)
+
+### 10.3 Task Routing
+Automatic model selection based on task type:
+- Reasoning: deepseek-r1
+- Coding: qwen3, deepseek-coder
+- Chat: qwen3, llama3
+- Fast: llama-3.1-8b-instant
+
+---
+
+## 11. Semantic Memory System
+
+### 11.1 Features
+- Embeddings-based semantic search
+- Memory relationships
+- Category-based organization
+- Importance scoring
+
+### 11.2 Categories
+- PERSON, PROJECT, GOAL, PREFERENCE
+- CONVERSATION, MEETING, FILE, CODE, FACT
+
+### 11.3 Commands
+- remember ... → Store information
+- recall ... → Search memories
+- summarize me → Get user profile
+
+---
+
+## 12. Research Agent
+
+### 12.1 Sources
+- DuckDuckGo (web search)
+- Wikipedia (encyclopedia)
+- GitHub (repositories)
+- arXiv (papers)
+
+### 12.2 Citation Formats
+- APA, MLA, Chicago, IEEE
+
+### 12.3 Features
+- Multi-source search
+- Automatic conflict detection
+- Report generation
+
+---
+
+## 13. Vision System
+
+### 13.1 Screen Capture
+Cross-platform screenshot support.
+
+### 13.2 OCR Engines
+- EasyOCR (primary)
+- Tesseract (fallback)
+
+### 13.3 Features
+- Screenshot analysis
+- Text extraction
+- Layout understanding
+
+---
+
+## 14. Desktop UI
+
+### 14.1 Theme
+Dark theme with JARVIS styling.
+
+### 14.2 Components
+- Live conversation display
+- Voice status indicators
+- Model/provider selector
+- Memory browser
+- System statistics
+
+---
+
+## 15. Background Task Lifecycle
 
 JARVIS uses asyncio for concurrent background operations. Proper task management is critical for clean shutdown and test stability.
 
-### 8.1 Task Types
+### 15.1 Task Types
 
 | Task | Purpose | Storage | Cancellation |
 |------|---------|---------|--------------|
@@ -656,7 +794,7 @@ JARVIS uses asyncio for concurrent background operations. Proper task management
 | `_listen_task` (VoiceListener) | Continuous voice listening loop | `_listen_task` | On `stop()` |
 | `_task` (WakeWordEngine) | Wake word detection loop | `_task` | On `stop()` |
 
-### 8.2 Task Creation Pattern
+### 15.2 Task Creation Pattern
 
 All background tasks must be stored in instance variables:
 
@@ -668,7 +806,7 @@ self._scheduler_task = asyncio.create_task(self._run_scheduler())
 asyncio.create_task(self._run_scheduler())
 ```
 
-### 8.3 Conditional Task Creation
+### 15.3 Conditional Task Creation
 
 Tasks should only start based on configuration:
 
@@ -680,7 +818,7 @@ if self.config.auto_index_projects and self.config.enable_background_tasks:
     self._index_task = asyncio.create_task(self._index_projects())
 ```
 
-### 8.4 Graceful Shutdown
+### 15.4 Graceful Shutdown
 
 The `stop()` method cancels all background tasks:
 
@@ -703,7 +841,7 @@ async def stop(self) -> bool:
     # Stop other components...
 ```
 
-### 8.5 Testing Strategy
+### 15.5 Testing Strategy
 
 Tests disable background tasks to prevent hangs:
 
@@ -723,7 +861,7 @@ Regression tests verify:
 - ✅ Background tasks disabled by config
 - ✅ Start/stop completes in under 2 seconds
 
-### 8.6 Anti-Patterns to Avoid
+### 15.6 Anti-Patterns to Avoid
 
 1. **Orphaned tasks** - Always store `asyncio.create_task()` results
 2. **Unbounded scanning** - Never recursively scan user home directories
