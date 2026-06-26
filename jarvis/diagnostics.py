@@ -14,18 +14,20 @@ from typing import Dict, Any, Optional
 
 def check_python() -> Dict[str, Any]:
     """Check Python installation."""
+    import sys
     return {
         "name": "Python",
         "status": "ok",
         "version": platform.python_version(),
-        "executable": platform.python_executable(),
+        "executable": sys.executable,
     }
 
 
 def check_git() -> Dict[str, Any]:
     """Check Git installation."""
+    import subprocess
     try:
-        result = shutil.run(["git", "--version"], capture_output=True, timeout=5)
+        result = subprocess.run(["git", "--version"], capture_output=True, timeout=5)
         if result.returncode == 0:
             return {
                 "name": "Git",
@@ -43,8 +45,9 @@ def check_git() -> Dict[str, Any]:
 
 def check_ffmpeg() -> Dict[str, Any]:
     """Check FFmpeg installation."""
+    import subprocess
     try:
-        result = shutil.run(["ffmpeg", "-version"], capture_output=True, timeout=5)
+        result = subprocess.run(["ffmpeg", "-version"], capture_output=True, timeout=5)
         if result.returncode == 0:
             version_line = result.stdout.decode().split("\n")[0]
             return {
@@ -63,37 +66,52 @@ def check_ffmpeg() -> Dict[str, Any]:
 
 def check_ollama() -> Dict[str, Any]:
     """Check Ollama installation."""
-    import aiohttp
-    import asyncio
-    
-    async def _check():
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get("http://localhost:11434/api/tags", timeout=5.0) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        models = data.get("models", [])
-                        return {
-                            "name": "Ollama",
-                            "status": "ok",
-                            "models": [m["name"] for m in models],
-                            "model_count": len(models),
-                        }
-                    else:
-                        return {"name": "Ollama", "status": "not_running", "http_status": resp.status}
-        except aiohttp.ClientConnectorError:
-            return {"name": "Ollama", "status": "not_running", "error": "Connection refused - Ollama not running"}
-        except Exception as e:
-            return {"name": "Ollama", "status": "error", "error": str(e)}
-    
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(_check())
-        finally:
-            loop.close()
-        return result
+        import aiohttp
+        import asyncio
+        import threading
+        
+        result_holder = [None]
+        exception_holder = [None]
+        
+        def run_check():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    async def _check():
+                        try:
+                            async with aiohttp.ClientSession() as session:
+                                async with session.get("http://localhost:11434/api/tags", timeout=5.0) as resp:
+                                    if resp.status == 200:
+                                        data = await resp.json()
+                                        models = data.get("models", [])
+                                        return {
+                                            "name": "Ollama",
+                                            "status": "ok",
+                                            "models": [m["name"] for m in models],
+                                            "model_count": len(models),
+                                        }
+                                    else:
+                                        return {"name": "Ollama", "status": "not_running", "http_status": resp.status}
+                        except aiohttp.ClientConnectorError:
+                            return {"name": "Ollama", "status": "not_running", "error": "Connection refused - Ollama not running"}
+                        except Exception as e:
+                            return {"name": "Ollama", "status": "error", "error": str(e)}
+                    
+                    result_holder[0] = loop.run_until_complete(_check())
+                finally:
+                    loop.close()
+            except Exception as e:
+                exception_holder[0] = e
+        
+        thread = threading.Thread(target=run_check)
+        thread.start()
+        thread.join(timeout=10)
+        
+        if exception_holder[0]:
+            return {"name": "Ollama", "status": "error", "error": str(exception_holder[0])}
+        return result_holder[0] or {"name": "Ollama", "status": "error", "error": "No result"}
     except Exception as e:
         return {"name": "Ollama", "status": "error", "error": str(e)}
 

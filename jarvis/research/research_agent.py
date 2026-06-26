@@ -57,46 +57,56 @@ class WebSearcher:
         except Exception:
             pass
     
-    async def search(self, query: str, source: str = "auto") -> List[Dict[str, str]]:
+    async def search(self, query: str, source: str = "auto", max_results: int = None) -> List[Dict[str, str]]:
         """
         Search the web for a query with automatic fallback chain.
         
         Args:
             query: Search query
             source: Search source (auto, tavily, duckduckgo)
+            max_results: Override default max results
             
         Returns:
             List of search results with title, url, snippet
         """
-        # Try sources in order until we get results
+        # Override max_results if provided
+        original_max = self.max_results
+        if max_results is not None:
+            self.max_results = max_results
         
-        # 1. Try Tavily first if available
-        if self._tavily_available and source in ("auto", "tavily"):
-            results = await self._search_tavily(query)
+        try:
+            # Try sources in order until we get results
+            
+            # 1. Try Tavily first if available
+            if self._tavily_available and source in ("auto", "tavily"):
+                results = await self._search_tavily(query)
+                if results:
+                    logger.info(f"Using Tavily: {len(results)} results")
+                    return results
+            
+            # 2. Try Wikipedia API (free, reliable)
+            results = await self._search_wikipedia(query)
             if results:
-                logger.info(f"Using Tavily: {len(results)} results")
+                logger.info(f"Using Wikipedia: {len(results)} results")
                 return results
-        
-        # 2. Try Wikipedia API (free, reliable)
-        results = await self._search_wikipedia(query)
-        if results:
-            logger.info(f"Using Wikipedia: {len(results)} results")
-            return results
-        
-        # 3. Try DuckDuckGo Lite
-        results = await self._search_duckduckgo(query)
-        if results:
-            logger.info(f"Using DuckDuckGo Lite: {len(results)} results")
-            return results
-        
-        # 4. Try DuckDuckGo HTML as final fallback
-        results = await self._search_ddg_html(query)
-        if results:
-            logger.info(f"Using DuckDuckGo HTML: {len(results)} results")
-            return results
-        
-        logger.warning(f"No search results for: {query}")
-        return []
+            
+            # 3. Try DuckDuckGo Lite
+            results = await self._search_duckduckgo(query)
+            if results:
+                logger.info(f"Using DuckDuckGo Lite: {len(results)} results")
+                return results
+            
+            # 4. Try DuckDuckGo HTML as final fallback
+            results = await self._search_ddg_html(query)
+            if results:
+                logger.info(f"Using DuckDuckGo HTML: {len(results)} results")
+                return results
+            
+            logger.warning(f"No search results for: {query}")
+            return []
+        finally:
+            # Restore original max_results
+            self.max_results = original_max
 
     async def _search_wikipedia(self, query: str) -> List[Dict[str, str]]:
         """Search using Wikipedia API (free, no key needed)."""
@@ -747,7 +757,7 @@ class ResearchAgent:
             ResearchResult with sources, summary, and citations
         """
         # Search the web
-        search_results = await self.web_searcher.search(query, num_results=num_results)
+        search_results = await self.web_searcher.search(query, max_results=num_results)
         
         # Create source objects
         sources = []
