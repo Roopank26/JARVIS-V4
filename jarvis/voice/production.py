@@ -907,7 +907,8 @@ def get_voice_diagnostics() -> Dict[str, Any]:
     
     # FFmpeg check
     try:
-        result = shutil.run(["ffmpeg", "-version"], capture_output=True, timeout=5)
+        import subprocess
+        result = subprocess.run(["ffmpeg", "-version"], capture_output=True, timeout=5)
         if result.returncode == 0:
             version_line = result.stdout.decode().split("\n")[0]
             diagnostics["audio"]["ffmpeg"] = version_line
