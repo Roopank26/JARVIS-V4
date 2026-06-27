@@ -247,6 +247,7 @@ class TestOpenAppToolAliases:
     @pytest.mark.parametrize("alias,expected", [
         # Basic utilities
         ("notepad", "notepad.exe"),
+        ("wordpad", "wordpad.exe"),
         ("calc", "calc.exe"),
         ("calculator", "calc.exe"),
         ("paint", "mspaint.exe"),
@@ -266,11 +267,18 @@ class TestOpenAppToolAliases:
         ("edge", "msedge.exe"),
         ("microsoft edge", "msedge.exe"),
         ("firefox", "firefox.exe"),
+        ("brave", "brave.exe"),
+        ("opera", "opera.exe"),
         ("browser", "msedge.exe"),
         # Development tools
         ("vscode", "Code.exe"),
         ("vs code", "Code.exe"),
         ("code", "Code.exe"),
+        # Communication
+        ("discord", "discord.exe"),
+        ("steam", "steam.exe"),
+        ("telegram", "telegram.exe"),
+        ("whatsapp", "WhatsApp.exe"),
         # Settings
         ("settings", "ms-settings:"),
         ("regedit", "regedit.exe"),
@@ -288,17 +296,31 @@ class TestBrowserURLs:
         return OpenAppTool()
 
     @pytest.mark.parametrize("search,expected_url", [
+        # Search engines
         ("google", "https://www.google.com"),
         ("youtube", "https://youtube.com"),
+        ("bing", "https://www.bing.com"),
+        ("duckduckgo", "https://duckduckgo.com"),
+        # Development
         ("github", "https://github.com"),
+        ("gitlab", "https://gitlab.com"),
+        ("stackoverflow", "https://stackoverflow.com"),
+        ("huggingface", "https://huggingface.co"),
+        # AI Services
         ("chatgpt", "https://chat.openai.com"),
+        ("claude", "https://claude.ai"),
+        ("gemini", "https://gemini.google.com"),
+        ("ollama", "https://ollama.com"),
+        ("groq", "https://console.groq.com"),
+        # Communication
         ("gmail", "https://mail.google.com"),
         ("linkedin", "https://linkedin.com"),
-        ("wikipedia", "https://wikipedia.org"),
         ("reddit", "https://reddit.com"),
-        ("stackoverflow", "https://stackoverflow.com"),
-        ("amazon", "https://amazon.com"),
         ("discord", "https://discord.com"),
+        ("whatsapp", "https://web.whatsapp.com"),
+        # Reference
+        ("wikipedia", "https://wikipedia.org"),
+        ("amazon", "https://amazon.com"),
         ("spotify", "https://spotify.com"),
     ])
     def test_browser_urls(self, tool, search, expected_url):

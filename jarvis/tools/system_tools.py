@@ -78,29 +78,60 @@ class OpenAppTool(WriteTool):
 
     # Browser URL mappings (web searches)
     BROWSER_URLS = {
+        # Search engines
         "google": "https://www.google.com",
         "youtube": "https://youtube.com",
+        "bing": "https://www.bing.com",
+        "duckduckgo": "https://duckduckgo.com",
+        
+        # Development
         "github": "https://github.com",
+        "gitlab": "https://gitlab.com",
+        "bitbucket": "https://bitbucket.org",
+        "stackoverflow": "https://stackoverflow.com",
+        "hugging face": "https://huggingface.co",
+        "huggingface": "https://huggingface.co",
+        
+        # AI Services
         "chatgpt": "https://chat.openai.com",
+        "claude": "https://claude.ai",
+        "gemini": "https://gemini.google.com",
+        "ollama": "https://ollama.com",
+        "groq": "https://console.groq.com",
+        
+        # Communication
         "gmail": "https://mail.google.com",
         "linkedin": "https://linkedin.com",
-        "wikipedia": "https://wikipedia.org",
         "reddit": "https://reddit.com",
-        "stackoverflow": "https://stackoverflow.com",
+        "discord": "https://discord.com",
+        "slack": "https://slack.com",
+        "whatsapp": "https://web.whatsapp.com",
+        "telegram": "https://web.telegram.org",
+        
+        # Social
         "twitter": "https://twitter.com",
         "facebook": "https://facebook.com",
-        "amazon": "https://amazon.com",
+        "instagram": "https://instagram.com",
+        "threads": "https://threads.net",
+        
+        # Media
         "netflix": "https://netflix.com",
-        "discord": "https://discord.com",
         "spotify": "https://spotify.com",
         "twitch": "https://twitch.tv",
-        "instagram": "https://instagram.com",
+        "youtube music": "https://music.youtube.com",
+        
+        # Reference
+        "wikipedia": "https://wikipedia.org",
+        "amazon": "https://amazon.com",
+        "medium": "https://medium.com",
+        "dev.to": "https://dev.to",
     }
 
     # Common Windows application aliases
     WINDOWS_ALIASES = {
         # Basic utilities
         "notepad": "notepad.exe",
+        "wordpad": "wordpad.exe",
         "calculator": "calc.exe",
         "calc": "calc.exe",
         "paint": "mspaint.exe",
@@ -129,6 +160,8 @@ class OpenAppTool(WriteTool):
         "edge": "msedge.exe",
         "microsoft edge": "msedge.exe",
         "firefox": "firefox.exe",
+        "brave": "brave.exe",
+        "opera": "opera.exe",
         "browser": "msedge.exe",
         
         # Development tools
@@ -147,6 +180,7 @@ class OpenAppTool(WriteTool):
         "zoom": "zoom.exe",
         "teams": "teams.exe",
         "slack": "slack.exe",
+        "whatsapp": "WhatsApp.exe",
         
         # System tools
         "task manager": "taskmgr.exe",
@@ -173,6 +207,7 @@ class OpenAppTool(WriteTool):
         os.path.expandvars(r"C:\Program Files (x86)"),
         os.path.expandvars(r"%LOCALAPPDATA%\Programs"),
         os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs"),
+        os.path.expandvars(r"%USERPROFILE%\AppData\Local\Microsoft\WindowsApps"),
         r"C:\Users\Public\Desktop",
     ]
 
