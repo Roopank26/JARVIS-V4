@@ -27,7 +27,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y portaudio19-dev libportaudio2 libportaudiocpp0 ffmpeg libsndfile1
+          sudo apt-get install -y portaudio19-dev libportaudio2 libportaudiocpp0 ffmpeg libsndfile1 xvfb
 
       - name: Install dependencies
         run: |
@@ -42,7 +42,7 @@ jobs:
         run: black --check jarvis/ tests/
 
       - name: Run tests
-        run: pytest tests/ -q
+        run: xvfb-run -a pytest tests/ -q
 
       - name: Verify imports
         run: |
