@@ -2,15 +2,15 @@
 JARVIS Services - Background services for desktop assistant.
 """
 
-from jarvis.services.scheduler import TaskScheduler, ScheduledTask, TaskType, DailySummary
-from jarvis.services.daemon import JarvisDaemon, DaemonConfig, ServiceManager
+from jarvis.services.daemon import DaemonConfig, JarvisDaemon, ServiceManager
+from jarvis.services.scheduler import DailySummary, ScheduledTask, TaskScheduler, TaskType
 
 __all__ = [
-    "TaskScheduler",
-    "ScheduledTask",
-    "TaskType",
+    "DaemonConfig",
     "DailySummary",
     "JarvisDaemon",
-    "DaemonConfig",
+    "ScheduledTask",
     "ServiceManager",
+    "TaskScheduler",
+    "TaskType",
 ]

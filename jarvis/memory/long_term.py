@@ -5,10 +5,10 @@ Adapted from Mark-XXXIX-OR's memory_manager.py
 
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 from threading import Lock
-from typing import Any, Dict, Optional
-from datetime import datetime
+from typing import Any
 
 
 class LongTermMemory:
@@ -20,7 +20,7 @@ class LongTermMemory:
     MAX_VALUE_LENGTH = 380
     MEMORY_MAX_CHARS = 2200
 
-    def __init__(self, memory_path: Optional[Path] = None):
+    def __init__(self, memory_path: Path | None = None):
         if memory_path is None:
             base_dir = self._get_base_dir()
             memory_dir = base_dir / "memory"
@@ -34,7 +34,7 @@ class LongTermMemory:
 
     def _get_base_dir(self) -> Path:
         """Get the base directory for JARVIS config."""
-        if getattr(sys, 'frozen', False):
+        if getattr(sys, "frozen", False):
             return Path(sys.executable).parent
         return Path(__file__).resolve().parent.parent.parent
 
@@ -46,7 +46,7 @@ class LongTermMemory:
             "projects": {},
             "relationships": {},
             "wishes": {},
-            "notes": {}
+            "notes": {},
         }
 
     def _load_or_initialize(self):
@@ -58,7 +58,7 @@ class LongTermMemory:
 
         with self._lock:
             try:
-                with open(self.memory_path, "r", encoding="utf-8") as f:
+                with open(self.memory_path, encoding="utf-8") as f:
                     data = json.load(f)
 
                 if isinstance(data, dict):
@@ -86,9 +86,8 @@ class LongTermMemory:
         # Trim to limit before saving
         memory = self._trim_to_limit(self._memory)
 
-        with self._lock:
-            with open(self.memory_path, "w", encoding="utf-8") as f:
-                json.dump(memory, f, indent=2, ensure_ascii=False)
+        with self._lock, open(self.memory_path, "w", encoding="utf-8") as f:
+            json.dump(memory, f, indent=2, ensure_ascii=False)
 
     def _all_entries(self, memory: dict) -> list:
         """Get all memory entries sorted by update time."""
@@ -123,7 +122,7 @@ class LongTermMemory:
     def _truncate_value(self, val: str) -> str:
         """Truncate a value if it exceeds the max length."""
         if isinstance(val, str) and len(val) > self.MAX_VALUE_LENGTH:
-            return val[:self.MAX_VALUE_LENGTH].rstrip() + "…"
+            return val[: self.MAX_VALUE_LENGTH].rstrip() + "…"
         return val
 
     def remember(self, key: str, value: Any, category: str = "notes") -> bool:
@@ -138,8 +137,14 @@ class LongTermMemory:
         Returns:
             True if memory was updated, False otherwise
         """
-        valid_categories = {"identity", "preferences", "projects",
-                          "relationships", "wishes", "notes"}
+        valid_categories = {
+            "identity",
+            "preferences",
+            "projects",
+            "relationships",
+            "wishes",
+            "notes",
+        }
         if category not in valid_categories:
             category = "notes"
 
@@ -149,10 +154,7 @@ class LongTermMemory:
 
         # Truncate and store
         truncated_value = self._truncate_value(str(value))
-        entry = {
-            "value": truncated_value,
-            "updated": datetime.now().strftime("%Y-%m-%d")
-        }
+        entry = {"value": truncated_value, "updated": datetime.now().strftime("%Y-%m-%d")}
 
         existing = self._memory[category].get(key, {})
         if not isinstance(existing, dict) or existing.get("value") != truncated_value:
@@ -177,12 +179,14 @@ class LongTermMemory:
                 if isinstance(entry, dict):
                     value = entry.get("value", "")
                     if query_lower in key.lower() or query_lower in value.lower():
-                        results.append({
-                            "key": key,
-                            "value": value,
-                            "category": category,
-                            "updated": entry.get("updated", "")
-                        })
+                        results.append(
+                            {
+                                "key": key,
+                                "value": value,
+                                "category": category,
+                                "updated": entry.get("updated", ""),
+                            }
+                        )
 
         return results
 
@@ -199,12 +203,12 @@ class LongTermMemory:
         """
         # Try semantic embeddings if available
         try:
-            from sentence_transformers import SentenceTransformer
             import numpy as np
+            from sentence_transformers import SentenceTransformer
 
             # Load model
-            if not hasattr(self, '_embedding_model'):
-                self._embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+            if not hasattr(self, "_embedding_model"):
+                self._embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
             query_embedding = self._embedding_model.encode([query])[0]
 
@@ -218,12 +222,14 @@ class LongTermMemory:
                 for key, entry in items.items():
                     if isinstance(entry, dict):
                         text = f"{key} {entry.get('value', '')}"
-                        entries.append({
-                            "key": key,
-                            "value": entry.get("value", ""),
-                            "category": category,
-                            "updated": entry.get("updated", "")
-                        })
+                        entries.append(
+                            {
+                                "key": key,
+                                "value": entry.get("value", ""),
+                                "category": category,
+                                "updated": entry.get("updated", ""),
+                            }
+                        )
                         embeddings.append(self._embedding_model.encode([text])[0])
 
             # Calculate similarities
@@ -259,23 +265,23 @@ class LongTermMemory:
 
         return False
 
-    def get_category(self, category: str) -> Dict[str, Any]:
+    def get_category(self, category: str) -> dict[str, Any]:
         """Get all entries in a category."""
         return self._memory.get(category, {}).copy()
 
-    def get_identity(self) -> Dict[str, Any]:
+    def get_identity(self) -> dict[str, Any]:
         """Get identity information."""
         return self.get_category("identity")
 
-    def get_preferences(self) -> Dict[str, Any]:
+    def get_preferences(self) -> dict[str, Any]:
         """Get user preferences."""
         return self.get_category("preferences")
 
-    def get_projects(self) -> Dict[str, Any]:
+    def get_projects(self) -> dict[str, Any]:
         """Get user projects."""
         return self.get_category("projects")
 
-    def format_for_prompt(self, memory: Optional[dict] = None) -> str:
+    def format_for_prompt(self, memory: dict | None = None) -> str:
         """
         Format memory for inclusion in a prompt.
         Adapted from Mark-XXXIX-OR's format_memory_for_prompt.

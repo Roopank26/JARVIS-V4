@@ -5,34 +5,37 @@ Adapted from Mark-XXXIX-OR's executor.py
 
 import asyncio
 import logging
-from typing import Callable, List, Optional, TYPE_CHECKING
+from collections.abc import Callable
 from dataclasses import dataclass
-
-logger = logging.getLogger(__name__)
+from typing import TYPE_CHECKING
 
 from jarvis.tools.base import ToolResult
 
 if TYPE_CHECKING:
     from jarvis.core.planner import PlanStep
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class ExecutionStep:
     """Represents an executed step."""
+
     step: "PlanStep"
-    result: Optional[ToolResult] = None
+    result: ToolResult | None = None
     attempts: int = 0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
 class ExecutionResult:
     """Result of plan execution."""
+
     success: bool
     summary: str
-    completed_steps: List[ExecutionStep]
-    failed_step: Optional[ExecutionStep] = None
-    error: Optional[str] = None
+    completed_steps: list[ExecutionStep]
+    failed_step: ExecutionStep | None = None
+    error: str | None = None
 
 
 class Executor:
@@ -46,7 +49,7 @@ class Executor:
     def __init__(self, tool_registry, planner=None):
         self.tool_registry = tool_registry
         self.planner = planner
-        self._speak_callback: Optional[Callable] = None
+        self._speak_callback: Callable | None = None
         self._cancel_flag = asyncio.Event()
 
     def set_speak_callback(self, callback: Callable):
@@ -81,36 +84,43 @@ class Executor:
             ExecutionResult with execution details
         """
         self.reset()
-        completed_steps: List[ExecutionStep] = []
+        completed_steps: list[ExecutionStep] = []
 
         # Create initial plan
         if self.planner:
             plan = await self.planner.create_plan(goal, context)
         else:
             from jarvis.core.planner import Plan, PlanStep
-            plan = Plan(goal=goal, steps=[
-                PlanStep(step=1, tool="bash", description=f"Execute: {goal}", parameters={"command": goal})
-            ])
+
+            plan = Plan(
+                goal=goal,
+                steps=[
+                    PlanStep(
+                        step=1,
+                        tool="bash",
+                        description=f"Execute: {goal}",
+                        parameters={"command": goal},
+                    )
+                ],
+            )
 
         replan_attempts = 0
 
         while True:
             if self._cancel_flag.is_set():
                 return ExecutionResult(
-                    success=False,
-                    summary="Execution cancelled",
-                    completed_steps=completed_steps
+                    success=False, summary="Execution cancelled", completed_steps=completed_steps
                 )
 
             success = True
-            failed_step: Optional[ExecutionStep] = None
+            failed_step: ExecutionStep | None = None
 
             for plan_step in plan.steps:
                 if self._cancel_flag.is_set():
                     return ExecutionResult(
                         success=False,
                         summary="Execution cancelled",
-                        completed_steps=completed_steps
+                        completed_steps=completed_steps,
                     )
 
                 # Execute step
@@ -129,9 +139,7 @@ class Executor:
             if success:
                 summary = await self._summarize(goal, completed_steps)
                 return ExecutionResult(
-                    success=True,
-                    summary=summary,
-                    completed_steps=completed_steps
+                    success=True, summary=summary, completed_steps=completed_steps
                 )
 
             # Handle failure
@@ -140,7 +148,7 @@ class Executor:
                     success=False,
                     summary="Unknown failure",
                     completed_steps=completed_steps,
-                    error="No failed step recorded"
+                    error="No failed step recorded",
                 )
 
             # Try to replan
@@ -150,7 +158,7 @@ class Executor:
                     summary=f"Failed after {replan_attempts} replan attempts",
                     completed_steps=completed_steps,
                     failed_step=failed_step,
-                    error=failed_step.error
+                    error=failed_step.error,
                 )
 
             self.speak("Adjusting my approach...")
@@ -161,7 +169,7 @@ class Executor:
                     "step": failed_step.step.step,
                     "tool": failed_step.step.tool,
                     "description": failed_step.step.description,
-                    "parameters": failed_step.step.parameters
+                    "parameters": failed_step.step.parameters,
                 }
                 completed_data = [
                     {"step": s.step.step, "tool": s.step.tool, "description": s.step.description}
@@ -177,7 +185,7 @@ class Executor:
                     summary="Execution failed without replanning capability",
                     completed_steps=completed_steps,
                     failed_step=failed_step,
-                    error=failed_step.error
+                    error=failed_step.error,
                 )
 
     async def _execute_step(self, step: "PlanStep") -> tuple[ExecutionStep, ToolResult]:
@@ -198,10 +206,7 @@ class Executor:
                 return execution, result
 
             try:
-                result = await self.tool_registry.execute(
-                    step.tool,
-                    step.parameters
-                )
+                result = await self.tool_registry.execute(step.tool, step.parameters)
 
                 if result.success:
                     return execution, result
@@ -221,7 +226,7 @@ class Executor:
 
         return execution, result
 
-    async def _summarize(self, goal: str, completed: List[ExecutionStep]) -> str:
+    async def _summarize(self, goal: str, completed: list[ExecutionStep]) -> str:
         """Generate a summary of what was accomplished."""
         step_count = len(completed)
 
@@ -234,7 +239,7 @@ class Executor:
 
         return f"Completed {step_count} steps for: {goal[:50]}..."
 
-    async def execute_steps(self, steps: List["PlanStep"]) -> ExecutionResult:
+    async def execute_steps(self, steps: list["PlanStep"]) -> ExecutionResult:
         """
         Execute a list of plan steps directly.
 
@@ -245,14 +250,12 @@ class Executor:
             ExecutionResult
         """
         self.reset()
-        completed_steps: List[ExecutionStep] = []
+        completed_steps: list[ExecutionStep] = []
 
         for step in steps:
             if self._cancel_flag.is_set():
                 return ExecutionResult(
-                    success=False,
-                    summary="Execution cancelled",
-                    completed_steps=completed_steps
+                    success=False, summary="Execution cancelled", completed_steps=completed_steps
                 )
 
             execution_step, result = await self._execute_step(step)
@@ -266,11 +269,11 @@ class Executor:
                     summary=f"Failed at step {step.step}: {result.error}",
                     completed_steps=completed_steps,
                     failed_step=execution_step,
-                    error=result.error
+                    error=result.error,
                 )
 
         return ExecutionResult(
             success=True,
             summary=f"Completed {len(completed_steps)} steps",
-            completed_steps=completed_steps
+            completed_steps=completed_steps,
         )

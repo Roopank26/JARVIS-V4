@@ -6,21 +6,25 @@ Two plugin systems:
 2. plugin_manager.py - Advanced plugins with intents, tools, memory
 """
 
-from jarvis.plugins.base import Plugin, PluginMetadata, PluginManager
+from jarvis.plugins.base import Plugin, PluginManager, PluginMetadata
 from jarvis.plugins.plugin_manager import (
-    PluginState,
+    IntentPlugin,
+    MemoryPlugin,
     PluginInfo,
     PluginInterface,
-    IntentPlugin,
+    PluginState,
     ToolPlugin,
-    MemoryPlugin,
+)
+from jarvis.plugins.plugin_manager import (
     get_plugin_manager as _get_manager,
 )
+
 
 # Keep backward compatibility
 def get_plugin_manager() -> PluginManager:
     """Get plugin manager instance."""
     return _get_manager()
+
 
 __all__ = [
     # Base classes

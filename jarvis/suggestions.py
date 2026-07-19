@@ -28,8 +28,8 @@ class Suggestion:
     id: str
     title: str
     detail: str
-    action: str            # prompt/command to run if accepted
-    priority: int = 5      # lower = more important
+    action: str  # prompt/command to run if accepted
+    priority: int = 5  # lower = more important
 
 
 class SuggestionEngine:
@@ -71,17 +71,21 @@ class SuggestionEngine:
         try:
             res = subprocess.run(
                 ["git", "status", "--porcelain"],
-                capture_output=True, text=True, timeout=3,
+                capture_output=True,
+                text=True,
+                timeout=3,
             )
             if res.returncode == 0 and res.stdout.strip():
-                n = len([l for l in res.stdout.splitlines() if l.strip()])
-                return [Suggestion(
-                    id="git.uncommitted",
-                    title="You have uncommitted changes",
-                    detail=f"{n} file(s) changed and not committed.",
-                    action="commit my changes with a sensible message",
-                    priority=2,
-                )]
+                n = len([line for line in res.stdout.splitlines() if line.strip()])
+                return [
+                    Suggestion(
+                        id="git.uncommitted",
+                        title="You have uncommitted changes",
+                        detail=f"{n} file(s) changed and not committed.",
+                        action="commit my changes with a sensible message",
+                        priority=2,
+                    )
+                ]
         except Exception:
             pass
         return []
@@ -99,13 +103,15 @@ class SuggestionEngine:
             except Exception:
                 continue
             if len(found) >= 3:
-                return [Suggestion(
-                    id="pdf.found",
-                    title=f"I found {len(found)} PDFs",
-                    detail="Want me to summarize or ingest them into your knowledge base?",
-                    action="summarize the PDFs in this folder",
-                    priority=3,
-                )]
+                return [
+                    Suggestion(
+                        id="pdf.found",
+                        title=f"I found {len(found)} PDFs",
+                        detail="Want me to summarize or ingest them into your knowledge base?",
+                        action="summarize the PDFs in this folder",
+                        priority=3,
+                    )
+                ]
         return []
 
     def _check_repo_dirty(self) -> list[Suggestion]:
@@ -113,7 +119,9 @@ class SuggestionEngine:
         try:
             res = subprocess.run(
                 ["git", "log", "-1", "--format=%H"],
-                capture_output=True, text=True, timeout=3,
+                capture_output=True,
+                text=True,
+                timeout=3,
             )
             if res.returncode == 0 and res.stdout.strip():
                 return []
@@ -129,13 +137,15 @@ class SuggestionEngine:
             active = mgr.list_active()
             if active:
                 names = ", ".join(t.name for t in active[:3])
-                return [Suggestion(
-                    id="tasks.active",
-                    title=f"{len(active)} background task(s) running",
-                    detail=f"Currently: {names}",
-                    action="show my background tasks",
-                    priority=4,
-                )]
+                return [
+                    Suggestion(
+                        id="tasks.active",
+                        title=f"{len(active)} background task(s) running",
+                        detail=f"Currently: {names}",
+                        action="show my background tasks",
+                        priority=4,
+                    )
+                ]
         except Exception:
             pass
         return []

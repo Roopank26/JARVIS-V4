@@ -4,20 +4,22 @@ The core AI assistant that combines all components with intent classification.
 """
 
 import asyncio
+import contextlib
 import logging
 import re
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
-logger = logging.getLogger(__name__)
-
+from jarvis.api.gemini import SimpleLLMClient
 from jarvis.core.config import Config, get_config
-from jarvis.core.planner import Planner
 from jarvis.core.executor import Executor
+from jarvis.core.planner import Planner
 from jarvis.memory.enhanced import EnhancedMemoryManager, get_enhanced_memory
 from jarvis.rag import get_rag_system
 from jarvis.tools.base import ToolResult
 from jarvis.tools.registry import ToolRegistry, get_registry
-from jarvis.api.gemini import SimpleLLMClient
+
+logger = logging.getLogger(__name__)
 
 SEPARATOR_WIDTH = 40
 DEFAULT_MAX_ITEMS = 5
@@ -35,13 +37,13 @@ DEFAULT_TONE_DURATION = 0.5
 
 # Intent types
 class Intent:
-    CHAT = "chat"              # General conversation/questions
+    CHAT = "chat"  # General conversation/questions
     MEMORY_STORE = "memory_store"  # Remember/save information
     MEMORY_RECALL = "memory_recall"  # Recall/remember information
     PROFILE_QUERY = "profile_query"  # Profile-related queries
-    RAG_QUERY = "rag_query"    # RAG/knowledge base queries
-    RESEARCH = "research"      # Research/web search queries
-    DESKTOP = "desktop"      # Desktop automation commands
+    RAG_QUERY = "rag_query"  # RAG/knowledge base queries
+    RESEARCH = "research"  # Research/web search queries
+    DESKTOP = "desktop"  # Desktop automation commands
     PROVIDER_QUERY = "provider_query"  # Provider/model status queries
     OLLAMA_QUERY = "ollama_query"  # Ollama-specific commands
     GROQ_QUERY = "groq_query"  # Groq-specific commands
@@ -50,13 +52,13 @@ class Intent:
     VOICE_CONFIG = "voice_config"  # Voice calibration/test/devices
     REPO_QUERY = "repo_query"  # Repository analysis queries
     TOOL_EXECUTION = "tool_execution"  # Explicit tool/task execution
-    SPEAK = "speak"            # Explicit text-to-speech commands
+    SPEAK = "speak"  # Explicit text-to-speech commands
 
 
 # Keywords for intent classification
 MEMORY_STORE_PATTERNS = [
-    r"^\s*remember\b",           # Starts with "remember"
-    r"^\s*save\b",                # Starts with "save"
+    r"^\s*remember\b",  # Starts with "remember"
+    r"^\s*save\b",  # Starts with "save"
     r"\bkeep in mind\b",
     r"\bstore\b",
     r"\bnote that\b",
@@ -319,7 +321,7 @@ def _sanitize_response(response: str) -> str:
     dup_count = 0
     first_content_line_index = None
 
-    for idx, line in enumerate(lines):
+    for _, line in enumerate(lines):
         stripped = line.strip()
         lower = stripped.lower()
 
@@ -366,7 +368,10 @@ def _sanitize_response(response: str) -> str:
             first = first_lines[0]
             # Heuristic: very long first line (>80 chars) with no sentence-ending
             # punctuation and followed by normal text is likely an echoed prompt.
-            if len(first) > ECHOED_PROMPT_MAX_LENGTH and first.count(".") + first.count("!") + first.count("?") <= 1:
+            if (
+                len(first) > ECHOED_PROMPT_MAX_LENGTH
+                and first.count(".") + first.count("!") + first.count("?") <= 1
+            ):
                 # Only strip if there's more content after it
                 rest = "\n".join(first_lines[1:]).strip()
                 if rest:
@@ -404,15 +409,15 @@ Available tools (use only when system operations are needed):
 def classify_intent(user_input: str) -> Intent:
     """
     Classify the user input into an intent category.
-    
+
     Args:
         user_input: The user's message
-        
+
     Returns:
         Intent type
     """
     text = user_input.lower().strip()
-    
+
     # Check for profile queries FIRST
     for pattern in PROFILE_QUERY_PATTERNS:
         if re.search(pattern, text):
@@ -467,14 +472,14 @@ def classify_intent(user_input: str) -> Intent:
     for pattern in MEMORY_RECALL_PATTERNS:
         if re.search(pattern, text):
             return Intent.MEMORY_RECALL
-    
+
     # Check for memory store (explicit remember commands)
     # Only if it's not a question
     if "?" not in user_input:
         for pattern in MEMORY_STORE_PATTERNS:
             if re.search(pattern, text):
                 return Intent.MEMORY_STORE
-    
+
     # Check for research queries BEFORE tool execution (higher priority)
     for pattern in RESEARCH_PATTERNS:
         if re.search(pattern, text, re.IGNORECASE):
@@ -489,22 +494,23 @@ def classify_intent(user_input: str) -> Intent:
     for pattern in TOOL_EXECUTION_PATTERNS:
         if re.search(pattern, text):
             return Intent.TOOL_EXECUTION
-    
+
     # Check for chat-only patterns (questions, explanations, plans)
     for pattern in CHAT_ONLY_PATTERNS:
         if re.search(pattern, text):
             return Intent.CHAT
-    
+
     # Default to chat for conversational input
     # Short inputs or casual language
-    if len(text) < MIN_QUERY_LENGTH or any(casual in text for casual in 
-        ["hey", "hi ", "hello", "thanks", "thank you", "please"]):
+    if len(text) < MIN_QUERY_LENGTH or any(
+        casual in text for casual in ["hey", "hi ", "hello", "thanks", "thank you", "please"]
+    ):
         return Intent.CHAT
-    
+
     # If it sounds like a question or explanation, stay in chat
     if text.endswith("?") or text.startswith(("what", "how", "why", "who", "explain")):
         return Intent.CHAT
-    
+
     # Default to chat mode
     return Intent.CHAT
 
@@ -516,10 +522,10 @@ class JarvisAgent:
 
     def __init__(
         self,
-        config: Optional[Config] = None,
-        memory_manager: Optional[EnhancedMemoryManager] = None,
-        tool_registry: Optional[ToolRegistry] = None,
-        llm_client: Optional[Any] = None
+        config: Config | None = None,
+        memory_manager: EnhancedMemoryManager | None = None,
+        tool_registry: ToolRegistry | None = None,
+        llm_client: Any | None = None,
     ):
         self.config = config or get_config()
         # Use enhanced memory manager for better profile support
@@ -530,15 +536,15 @@ class JarvisAgent:
         # Initialize planner and executor
         self.planner = Planner(llm_client=self.llm)
         self.executor = Executor(self.tools, self.planner)
-        
+
         # Initialize RAG system
         self.rag = get_rag_system()
 
         # State
         self._is_running = False
-        self._speak_callback: Optional[Callable] = None
-        self._message_handlers: List[Callable] = []
-        self._device_cache: Optional[tuple] = None
+        self._speak_callback: Callable | None = None
+        self._message_handlers: list[Callable] = []
+        self._device_cache: tuple | None = None
         self._device_cache_ts: float = 0.0
 
     def set_speak_callback(self, callback: Callable):
@@ -578,8 +584,7 @@ class JarvisAgent:
         memory_str = self.memory.format_for_prompt()
 
         return SYSTEM_PROMPT.format(
-            tools=tools_str,
-            memory=memory_str if memory_str else "(no memory stored)"
+            tools=tools_str, memory=memory_str if memory_str else "(no memory stored)"
         )
 
     async def process(self, user_input: str) -> str:
@@ -637,23 +642,25 @@ class JarvisAgent:
         self.memory.add_assistant_message(result)
         return result
 
-
     async def _handle_profile_query(self, user_input: str) -> str:
         """
         Handle profile-related queries.
-        
+
         Args:
             user_input: The user's query
-            
+
         Returns:
             Profile information
         """
         text_lower = user_input.lower()
-        
+
         # Handle "who am I" or summary requests
-        if any(pattern in text_lower for pattern in ["who am i", "my profile", "summarize", "about me", "what do you know"]):
+        if any(
+            pattern in text_lower
+            for pattern in ["who am i", "my profile", "summarize", "about me", "what do you know"]
+        ):
             return self.memory.get_profile_summary()
-        
+
         # Handle specific field queries
         field_match = re.search(r"what\s+is\s+my\s+(\w+)", text_lower)
         if field_match:
@@ -662,29 +669,29 @@ class JarvisAgent:
             if info:
                 return f"Your {field.replace('_', ' ')} is: {info}"
             return f"I don't have information about your {field.replace('_', ' ')} stored yet."
-        
+
         # Default: return full profile
         return self.memory.get_profile_summary()
 
     async def _handle_desktop_automation(self, user_input: str) -> str:
         """Handle desktop automation commands."""
         from jarvis.desktop.automation import get_desktop_automation
-        
+
         text = user_input.lower()
         automation = get_desktop_automation()
-        
+
         # List windows
         if "list windows" in text or "show windows" in text:
             windows = await automation.list_windows()
             return automation.format_windows_list(windows)
-        
+
         # Screenshot
         if "screenshot" in text:
             path = await automation.take_screenshot()
             if path:
                 return f"Screenshot saved to: {path}"
             return "Failed to take screenshot."
-        
+
         # Launch app
         if any(k in text for k in ["open ", "launch ", "start "]):
             match = re.search(r"(?:open|launch|start)\s+(\S+)", text)
@@ -694,7 +701,7 @@ class JarvisAgent:
                 if success:
                     return f"Launched: {app}"
                 return f"Failed to launch: {app}"
-        
+
         # Close window
         if "close" in text and "window" in text:
             match = re.search(r"close\s+(?:window\s+)?(.+)", text)
@@ -704,7 +711,7 @@ class JarvisAgent:
                 if success:
                     return f"Closed window: {title}"
                 return f"Failed to close: {title}"
-        
+
         # Focus window
         if "focus" in text or "switch to" in text:
             match = re.search(r"(?:focus|switch to)\s+(\S+)", text)
@@ -714,18 +721,18 @@ class JarvisAgent:
                 if success:
                     return f"Focused: {title}"
                 return f"Failed to focus: {title}"
-        
+
         # Clipboard operations
         if "get clipboard" in text or "show clipboard" in text:
             content = await automation.get_clipboard()
             if content:
                 return f"Clipboard: {content[:200]}..."
             return "Clipboard is empty."
-        
+
         if "copy" in text and "clipboard" in text:
             # Copy is usually handled by tool execution
             return "Copy what to clipboard? Use: copy <text> to clipboard"
-        
+
         # Type text
         if text.startswith("type "):
             text_to_type = text[5:].strip()
@@ -733,7 +740,7 @@ class JarvisAgent:
             if success:
                 return f"Typed: {text_to_type}"
             return "Failed to type text."
-        
+
         # Hotkeys
         hotkey_match = re.search(r"(ctrl|control|alt)\+([a-z])", text)
         if hotkey_match:
@@ -743,7 +750,7 @@ class JarvisAgent:
             if success:
                 return f"Executed: {mod}+{key}"
             return "Failed to execute hotkey."
-        
+
         return """Desktop commands:
 - list windows - Show open windows
 - open <app> - Launch an application
@@ -757,10 +764,10 @@ class JarvisAgent:
     async def _handle_research(self, user_input: str) -> str:
         """Handle research and web search queries."""
         from jarvis.research.research_agent import get_research_agent
-        
+
         text = user_input.lower()
         agent = get_research_agent()
-        
+
         # Monitor news
         if "monitor" in text or "news" in text:
             source = "hackernews"
@@ -768,58 +775,61 @@ class JarvisAgent:
                 source = "reddit"
             elif "arxiv" in text:
                 source = "arxiv"
-            
+
             match = re.search(r"(?:monitor|news)\s+(?:on\s+)?(?:about\s+)?(.+)", text)
             topic = match.group(1).strip() if match else "artificial intelligence"
-            
+
             results = await agent.monitor_topic(topic, source)
             if results:
-                lines = [f"[{source.replace('hackernews', 'Hacker News').title()} News: {topic}]", "=" * SEPARATOR_WIDTH]
+                lines = [
+                    f"[{source.replace('hackernews', 'Hacker News').title()} News: {topic}]",
+                    "=" * SEPARATOR_WIDTH,
+                ]
                 for i, item in enumerate(results[:DEFAULT_MAX_ITEMS], 1):
                     lines.append(f"\n{i}. {item.get('title', 'No title')}")
-                    if item.get('url'):
+                    if item.get("url"):
                         lines.append(f"   URL: {item.get('url')}")
-                    if item.get('points'):
+                    if item.get("points"):
                         lines.append(f"   Points: {item.get('points')}")
-                    if item.get('score'):
+                    if item.get("score"):
                         lines.append(f"   Score: {item.get('score')}")
                 return "\n".join(lines)
             return f"No news found for topic: {topic}"
-        
+
         # Research topic
         if "research" in text or "search" in text or "find" in text:
             # Extract query
             match = re.search(r"(?:research|search|find)\s+(?:about|on|for)?\s*(.+)", text)
             query = match.group(1).strip() if match else user_input
-            
+
             # Remove common prefixes
             for prefix in ["web search ", "search for ", "research about ", "find information "]:
                 if query.startswith(prefix):
-                    query = query[len(prefix):]
-            
+                    query = query[len(prefix) :]
+
             if len(query) < 3:
                 return "Please provide a research topic. Example: research about AI trends"
-            
+
             try:
                 result = await agent.research(query)
-                
+
                 lines = [f"[Research: {query}]", "=" * SEPARATOR_WIDTH]
                 lines.append(f"\nFound {len(result.sources)} sources\n")
-                
+
                 if result.summary:
                     lines.append(f"Summary: {result.summary[:300]}...")
-                
+
                 lines.append("\n\nSources:")
                 for i, source in enumerate(result.sources[:DEFAULT_MAX_ITEMS], 1):
                     lines.append(f"\n{i}. {source.title}")
                     lines.append(f"   {source.url}")
-                
+
                 return "\n".join(lines)
-                
+
             except Exception as e:
                 logger.error(f"Research error: {e}")
-                return f"Research failed: {str(e)}"
-        
+                return f"Research failed: {e!s}"
+
         # Generate report
         if "report" in text:
             match = re.search(r"(?:generate\s+)?(?:research\s+)?report\s+(?:on\s+)?(.+)", text)
@@ -832,7 +842,7 @@ class JarvisAgent:
                 except Exception as e:
                     return f"Report generation failed: {e}"
             return "Usage: generate report on <topic>"
-        
+
         # Citations
         if "citation" in text:
             return """[Citation Help]
@@ -842,24 +852,24 @@ JARVIS can generate citations for web sources. After doing a research query, I c
 - Chicago style
 
 Example: research about AI, then I'll cite the sources."""
-        
+
         return "Research commands:\n- research <topic> - Search the web\n- monitor news on <topic> - Track news\n- generate report on <topic> - Create a report\n- citation - Learn about citations"
 
     async def _handle_rag_query(self, user_input: str) -> str:
         """
         Handle RAG/knowledge base queries.
-        
+
         Args:
             user_input: The user's query
-            
+
         Returns:
             RAG response
         """
         text_lower = user_input.lower()
-        
+
         # Initialize RAG if needed
         await self.rag.initialize()
-        
+
         # Handle ingest commands
         if "ingest" in text_lower:
             # Extract file path from command
@@ -869,6 +879,7 @@ Example: research about AI, then I'll cite the sources."""
                 file_path = match.group(1).strip()
                 # Try to find the file
                 from pathlib import Path
+
                 path = Path(file_path)
                 if not path.exists():
                     # Try current directory
@@ -882,48 +893,52 @@ Example: research about AI, then I'll cite the sources."""
                 else:
                     return f"File not found: {file_path}"
             return "Please specify a file to ingest. Example: 'ingest pdf notes.pdf'"
-        
+
         # Handle summarize commands
         if "summarize" in text_lower:
             # Try to get context for summarization
-            results = await self.rag.search(text_lower.replace("summarize", ""), limit=DEFAULT_MAX_ITEMS)
+            results = await self.rag.search(
+                text_lower.replace("summarize", ""), limit=DEFAULT_MAX_ITEMS
+            )
             if results:
-                summary_parts = [r.get('content', '')[:200] for r in results[:3]]
+                summary_parts = [r.get("content", "")[:200] for r in results[:3]]
                 return "Based on your knowledge base:\n\n" + "\n\n".join(summary_parts)
             return "I couldn't find relevant content to summarize. Try ingesting a document first."
-        
+
         # Handle question generation
         if "question" in text_lower:
             # Search for relevant content
-            results = await self.rag.search(text_lower.replace("generate", "").replace("question", ""), limit=3)
+            results = await self.rag.search(
+                text_lower.replace("generate", "").replace("question", ""), limit=3
+            )
             if results:
-                content = " ".join([r.get('content', '')[:300] for r in results])
-                return f"Based on your documents, here are some questions:\n\n1. What are the main concepts covered in this topic?\n2. How would you explain the key points?\n3. What examples illustrate this concept?"
+                content = " ".join([r.get("content", "")[:300] for r in results])
+                return "Based on your documents, here are some questions:\n\n1. What are the main concepts covered in this topic?\n2. How would you explain the key points?\n3. What examples illustrate this concept?"
             return "I couldn't find relevant content. Try ingesting a document first."
-        
+
         # Handle revision notes
         if "revision" in text_lower or "notes" in text_lower:
             results = await self.rag.search(text_lower, limit=DEFAULT_MAX_ITEMS)
             if results:
                 notes = ["📝 Revision Notes:\n"]
                 for i, r in enumerate(results, 1):
-                    content = r.get('content', '')[:150]
+                    content = r.get("content", "")[:150]
                     notes.append(f"{i}. {content}...")
                 return "\n".join(notes)
             return "I couldn't find relevant content for revision notes."
-        
+
         # Default: search knowledge base
         results = await self.rag.search(text_lower, limit=DEFAULT_MAX_ITEMS)
         if results:
             response = "From your knowledge base:\n\n"
             for i, r in enumerate(results, 1):
-                content = r.get('content', '')
+                content = r.get("content", "")
                 response += f"📄 {i}. {content[:300]}"
                 if len(content) > 300:
                     response += "..."
                 response += "\n\n"
             return response
-        
+
         return "I couldn't find relevant information in your knowledge base. Try ingesting some documents first."
 
     async def _handle_repo_query(self, user_input: str) -> str:
@@ -944,7 +959,7 @@ Example: research about AI, then I'll cite the sources."""
 
             # Route based on query
             if "analyze repository" in text or "scan repository" in text:
-                result = analyzer.analyze()
+                analyzer.analyze()
                 return analyzer.format_summary()
 
             elif "architecture" in text or "show architecture" in text:
@@ -990,7 +1005,7 @@ Example: research about AI, then I'll cite the sources."""
                 # Full review
                 stats = analyzer.get_statistics()
                 todos = analyzer.find_todos()
-                security = scanner.scan_directory(str(repo_path))
+                scanner.scan_directory(str(repo_path))
                 summary = scanner.get_summary()
 
                 lines = [
@@ -1006,7 +1021,7 @@ Example: research about AI, then I'll cite the sources."""
                     "",
                 ]
 
-                if summary['by_severity']['critical'] > 0 or summary['by_severity']['high'] > 0:
+                if summary["by_severity"]["critical"] > 0 or summary["by_severity"]["high"] > 0:
                     lines.append("⚠️ ACTION REQUIRED: Fix critical/high security issues!")
                 else:
                     lines.append("✅ Code quality looks good!")
@@ -1042,42 +1057,42 @@ Example: research about AI, then I'll cite the sources."""
     async def _handle_voice_control(self, user_input: str) -> str:
         """Handle voice control commands (start/stop/listen)."""
         text = user_input.lower()
-        
+
         try:
             from jarvis.voice.voice_runtime import get_voice_runtime
-            
+
             runtime = get_voice_runtime()
             if runtime is None:
                 return "Voice system not initialized."
-            
+
             await runtime.initialize()
-            
+
             # Wake-word status
             if "wakeword" in text or "wake word" in text:
                 return runtime.get_wake_word_status()
-            
+
             # Voice restart
             if "restart" in text:
                 await runtime.stop_wake_word_listening()
                 await runtime.start_wake_word_listening(agent=self)
                 return "Voice restarted. Listening for wake word..."
-            
+
             # Voice start / listen
             if any(x in text for x in ["start", "listen", "begin", "activate"]):
                 if runtime._running:
                     return "Voice is already listening."
                 await runtime.start_wake_word_listening(agent=self)
                 return "Voice activated. Say 'Hey Jarvis' to wake me."
-            
+
             # Voice stop / pause
             if any(x in text for x in ["stop", "pause", "deactivate", "silence"]):
                 if not runtime._running:
                     return "Voice is already stopped."
                 await runtime.stop_wake_word_listening()
                 return "Voice deactivated."
-            
+
             return "Usage: voice start | voice stop | voice restart | voice wakeword status"
-            
+
         except ImportError:
             return "Voice runtime not available."
         except Exception as e:
@@ -1086,26 +1101,26 @@ Example: research about AI, then I'll cite the sources."""
     async def _handle_voice_config(self, user_input: str) -> str:
         """Handle voice configuration commands (calibrate/test/devices)."""
         text = user_input.lower()
-        
+
         try:
             # List audio devices
             if "devices" in text or "list" in text:
                 return await self._list_audio_devices()
-            
+
             # Test microphone
-            if "test" in text and "mic" in text or "microphone" in text:
+            if ("test" in text and "mic" in text) or "microphone" in text:
                 return await self._test_microphone()
-            
+
             # Test speaker
             if "test" in text and "speaker" in text:
                 return await self._test_speaker()
-            
+
             # Calibrate
             if "calibrate" in text:
                 return await self._calibrate_voice()
-            
+
             return "Usage: voice devices | voice test mic | voice test speaker | voice calibrate"
-            
+
         except ImportError:
             return "Voice configuration not available. Install sounddevice."
         except Exception as e:
@@ -1126,16 +1141,18 @@ Example: research about AI, then I'll cite the sources."""
     def _get_cached_devices(self):
         """Get cached sounddevice devices or re-query if stale."""
         import time
+
         now = time.time()
         if self._device_cache and (now - self._device_cache_ts) < 2.0:
             return self._device_cache
         import sounddevice as sd
+
         devices = sd.query_devices()
         self._device_cache = devices
         self._device_cache_ts = now
         return devices
 
-    def _find_input_device(self) -> Optional[int]:
+    def _find_input_device(self) -> int | None:
         """Find a usable input device index, or None if none available."""
         try:
             devices = self._get_cached_devices()
@@ -1195,22 +1212,14 @@ Example: research about AI, then I'll cite the sources."""
             default_output_name = None
 
             if default_input is not None:
-                try:
+                with contextlib.suppress(Exception):
                     default_input_name = sd.query_devices(default_input)["name"]
-                except Exception:
-                    pass
             if default_output is not None:
-                try:
+                with contextlib.suppress(Exception):
                     default_output_name = sd.query_devices(default_output)["name"]
-                except Exception:
-                    pass
 
-            lines.append(
-                f"\nDefault Input: {default_input_name or 'None'}"
-            )
-            lines.append(
-                f"\nDefault Output: {default_output_name or 'None'}"
-            )
+            lines.append(f"\nDefault Input: {default_input_name or 'None'}")
+            lines.append(f"\nDefault Output: {default_output_name or 'None'}")
             lines.append(f"\nInput Devices ({len(input_devices)}):")
             for d in input_devices:
                 lines.append(f"  [{d['index']}] {d['name']} ({d['channels']} ch)")
@@ -1230,7 +1239,6 @@ Example: research about AI, then I'll cite the sources."""
         """Test microphone input."""
         try:
             import sounddevice as sd
-            import numpy as np
 
             devices = sd.query_devices()
             input_devices = [
@@ -1252,25 +1260,24 @@ Example: research about AI, then I'll cite the sources."""
 
             if device_index is None:
                 lines.append("\nNo accessible input device available.")
-                lines.append("  This system's audio driver/PortAudio configuration may not support input capture.")
+                lines.append(
+                    "  This system's audio driver/PortAudio configuration may not support input capture."
+                )
                 return "\n".join(lines)
 
-            lines.append(f"\nListening for {AUDIO_TEST_DURATION} seconds on device {device_index}...")
+            lines.append(
+                f"\nListening for {AUDIO_TEST_DURATION} seconds on device {device_index}..."
+            )
             lines.append("Speak into your microphone now.\n")
 
             def audio_callback(indata, frames, time_info, status):
                 if status:
                     logger.warning(f"Audio status: {status}")
-                audio_data = indata.flatten()
-                rms = np.sqrt(np.mean(audio_data.astype(np.float32) ** 2))
-                level = min(100, int(rms / 100))
+                indata.flatten()
 
             try:
                 stream = sd.InputStream(
-                    device=device_index,
-                    callback=audio_callback,
-                    channels=1,
-                    samplerate=16000
+                    device=device_index, callback=audio_callback, channels=1, samplerate=16000
                 )
                 with stream:
                     sd.sleep(MICROPHONE_TEST_SLEEP_MS)
@@ -1294,31 +1301,32 @@ Example: research about AI, then I'll cite the sources."""
         """Test speaker output."""
         try:
             import sounddevice as sd
-            
+
             lines = ["[Speaker Test]", "=" * SEPARATOR_WIDTH]
             lines.append("\nPlaying test tone...")
-            
+
             try:
                 # Generate a simple sine wave tone
                 import numpy as np
+
                 frequency = DEFAULT_TONE_FREQUENCY  # Hz (A4 note)
-                duration = DEFAULT_TONE_DURATION   # seconds
+                duration = DEFAULT_TONE_DURATION  # seconds
                 sample_rate = 44100
-                
+
                 t = np.linspace(0, duration, int(sample_rate * duration))
                 tone = np.sin(2 * np.pi * frequency * t)
-                
+
                 # Play
                 sd.play(tone, sample_rate)
                 sd.wait()
-                
+
                 lines.append("✓ Speaker is working!")
                 lines.append(f"Played {frequency}Hz test tone for {duration}s.")
             except Exception as e:
                 lines.append(f"✗ Speaker test failed: {e}")
-            
+
             return "\n".join(lines)
-            
+
         except ImportError:
             return "sounddevice not installed."
         except Exception as e:
@@ -1327,8 +1335,8 @@ Example: research about AI, then I'll cite the sources."""
     async def _calibrate_voice(self) -> str:
         """Calibrate voice recognition settings."""
         try:
-            import sounddevice as sd
             import numpy as np
+            import sounddevice as sd
 
             device_index = self._find_input_device()
             input_devices = self._list_input_devices()
@@ -1363,10 +1371,7 @@ Example: research about AI, then I'll cite the sources."""
                     audio_levels.append(rms)
 
                 stream = sd.InputStream(
-                    device=device_index,
-                    callback=callback,
-                    channels=1,
-                    samplerate=16000
+                    device=device_index, callback=callback, channels=1, samplerate=16000
                 )
                 with stream:
                     sd.sleep(CALIBRATION_SLEEP_MS)
@@ -1400,14 +1405,16 @@ Example: research about AI, then I'll cite the sources."""
     async def _handle_ollama_query(self, user_input: str) -> str:
         """Handle Ollama-specific commands."""
         text = user_input.lower()
-        
+
         try:
             import subprocess
-            
+
             # Ollama status
             if any(x in text for x in ["status", "ps"]):
                 try:
-                    result = subprocess.run(["ollama", "ps"], capture_output=True, text=True, timeout=5)
+                    result = subprocess.run(
+                        ["ollama", "ps"], capture_output=True, text=True, timeout=5
+                    )
                     if result.returncode == 0:
                         return f"[Ollama Status]\n{result.stdout}"
                     return "Ollama is not running. Start with: ollama serve"
@@ -1415,11 +1422,13 @@ Example: research about AI, then I'll cite the sources."""
                     return "Ollama is not installed. Install from: https://ollama.ai"
                 except Exception as e:
                     return f"Ollama status error: {e}"
-            
+
             # List models
             if any(x in text for x in ["list", "models", "show"]):
                 try:
-                    result = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=10)
+                    result = subprocess.run(
+                        ["ollama", "list"], capture_output=True, text=True, timeout=10
+                    )
                     if result.returncode == 0:
                         return f"[Ollama Models]\n{result.stdout}"
                     return "Could not list Ollama models."
@@ -1427,7 +1436,7 @@ Example: research about AI, then I'll cite the sources."""
                     return "Ollama is not installed."
                 except Exception as e:
                     return f"Error listing models: {e}"
-            
+
             # Pull/download model
             if any(x in text for x in ["pull", "download", "run"]):
                 match = re.search(r"(?:pull|download|run)\s+(?:model\s+)?(\S+)", text)
@@ -1435,7 +1444,7 @@ Example: research about AI, then I'll cite the sources."""
                     model = match.group(1).strip()
                     return f"To download '{model}', run:\n  ollama pull {model}\n\nOr in your terminal:\n  ollama run {model}"
                 return "Usage: ollama pull <model_name>"
-            
+
             # Delete/remove model
             if "delete" in text or "remove" in text:
                 match = re.search(r"(?:delete|remove)\s+(?:model\s+)?(\S+)", text)
@@ -1443,25 +1452,25 @@ Example: research about AI, then I'll cite the sources."""
                     model = match.group(1).strip()
                     return f"To remove '{model}', run:\n  ollama delete {model}\n\n⚠️ This will delete the model locally."
                 return "Usage: ollama delete <model_name>"
-            
+
             # Start Ollama
             if "start" in text or "serve" in text:
                 return "To start Ollama, run:\n  ollama serve\n\nOr install as a service."
-            
+
             return "Ollama commands: status | list | pull <model> | delete <model>"
-            
+
         except Exception as e:
             return f"Ollama error: {e}"
 
     async def _handle_groq_query(self, user_input: str) -> str:
         """Handle Groq-specific commands."""
         text = user_input.lower()
-        
+
         try:
-            from jarvis.api.providers import get_provider_manager, ProviderType
-            
+            from jarvis.api.providers import ProviderType, get_provider_manager
+
             manager = get_provider_manager()
-            
+
             # Groq status
             if "status" in text:
                 if ProviderType.GROQ in manager.providers:
@@ -1470,7 +1479,7 @@ Example: research about AI, then I'll cite the sources."""
                         return f"[Groq Status]\n✓ Connected\nModel: {groq.model}"
                     return f"[Groq Status]\n✗ Unavailable\nError: {groq.last_error}"
                 return "[Groq Status]\n○ Not configured"
-            
+
             # List Groq models
             if "models" in text:
                 return """[Groq Available Models]
@@ -1481,7 +1490,7 @@ Example: research about AI, then I'll cite the sources."""
 
 Set Groq model:
   switch to groq"""
-            
+
             # API key
             if "api" in text or "key" in text:
                 return """[Groq API Key Setup]
@@ -1490,16 +1499,16 @@ Set Groq model:
    - Linux/Mac: export GROQ_API_KEY=your_key
    - Windows: $env:GROQ_API_KEY = 'your_key'
 3. Or edit config/api_config.json"""
-            
+
             # Use Groq
             if "use groq" in text or "switch to groq" in text:
                 if ProviderType.GROQ in manager.providers:
                     manager.set_primary(ProviderType.GROQ)
                     return "Switched to Groq (cloud AI)."
                 return "Groq is not configured. Set your API key first."
-            
+
             return "Groq commands: status | models | api | use groq"
-            
+
         except Exception as e:
             return f"Groq error: {e}"
 
@@ -1559,15 +1568,15 @@ Set Groq model:
     async def _handle_memory_store(self, user_input: str) -> str:
         """
         Handle memory storage requests.
-        
+
         Args:
             user_input: The user's message containing info to remember
-            
+
         Returns:
             Confirmation message
         """
         text = user_input.lower()
-        
+
         # Extract what to remember
         # Pattern: "remember my [key] is [value]"
         match = re.search(r"remember\s+(?:my\s+)?(.+?)\s+is\s+(.+)", text)
@@ -1576,37 +1585,37 @@ Set Groq model:
             value = match.group(2).strip()
             self.memory.remember(key, value, "personal")
             return f"Got it! I'll remember that your {key} is {value}."
-        
+
         # Pattern: "save that I like [thing]"
         match = re.search(r"(?:save that\s+)?I\s+(?:like|prefer|hate|enjoy)\s+(.+)", text)
         if match:
             value = match.group(1).strip()
             self.memory.remember("preference", value, "personal")
             return f"Noted! You {user_input.split()[2]} {value}."
-        
+
         # Pattern: "my favorite is X"
         match = re.search(r"(?:my\s+)?favorite\s+(?:.+?)\s+is\s+(.+)", text)
         if match:
             value = match.group(1).strip()
             self.memory.remember("favorite", value, "personal")
             return f"Alright! Your favorite is {value}."
-        
+
         # Default: store the whole thing
         self.memory.remember("fact", user_input, "personal")
         return "I'll keep that in mind."
-    
+
     async def _handle_memory_recall(self, user_input: str) -> str:
         """
         Handle memory recall requests.
-        
+
         Args:
             user_input: The user's query
-            
+
         Returns:
             Retrieved information
         """
         text = user_input.lower()
-        
+
         # Try to extract what to recall
         # Pattern: "what is my favorite X"
         match = re.search(r"what(?:\'s| is)\s+my\s+(?:favorite\s+)?(.+)", text)
@@ -1616,7 +1625,7 @@ Set Groq model:
             if results:
                 return f"You mentioned that your {query} is {results[0].get('value', 'something')}"
             return f"I don't have any information about your {query} stored yet."
-        
+
         # Pattern: "do you remember my X"
         match = re.search(r"(?:do you\s+)?remember\s+(?:my\s+)?(.+)", text)
         if match:
@@ -1624,15 +1633,15 @@ Set Groq model:
             results = self.memory.recall(query)
             if results:
                 return f"Yes! Your {query} is {results[0].get('value', 'stored')}"
-            return f"I don't have that information stored yet."
-        
+            return "I don't have that information stored yet."
+
         # Default: search memory
         results = self.memory.recall(text)
         if results:
             return f"From what you've told me: {results[0].get('value', 'something')}"
-        
+
         return "I don't have any relevant information stored yet. Is there something specific you'd like me to remember?"
-    
+
     async def execute_task(self, task: str) -> str:
         """
         Execute a task using the planner and executor.
@@ -1672,12 +1681,10 @@ Set Groq model:
         system_prompt = self._build_system_prompt()
 
         response = await self.llm.generate_with_history(
-            messages=[
-                {"role": "user", "content": query}
-            ],
+            messages=[{"role": "user", "content": query}],
             system=system_prompt,
             temperature=0.7,
-            max_tokens=2048
+            max_tokens=2048,
         )
 
         if isinstance(response, str) and response.startswith("Error:"):
@@ -1718,11 +1725,11 @@ Set Groq model:
         self.memory.remember(key, value, category)
         return f"Remembered: {key}"
 
-    def recall(self, query: str) -> List[Dict]:
+    def recall(self, query: str) -> list[dict]:
         """Recall from memory."""
         return self.memory.recall(query)
 
-    def get_history_summary(self) -> Dict:
+    def get_history_summary(self) -> dict:
         """Get session history summary."""
         return self.memory.get_history_summary()
 
@@ -1742,10 +1749,7 @@ Set Groq model:
 
 
 # Factory function
-def create_jarvis(
-    config: Optional[Config] = None,
-    api_key: Optional[str] = None
-) -> JarvisAgent:
+def create_jarvis(config: Config | None = None, api_key: str | None = None) -> JarvisAgent:
     """
     Create a configured JARVIS agent.
 
@@ -1770,26 +1774,25 @@ def create_jarvis(
     # Warn if no API key is available
     if not llm.is_available():
         logger.warning("No valid Groq API key found. Chat and tool execution may not work.")
-        logger.warning("Set GROQ_API_KEY env var, use --api-key, or add key to ~/.jarvis/api_keys.json")
+        logger.warning(
+            "Set GROQ_API_KEY env var, use --api-key, or add key to ~/.jarvis/api_keys.json"
+        )
 
     # Create agent
-    agent = JarvisAgent(
-        config=config,
-        llm_client=llm
-    )
+    agent = JarvisAgent(config=config, llm_client=llm)
 
     # Wire the provider manager so the premium orchestrator's streaming path
     # has a real backend. Detect all available providers and models dynamically.
     # Failover order: Ollama → Groq → OpenAI → Gemini → Anthropic
     try:
         from jarvis.api.providers import (
-            ProviderType,
+            AnthropicProvider,
+            GoogleProvider,
+            GroqProvider,
             LLMConfig,
             OllamaProvider,
-            GroqProvider,
             OpenAIProvider,
-            GoogleProvider,
-            AnthropicProvider,
+            ProviderType,
             get_provider_manager,
         )
 
@@ -1810,13 +1813,18 @@ def create_jarvis(
             groq_key = llm._client.api_key
         if not groq_key:
             import os
+
             groq_key = os.environ.get("GROQ_API_KEY")
         if groq_key:
-            manager.add_provider(GroqProvider(LLMConfig(
-                provider=ProviderType.GROQ,
-                model=config.get("live_model") if hasattr(config, "get") else None,
-                api_key=groq_key,
-            )))
+            manager.add_provider(
+                GroqProvider(
+                    LLMConfig(
+                        provider=ProviderType.GROQ,
+                        model=config.get("live_model") if hasattr(config, "get") else None,
+                        api_key=groq_key,
+                    )
+                )
+            )
 
         # OpenAI: use configured API key.
         openai_key = None
@@ -1824,13 +1832,18 @@ def create_jarvis(
             openai_key = config.get_api_key("openai")
         if not openai_key:
             import os
+
             openai_key = os.environ.get("OPENAI_API_KEY")
         if openai_key:
-            manager.add_provider(OpenAIProvider(LLMConfig(
-                provider=ProviderType.OPENAI,
-                model=config.get("openai_model") if hasattr(config, "get") else None,
-                api_key=openai_key,
-            )))
+            manager.add_provider(
+                OpenAIProvider(
+                    LLMConfig(
+                        provider=ProviderType.OPENAI,
+                        model=config.get("openai_model") if hasattr(config, "get") else None,
+                        api_key=openai_key,
+                    )
+                )
+            )
 
         # Google Gemini: use configured API key.
         google_key = None
@@ -1838,13 +1851,18 @@ def create_jarvis(
             google_key = config.get_api_key("google")
         if not google_key:
             import os
+
             google_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if google_key:
-            manager.add_provider(GoogleProvider(LLMConfig(
-                provider=ProviderType.GOOGLE,
-                model=config.get("google_model") if hasattr(config, "get") else None,
-                api_key=google_key,
-            )))
+            manager.add_provider(
+                GoogleProvider(
+                    LLMConfig(
+                        provider=ProviderType.GOOGLE,
+                        model=config.get("google_model") if hasattr(config, "get") else None,
+                        api_key=google_key,
+                    )
+                )
+            )
 
         # Anthropic: use configured API key.
         anthropic_key = None
@@ -1852,13 +1870,18 @@ def create_jarvis(
             anthropic_key = config.get_api_key("anthropic")
         if not anthropic_key:
             import os
+
             anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
         if anthropic_key:
-            manager.add_provider(AnthropicProvider(LLMConfig(
-                provider=ProviderType.ANTHROPIC,
-                model=config.get("anthropic_model") if hasattr(config, "get") else None,
-                api_key=anthropic_key,
-            )))
+            manager.add_provider(
+                AnthropicProvider(
+                    LLMConfig(
+                        provider=ProviderType.ANTHROPIC,
+                        model=config.get("anthropic_model") if hasattr(config, "get") else None,
+                        api_key=anthropic_key,
+                    )
+                )
+            )
 
         # The manager is health-checked (and its primary provider selected) in
         # JarvisApp.initialize(), which runs inside the running loop.

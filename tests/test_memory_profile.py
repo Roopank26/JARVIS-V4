@@ -2,13 +2,14 @@
 Tests for User Profile and Enhanced Memory features.
 """
 
-import pytest
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from jarvis.memory.user_profile import UserProfile
+import pytest
+
 from jarvis.memory.enhanced import EnhancedMemoryManager
+from jarvis.memory.user_profile import UserProfile
 
 
 class TestUserProfile:
@@ -17,7 +18,7 @@ class TestUserProfile:
     @pytest.fixture
     def profile_path(self):
         """Create a temporary profile file."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             yield Path(f.name)
         Path(f.name).unlink(missing_ok=True)
 
@@ -39,7 +40,7 @@ class TestUserProfile:
         """Test deleting profile values."""
         profile.set("name", "John", "identity")
         assert profile.get("name", "identity") == "John"
-        
+
         result = profile.delete("name", "identity")
         assert result is True
         assert profile.get("name", "identity") is None
@@ -48,7 +49,7 @@ class TestUserProfile:
         """Test getting all values in a category."""
         profile.set("name", "John", "identity")
         profile.set("age", "25", "identity")
-        
+
         all_identity = profile.get_all("identity")
         assert "name" in all_identity
         assert "age" in all_identity
@@ -85,10 +86,7 @@ class TestUserProfile:
 
     def test_update_from_extraction(self, profile):
         """Test updating profile from extractions."""
-        extractions = {
-            ("identity", "name"): "John",
-            ("preferences", "favorite_color"): "blue"
-        }
+        extractions = {("identity", "name"): "John", ("preferences", "favorite_color"): "blue"}
         count = profile.update_from_extraction(extractions)
         assert count == 2
         assert profile.get("name", "identity") == "John"
@@ -104,7 +102,7 @@ class TestUserProfile:
         profile.set("name", "Roopank", "identity")
         profile.set("field", "AIML", "education")
         profile.set("favorite_color", "blue", "preferences")
-        
+
         summary = profile.format_summary()
         assert "Roopank" in summary
         assert "AIML" in summary
@@ -117,7 +115,7 @@ class TestEnhancedMemoryManager:
     @pytest.fixture
     def enhanced_memory(self):
         """Create EnhancedMemoryManager with mocked dependencies."""
-        with patch('jarvis.memory.enhanced.get_user_profile') as mock_profile:
+        with patch("jarvis.memory.enhanced.get_user_profile") as mock_profile:
             mock_profile.return_value = UserProfile()
             return EnhancedMemoryManager()
 
@@ -163,8 +161,8 @@ class TestIntentClassification:
 
     def test_profile_query_intent(self):
         """Test that profile queries are classified correctly."""
-        from jarvis.core.agent import classify_intent, Intent
-        
+        from jarvis.core.agent import Intent, classify_intent
+
         # These should be PROFILE_QUERY
         assert classify_intent("who am I") == Intent.PROFILE_QUERY
         assert classify_intent("what do you know about me?") == Intent.PROFILE_QUERY
@@ -173,16 +171,16 @@ class TestIntentClassification:
 
     def test_memory_recall_intent(self):
         """Test that memory recall is still classified correctly."""
-        from jarvis.core.agent import classify_intent, Intent
-        
+        from jarvis.core.agent import Intent, classify_intent
+
         # These should be MEMORY_RECALL
         assert classify_intent("what is my favorite color") == Intent.MEMORY_RECALL
         assert classify_intent("what's my favorite food") == Intent.MEMORY_RECALL
 
     def test_memory_store_intent(self):
         """Test that memory store is still classified correctly."""
-        from jarvis.core.agent import classify_intent, Intent
-        
+        from jarvis.core.agent import Intent, classify_intent
+
         # These should be MEMORY_STORE
         assert classify_intent("remember my name is John") == Intent.MEMORY_STORE
         assert classify_intent("save that I like pizza") == Intent.MEMORY_STORE

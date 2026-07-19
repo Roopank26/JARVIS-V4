@@ -3,16 +3,16 @@ Screen capture for JARVIS - Enhanced vision module.
 Provides full-screen capture, region capture, and AI analysis.
 """
 
-import io
 import base64
-from typing import Optional, Tuple, List
-from pathlib import Path
+import io
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass
 class ScreenRegion:
     """Represents a screen region to capture."""
+
     x: int
     y: int
     width: int
@@ -27,6 +27,7 @@ class ScreenCapture:
 
     def __init__(self, monitor: int = 1):
         self._mss = None
+        self._mss_module = None
         self._monitor = monitor
         self._initialize()
 
@@ -34,11 +35,13 @@ class ScreenCapture:
         """Initialize mss."""
         try:
             import mss
+
             self._mss = mss.MSS()
+            self._mss_module = mss
         except ImportError:
             print("[Vision] mss not available")
 
-    def capture(self, output_path: Optional[Path] = None) -> bytes:
+    def capture(self, output_path: Path | None = None) -> bytes:
         """
         Capture the full screen.
 
@@ -55,14 +58,14 @@ class ScreenCapture:
             shot = self._mss.grab(self._mss.monitors[self._monitor])
 
             if output_path:
-                mss.tools.to_png(shot.rgb, shot.size, output=str(output_path))
+                self._mss_module.tools.to_png(shot.rgb, shot.size, output=str(output_path))
 
-            return mss.tools.to_png(shot.rgb, shot.size)
+            return self._mss_module.tools.to_png(shot.rgb, shot.size)
 
         except Exception as e:
-            raise RuntimeError(f"Screen capture failed: {e}")
+            raise RuntimeError(f"Screen capture failed: {e}") from e
 
-    def capture_region(self, region: ScreenRegion, output_path: Optional[Path] = None) -> bytes:
+    def capture_region(self, region: ScreenRegion, output_path: Path | None = None) -> bytes:
         """
         Capture a specific screen region.
 
@@ -77,22 +80,22 @@ class ScreenCapture:
             raise RuntimeError("Screen capture not available")
 
         try:
-            import mss
+
             monitor = {
                 "left": region.x,
                 "top": region.y,
                 "width": region.width,
-                "height": region.height
+                "height": region.height,
             }
             shot = self._mss.grab(monitor)
 
             if output_path:
-                mss.tools.to_png(shot.rgb, shot.size, output=str(output_path))
+                self._mss_module.tools.to_png(shot.rgb, shot.size, output=str(output_path))
 
-            return mss.tools.to_png(shot.rgb, shot.size)
+            return self._mss_module.tools.to_png(shot.rgb, shot.size)
 
         except Exception as e:
-            raise RuntimeError(f"Region capture failed: {e}")
+            raise RuntimeError(f"Region capture failed: {e}") from e
 
     def capture_to_jpeg(self, quality: int = 85) -> bytes:
         """Capture screen and return as JPEG."""
@@ -100,6 +103,7 @@ class ScreenCapture:
 
         try:
             from PIL import Image
+
             img = Image.open(io.BytesIO(png_data))
             img = img.convert("RGB")
 
@@ -120,14 +124,11 @@ class ScreenCapture:
         Returns:
             Base64 encoded image string
         """
-        if format.lower() == "jpeg":
-            data = self.capture_to_jpeg()
-        else:
-            data = self.capture()
+        data = self.capture_to_jpeg() if format.lower() == "jpeg" else self.capture()
 
         return base64.b64encode(data).decode("utf-8")
 
-    def get_dimensions(self) -> Tuple[int, int]:
+    def get_dimensions(self) -> tuple[int, int]:
         """Get screen dimensions."""
         if self._mss is None:
             return (0, 0)
@@ -138,16 +139,13 @@ class ScreenCapture:
         except Exception:
             return (0, 0)
 
-    def get_all_monitors(self) -> List[dict]:
+    def get_all_monitors(self) -> list[dict]:
         """Get information about all monitors."""
         if self._mss is None:
             return []
 
         try:
-            return [
-                {"index": i, **m}
-                for i, m in enumerate(self._mss.monitors)
-            ]
+            return [{"index": i, **m} for i, m in enumerate(self._mss.monitors)]
         except Exception:
             return []
 
@@ -162,10 +160,7 @@ class ScreenCapture:
         Returns:
             Path to saved file
         """
-        if format.lower() == "jpeg":
-            data = self.capture_to_jpeg()
-        else:
-            data = self.capture()
+        data = self.capture_to_jpeg() if format.lower() == "jpeg" else self.capture()
 
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -187,14 +182,22 @@ class ScreenAnalyzer:
     def _check_dependencies(self):
         """Check available dependencies."""
         try:
-            import cv2
-            self._cv2_available = True
+            import importlib.util
+
+            if importlib.util.find_spec("cv2") is not None:
+                self._cv2_available = True
+            else:
+                print("[Vision] OpenCV not available")
         except ImportError:
             print("[Vision] OpenCV not available")
 
         try:
-            import pytesseract
-            self._ocr_available = True
+            import importlib.util
+
+            if importlib.util.find_spec("pytesseract") is not None:
+                self._ocr_available = True
+            else:
+                print("[Vision] pytesseract not available for OCR")
         except ImportError:
             print("[Vision] pytesseract not available for OCR")
 
@@ -222,7 +225,7 @@ class ScreenAnalyzer:
         except Exception as e:
             return f"OCR failed: {e}"
 
-    def detect_buttons(self, image_data: bytes) -> List[dict]:
+    def detect_buttons(self, image_data: bytes) -> list[dict]:
         """
         Detect button-like elements in screenshot.
 
@@ -250,28 +253,28 @@ class ScreenAnalyzer:
             _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
 
             # Find contours
-            contours, _ = cv2.findContours(
-                thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-            )
+            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
             buttons = []
             for cnt in contours:
                 x, y, w, h = cv2.boundingRect(cnt)
                 if 20 < w < 300 and 10 < h < 100:  # Typical button size
-                    buttons.append({
-                        "x": int(x),
-                        "y": int(y),
-                        "width": int(w),
-                        "height": int(h),
-                        "center": (int(x + w/2), int(y + h/2))
-                    })
+                    buttons.append(
+                        {
+                            "x": int(x),
+                            "y": int(y),
+                            "width": int(w),
+                            "height": int(h),
+                            "center": (int(x + w / 2), int(y + h / 2)),
+                        }
+                    )
 
             return buttons
 
         except Exception:
             return []
 
-    def get_color_at_point(self, image_data: bytes, x: int, y: int) -> Tuple[int, int, int]:
+    def get_color_at_point(self, image_data: bytes, x: int, y: int) -> tuple[int, int, int]:
         """
         Get the color of a specific pixel.
 
@@ -348,7 +351,7 @@ class VisionCapture:
         self.screen_analyzer = ScreenAnalyzer()
         self._camera = None
 
-    async def capture_screen(self, path: Optional[Path] = None) -> bytes:
+    async def capture_screen(self, path: Path | None = None) -> bytes:
         """Capture screen."""
         return self.screen.capture(path)
 
@@ -387,9 +390,10 @@ class VisionCapture:
         """Initialize camera capture."""
         if self._camera is None:
             from jarvis.vision.camera import CameraCapture
+
             self._camera = CameraCapture()
 
-    async def capture_camera(self) -> Optional[bytes]:
+    async def capture_camera(self) -> bytes | None:
         """Capture from camera."""
         if self._camera is None:
             self.init_camera()

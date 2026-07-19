@@ -2,10 +2,10 @@
 Tests for system tools including OpenAppTool Windows fix.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock, Mock
 import platform
-import sys
+from unittest.mock import Mock, patch
+
+import pytest
 
 from jarvis.tools.system_tools import OpenAppTool
 
@@ -77,11 +77,11 @@ class TestOpenAppTool:
     @pytest.mark.asyncio
     async def test_open_notepad_windows(self, tool):
         """Test opening notepad on Windows."""
-        with patch.object(platform, 'system', return_value='Windows'):
-            with patch.object(tool, '_find_installed_app', return_value=r"C:\Windows\notepad.exe"):
-                with patch('jarvis.tools.system_tools.os.startfile', create=True) as mock_startfile:
+        with patch.object(platform, "system", return_value="Windows"):
+            with patch.object(tool, "_find_installed_app", return_value=r"C:\Windows\notepad.exe"):
+                with patch("jarvis.tools.system_tools.os.startfile", create=True) as mock_startfile:
                     result = await tool.execute({"target": "notepad"})
-                    
+
                     assert result.success is True
                     assert "notepad" in result.output.lower()
                     assert "Executable:" in result.output
@@ -90,32 +90,38 @@ class TestOpenAppTool:
     @pytest.mark.asyncio
     async def test_open_calculator_windows(self, tool):
         """Test opening calculator on Windows."""
-        with patch.object(platform, 'system', return_value='Windows'):
-            with patch.object(tool, '_find_installed_app', return_value=r"C:\Windows\System32\calc.exe"):
-                with patch('jarvis.tools.system_tools.os.startfile', create=True) as mock_startfile:
+        with patch.object(platform, "system", return_value="Windows"):
+            with patch.object(
+                tool, "_find_installed_app", return_value=r"C:\Windows\System32\calc.exe"
+            ):
+                with patch("jarvis.tools.system_tools.os.startfile", create=True) as mock_startfile:
                     result = await tool.execute({"target": "calculator"})
-                    
+
                     assert result.success is True
                     mock_startfile.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_open_powershell_windows(self, tool):
         """Test opening PowerShell on Windows."""
-        with patch.object(platform, 'system', return_value='Windows'):
-            with patch.object(tool, '_find_installed_app', return_value=r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"):
-                with patch('jarvis.tools.system_tools.os.startfile', create=True) as mock_startfile:
+        with patch.object(platform, "system", return_value="Windows"):
+            with patch.object(
+                tool,
+                "_find_installed_app",
+                return_value=r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+            ):
+                with patch("jarvis.tools.system_tools.os.startfile", create=True) as mock_startfile:
                     result = await tool.execute({"target": "powershell"})
-                    
+
                     assert result.success is True
                     mock_startfile.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_open_url_windows(self, tool):
         """Test opening URL on Windows."""
-        with patch.object(platform, 'system', return_value='Windows'):
-            with patch('jarvis.tools.system_tools.os.startfile', create=True) as mock_startfile:
+        with patch.object(platform, "system", return_value="Windows"):
+            with patch("jarvis.tools.system_tools.os.startfile", create=True) as mock_startfile:
                 result = await tool.execute({"target": "https://github.com"})
-                
+
                 assert result.success is True
                 assert "Status:" in result.output
                 mock_startfile.assert_called_once_with("https://github.com")
@@ -123,10 +129,10 @@ class TestOpenAppTool:
     @pytest.mark.asyncio
     async def test_open_google_as_url(self, tool):
         """Test opening 'google' as a URL."""
-        with patch.object(platform, 'system', return_value='Windows'):
-            with patch('jarvis.tools.system_tools.os.startfile', create=True) as mock_startfile:
+        with patch.object(platform, "system", return_value="Windows"):
+            with patch("jarvis.tools.system_tools.os.startfile", create=True) as mock_startfile:
                 result = await tool.execute({"target": "google"})
-                
+
                 assert result.success is True
                 assert "GOOGLE" in result.output
                 assert "https://www.google.com" in str(mock_startfile.call_args)
@@ -134,56 +140,60 @@ class TestOpenAppTool:
     @pytest.mark.asyncio
     async def test_open_youtube_as_url(self, tool):
         """Test opening 'youtube' as a URL."""
-        with patch.object(platform, 'system', return_value='Windows'):
-            with patch('jarvis.tools.system_tools.os.startfile', create=True) as mock_startfile:
+        with patch.object(platform, "system", return_value="Windows"):
+            with patch("jarvis.tools.system_tools.os.startfile", create=True) as _mock_startfile:
                 result = await tool.execute({"target": "youtube"})
-                
+
                 assert result.success is True
                 assert "YOUTUBE" in result.output
 
     @pytest.mark.asyncio
     async def test_open_file_windows(self, tool):
         """Test opening file on Windows."""
-        with patch.object(platform, 'system', return_value='Windows'):
-            with patch.object(tool, '_find_installed_app', return_value=None):
-                with patch('jarvis.tools.system_tools.os.path.isfile', return_value=True):
-                    with patch('jarvis.tools.system_tools.os.startfile', create=True) as mock_startfile:
+        with patch.object(platform, "system", return_value="Windows"):
+            with patch.object(tool, "_find_installed_app", return_value=None):
+                with patch("jarvis.tools.system_tools.os.path.isfile", return_value=True):
+                    with patch(
+                        "jarvis.tools.system_tools.os.startfile", create=True
+                    ) as mock_startfile:
                         result = await tool.execute({"target": r"C:\Users\test\document.txt"})
-                        
+
                         assert result.success is True
                         mock_startfile.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_open_app_not_found_windows(self, tool):
         """Test opening non-existent app on Windows."""
-        with patch.object(platform, 'system', return_value='Windows'):
-            with patch.object(tool, '_find_installed_app', return_value=None):
-                with patch('jarvis.tools.system_tools.os.path.isfile', return_value=False):
+        with patch.object(platform, "system", return_value="Windows"):
+            with patch.object(tool, "_find_installed_app", return_value=None):
+                with patch("jarvis.tools.system_tools.os.path.isfile", return_value=False):
                     result = await tool.execute({"target": "nonexistentapp"})
-                    
+
                     assert result.success is False
                     error_msg = result.error or result.output or ""
-                    assert "not found" in error_msg.lower() or "not found" in str(result.error).lower()
+                    assert (
+                        "not found" in error_msg.lower() or "not found" in str(result.error).lower()
+                    )
 
     @pytest.mark.asyncio
     async def test_windows_background_mode(self, tool):
         """Test Windows background mode."""
-        with patch.object(platform, 'system', return_value='Windows'):
-            with patch.object(tool, '_find_installed_app', return_value=r"C:\Windows\notepad.exe"):
-                with patch('jarvis.tools.system_tools.subprocess.Popen') as mock_popen:
+        with patch.object(platform, "system", return_value="Windows"):
+            with patch.object(tool, "_find_installed_app", return_value=r"C:\Windows\notepad.exe"):
+                with patch("jarvis.tools.system_tools.subprocess.Popen") as mock_popen:
                     result = await tool.execute({"target": "notepad", "background": True})
-                    
+
                     assert result.success is True
                     mock_popen.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_macos(self, tool):
         """Test macOS open command."""
-        with patch.object(platform, 'system', return_value='Darwin'):
-            with patch('jarvis.tools.system_tools.subprocess.run') as mock_run:
+        with patch.object(platform, "system", return_value="Darwin"):
+            with patch("jarvis.tools.system_tools.subprocess.run") as mock_run:
                 mock_run.return_value = Mock(returncode=0)
                 result = await tool.execute({"target": "Safari"})
-                
+
                 assert result.success is True
                 mock_run.assert_called_once()
                 assert mock_run.call_args[0][0] == ["open", "Safari"]
@@ -191,11 +201,11 @@ class TestOpenAppTool:
     @pytest.mark.asyncio
     async def test_macos_browser_url(self, tool):
         """Test macOS browser URL."""
-        with patch.object(platform, 'system', return_value='Darwin'):
-            with patch('jarvis.tools.system_tools.subprocess.run') as mock_run:
+        with patch.object(platform, "system", return_value="Darwin"):
+            with patch("jarvis.tools.system_tools.subprocess.run") as mock_run:
                 mock_run.return_value = Mock(returncode=0)
                 result = await tool.execute({"target": "google"})
-                
+
                 assert result.success is True
                 call_args = mock_run.call_args[0][0]
                 assert "open" in call_args
@@ -204,11 +214,11 @@ class TestOpenAppTool:
     @pytest.mark.asyncio
     async def test_linux(self, tool):
         """Test Linux xdg-open command."""
-        with patch.object(platform, 'system', return_value='Linux'):
-            with patch('jarvis.tools.system_tools.subprocess.run') as mock_run:
+        with patch.object(platform, "system", return_value="Linux"):
+            with patch("jarvis.tools.system_tools.subprocess.run") as mock_run:
                 mock_run.return_value = Mock(returncode=0)
                 result = await tool.execute({"target": "firefox"})
-                
+
                 assert result.success is True
                 mock_run.assert_called_once()
                 assert "xdg-open" in mock_run.call_args[0][0]
@@ -216,11 +226,11 @@ class TestOpenAppTool:
     @pytest.mark.asyncio
     async def test_linux_browser_url(self, tool):
         """Test Linux browser URL."""
-        with patch.object(platform, 'system', return_value='Linux'):
-            with patch('jarvis.tools.system_tools.subprocess.run') as mock_run:
+        with patch.object(platform, "system", return_value="Linux"):
+            with patch("jarvis.tools.system_tools.subprocess.run") as mock_run:
                 mock_run.return_value = Mock(returncode=0)
                 result = await tool.execute({"target": "youtube"})
-                
+
                 assert result.success is True
                 call_args = mock_run.call_args[0][0]
                 assert "xdg-open" in call_args
@@ -229,11 +239,11 @@ class TestOpenAppTool:
     @pytest.mark.asyncio
     async def test_linux_app_not_found(self, tool):
         """Test Linux app not found."""
-        with patch.object(platform, 'system', return_value='Linux'):
-            with patch('jarvis.tools.system_tools.subprocess.run') as mock_run:
+        with patch.object(platform, "system", return_value="Linux"):
+            with patch("jarvis.tools.system_tools.subprocess.run") as mock_run:
                 mock_run.return_value = Mock(returncode=1, stderr="Error")
                 result = await tool.execute({"target": "nonexistentapp"})
-                
+
                 assert result.success is False
 
 
@@ -244,45 +254,48 @@ class TestOpenAppToolAliases:
     def tool(self):
         return OpenAppTool()
 
-    @pytest.mark.parametrize("alias,expected", [
-        # Basic utilities
-        ("notepad", "notepad.exe"),
-        ("wordpad", "wordpad.exe"),
-        ("calc", "calc.exe"),
-        ("calculator", "calc.exe"),
-        ("paint", "mspaint.exe"),
-        # Terminals
-        ("cmd", "cmd.exe"),
-        ("command prompt", "cmd.exe"),
-        ("terminal", "cmd.exe"),
-        ("powershell", "powershell.exe"),
-        ("pwsh", "powershell.exe"),
-        # File explorer
-        ("explorer", "explorer.exe"),
-        ("files", "explorer.exe"),
-        ("file explorer", "explorer.exe"),
-        # Browsers
-        ("chrome", "chrome.exe"),
-        ("google chrome", "chrome.exe"),
-        ("edge", "msedge.exe"),
-        ("microsoft edge", "msedge.exe"),
-        ("firefox", "firefox.exe"),
-        ("brave", "brave.exe"),
-        ("opera", "opera.exe"),
-        ("browser", "msedge.exe"),
-        # Development tools
-        ("vscode", "Code.exe"),
-        ("vs code", "Code.exe"),
-        ("code", "Code.exe"),
-        # Communication
-        ("discord", "discord.exe"),
-        ("steam", "steam.exe"),
-        ("telegram", "telegram.exe"),
-        ("whatsapp", "WhatsApp.exe"),
-        # Settings
-        ("settings", "ms-settings:"),
-        ("regedit", "regedit.exe"),
-    ])
+    @pytest.mark.parametrize(
+        "alias,expected",
+        [
+            # Basic utilities
+            ("notepad", "notepad.exe"),
+            ("wordpad", "wordpad.exe"),
+            ("calc", "calc.exe"),
+            ("calculator", "calc.exe"),
+            ("paint", "mspaint.exe"),
+            # Terminals
+            ("cmd", "cmd.exe"),
+            ("command prompt", "cmd.exe"),
+            ("terminal", "cmd.exe"),
+            ("powershell", "powershell.exe"),
+            ("pwsh", "powershell.exe"),
+            # File explorer
+            ("explorer", "explorer.exe"),
+            ("files", "explorer.exe"),
+            ("file explorer", "explorer.exe"),
+            # Browsers
+            ("chrome", "chrome.exe"),
+            ("google chrome", "chrome.exe"),
+            ("edge", "msedge.exe"),
+            ("microsoft edge", "msedge.exe"),
+            ("firefox", "firefox.exe"),
+            ("brave", "brave.exe"),
+            ("opera", "opera.exe"),
+            ("browser", "msedge.exe"),
+            # Development tools
+            ("vscode", "Code.exe"),
+            ("vs code", "Code.exe"),
+            ("code", "Code.exe"),
+            # Communication
+            ("discord", "discord.exe"),
+            ("steam", "steam.exe"),
+            ("telegram", "telegram.exe"),
+            ("whatsapp", "WhatsApp.exe"),
+            # Settings
+            ("settings", "ms-settings:"),
+            ("regedit", "regedit.exe"),
+        ],
+    )
     def test_alias_resolution(self, tool, alias, expected):
         """Test all aliases resolve correctly."""
         assert tool._resolve_windows_alias(alias) == expected
@@ -295,34 +308,37 @@ class TestBrowserURLs:
     def tool(self):
         return OpenAppTool()
 
-    @pytest.mark.parametrize("search,expected_url", [
-        # Search engines
-        ("google", "https://www.google.com"),
-        ("youtube", "https://youtube.com"),
-        ("bing", "https://www.bing.com"),
-        ("duckduckgo", "https://duckduckgo.com"),
-        # Development
-        ("github", "https://github.com"),
-        ("gitlab", "https://gitlab.com"),
-        ("stackoverflow", "https://stackoverflow.com"),
-        ("huggingface", "https://huggingface.co"),
-        # AI Services
-        ("chatgpt", "https://chat.openai.com"),
-        ("claude", "https://claude.ai"),
-        ("gemini", "https://gemini.google.com"),
-        ("ollama", "https://ollama.com"),
-        ("groq", "https://console.groq.com"),
-        # Communication
-        ("gmail", "https://mail.google.com"),
-        ("linkedin", "https://linkedin.com"),
-        ("reddit", "https://reddit.com"),
-        ("discord", "https://discord.com"),
-        ("whatsapp", "https://web.whatsapp.com"),
-        # Reference
-        ("wikipedia", "https://wikipedia.org"),
-        ("amazon", "https://amazon.com"),
-        ("spotify", "https://spotify.com"),
-    ])
+    @pytest.mark.parametrize(
+        "search,expected_url",
+        [
+            # Search engines
+            ("google", "https://www.google.com"),
+            ("youtube", "https://youtube.com"),
+            ("bing", "https://www.bing.com"),
+            ("duckduckgo", "https://duckduckgo.com"),
+            # Development
+            ("github", "https://github.com"),
+            ("gitlab", "https://gitlab.com"),
+            ("stackoverflow", "https://stackoverflow.com"),
+            ("huggingface", "https://huggingface.co"),
+            # AI Services
+            ("chatgpt", "https://chat.openai.com"),
+            ("claude", "https://claude.ai"),
+            ("gemini", "https://gemini.google.com"),
+            ("ollama", "https://ollama.com"),
+            ("groq", "https://console.groq.com"),
+            # Communication
+            ("gmail", "https://mail.google.com"),
+            ("linkedin", "https://linkedin.com"),
+            ("reddit", "https://reddit.com"),
+            ("discord", "https://discord.com"),
+            ("whatsapp", "https://web.whatsapp.com"),
+            # Reference
+            ("wikipedia", "https://wikipedia.org"),
+            ("amazon", "https://amazon.com"),
+            ("spotify", "https://spotify.com"),
+        ],
+    )
     def test_browser_urls(self, tool, search, expected_url):
         """Test all browser URLs resolve correctly."""
         assert tool._is_browser_search(search) == expected_url

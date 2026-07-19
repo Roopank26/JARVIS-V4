@@ -5,9 +5,9 @@ Adapted from Mark-XXXIX-OR's file_controller.py
 
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
-from jarvis.tools.base import ReadOnlyTool, WriteTool, DestructiveTool, ToolResult
+from jarvis.tools.base import DestructiveTool, ReadOnlyTool, ToolResult, WriteTool
 
 
 class ReadFileTool(ReadOnlyTool):
@@ -26,23 +26,22 @@ class ReadFileTool(ReadOnlyTool):
         return self.CATEGORY_FILE
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Path to the file to read"
-                },
+                "path": {"type": "string", "description": "Path to the file to read"},
                 "max_lines": {
                     "type": "integer",
-                    "description": "Maximum number of lines to read (0 = all)"
-                }
+                    "description": "Maximum number of lines to read (0 = all)",
+                },
             },
-            "required": ["path"]
+            "required": ["path"],
         }
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             path = Path(input_data["path"]).expanduser()
 
@@ -83,27 +82,23 @@ class WriteFileTool(WriteTool):
         return self.CATEGORY_FILE
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Path to the file to write"
-                },
-                "content": {
-                    "type": "string",
-                    "description": "Content to write to the file"
-                },
+                "path": {"type": "string", "description": "Path to the file to write"},
+                "content": {"type": "string", "description": "Content to write to the file"},
                 "append": {
                     "type": "boolean",
-                    "description": "Append to file instead of overwriting"
-                }
+                    "description": "Append to file instead of overwriting",
+                },
             },
-            "required": ["path", "content"]
+            "required": ["path", "content"],
         }
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             path = Path(input_data["path"]).expanduser()
 
@@ -115,10 +110,7 @@ class WriteFileTool(WriteTool):
             with open(path, mode, encoding="utf-8") as f:
                 f.write(input_data["content"])
 
-            return ToolResult(
-                success=True,
-                output=f"File written: {path}"
-            )
+            return ToolResult(success=True, output=f"File written: {path}")
 
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e))
@@ -140,23 +132,22 @@ class ListDirectoryTool(ReadOnlyTool):
         return self.CATEGORY_FILE
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Directory path to list"
-                },
+                "path": {"type": "string", "description": "Directory path to list"},
                 "show_hidden": {
                     "type": "boolean",
-                    "description": "Show hidden files (default: false)"
-                }
+                    "description": "Show hidden files (default: false)",
+                },
             },
-            "required": ["path"]
+            "required": ["path"],
         }
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             path = Path(input_data["path"]).expanduser()
 
@@ -202,27 +193,26 @@ class FindFilesTool(ReadOnlyTool):
         return self.CATEGORY_FILE
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Directory to search in"
-                },
+                "path": {"type": "string", "description": "Directory to search in"},
                 "pattern": {
                     "type": "string",
-                    "description": "File name pattern (e.g., *.py, test_*.txt)"
+                    "description": "File name pattern (e.g., *.py, test_*.txt)",
                 },
                 "recursive": {
                     "type": "boolean",
-                    "description": "Search recursively (default: true)"
-                }
+                    "description": "Search recursively (default: true)",
+                },
             },
-            "required": ["path", "pattern"]
+            "required": ["path", "pattern"],
         }
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             path = Path(input_data["path"]).expanduser()
             pattern = input_data["pattern"]
@@ -239,8 +229,7 @@ class FindFilesTool(ReadOnlyTool):
             results = [str(m.relative_to(path)) for m in matches[:50]]
 
             return ToolResult(
-                success=True,
-                output=f"Found {len(matches)} files:\n" + "\n".join(results)
+                success=True, output=f"Found {len(matches)} files:\n" + "\n".join(results)
             )
 
         except Exception as e:
@@ -263,23 +252,19 @@ class DeleteFileTool(DestructiveTool):
         return self.CATEGORY_FILE
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Path to delete"
-                },
-                "recursive": {
-                    "type": "boolean",
-                    "description": "Delete directories recursively"
-                }
+                "path": {"type": "string", "description": "Path to delete"},
+                "recursive": {"type": "boolean", "description": "Delete directories recursively"},
             },
-            "required": ["path"]
+            "required": ["path"],
         }
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             path = Path(input_data["path"]).expanduser()
 
@@ -318,19 +303,16 @@ class DiskUsageTool(ReadOnlyTool):
         return self.CATEGORY_FILE
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Path to check disk usage"
-                }
-            },
-            "required": ["path"]
+            "properties": {"path": {"type": "string", "description": "Path to check disk usage"}},
+            "required": ["path"],
         }
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             path = Path(input_data["path"]).expanduser()
 
@@ -339,10 +321,7 @@ class DiskUsageTool(ReadOnlyTool):
 
             if path.is_file():
                 size = path.stat().st_size
-                return ToolResult(
-                    success=True,
-                    output=f"File size: {_format_size(size)}"
-                )
+                return ToolResult(success=True, output=f"File size: {_format_size(size)}")
 
             # Directory - calculate total
             total_size = 0
@@ -358,7 +337,7 @@ class DiskUsageTool(ReadOnlyTool):
 
             return ToolResult(
                 success=True,
-                output=f"Path: {path}\nTotal size: {_format_size(total_size)}\nFiles: {file_count}\nDirectories: {dir_count}"
+                output=f"Path: {path}\nTotal size: {_format_size(total_size)}\nFiles: {file_count}\nDirectories: {dir_count}",
             )
 
         except Exception as e:

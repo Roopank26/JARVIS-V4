@@ -4,15 +4,17 @@ Provides persistent background operation with system integration.
 """
 
 import asyncio
+import contextlib
+import json
+import logging
+import os
 import signal
 import sys
-import os
-from pathlib import Path
-from typing import Optional, Callable, Dict, Any
+from collections.abc import Callable
 from dataclasses import dataclass
-import logging
-import json
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +22,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DaemonConfig:
     """Daemon configuration."""
+
     name: str = "jarvis"
-    pid_file: Optional[Path] = None
-    log_file: Optional[Path] = None
+    pid_file: Path | None = None
+    log_file: Path | None = None
     data_dir: Path = None
     auto_restart: bool = True
     restart_delay: float = 5.0
@@ -34,21 +37,21 @@ class JarvisDaemon:
     Handles service lifecycle, signals, and state persistence.
     """
 
-    def __init__(self, config: Optional[DaemonConfig] = None):
+    def __init__(self, config: DaemonConfig | None = None):
         self.config = config or DaemonConfig()
         self._running = False
         self._tasks: list = []
-        self._state: Dict[str, Any] = {}
-        self._callbacks: Dict[str, Callable] = {}
-        self._start_time: Optional[datetime] = None
+        self._state: dict[str, Any] = {}
+        self._callbacks: dict[str, Callable] = {}
+        self._start_time: datetime | None = None
 
         # Set default paths
         if self.config.data_dir is None:
             self.config.data_dir = Path.home() / ".jarvis"
-        
+
         if self.config.pid_file is None:
             self.config.pid_file = self.config.data_dir / "jarvis.pid"
-        
+
         if self.config.log_file is None:
             self.config.log_file = self.config.data_dir / "jarvis.log"
 
@@ -59,7 +62,7 @@ class JarvisDaemon:
     async def start(self) -> bool:
         """
         Start the daemon.
-        
+
         Returns:
             True if started successfully
         """
@@ -75,15 +78,15 @@ class JarvisDaemon:
         try:
             # Create PID file
             self._write_pid()
-            
+
             # Load state
             self._load_state()
 
             self._running = True
             self._start_time = datetime.now()
-            
-            logger.info(f"JARVIS daemon started")
-            
+
+            logger.info("JARVIS daemon started")
+
             # Call startup callback
             if "on_start" in self._callbacks:
                 await self._callbacks["on_start"]()
@@ -98,7 +101,7 @@ class JarvisDaemon:
     async def stop(self) -> bool:
         """
         Stop the daemon.
-        
+
         Returns:
             True if stopped successfully
         """
@@ -106,7 +109,7 @@ class JarvisDaemon:
             return True
 
         logger.info("Stopping JARVIS daemon...")
-        
+
         try:
             # Call shutdown callback
             if "on_stop" in self._callbacks:
@@ -116,17 +119,15 @@ class JarvisDaemon:
             for task in self._tasks:
                 if not task.done():
                     task.cancel()
-                    try:
+                    with contextlib.suppress(asyncio.CancelledError):
                         await task
-                    except asyncio.CancelledError:
-                        pass
 
             # Save state
             self._save_state()
 
             self._running = False
             self._remove_pid()
-            
+
             logger.info("JARVIS daemon stopped")
             return True
 
@@ -153,7 +154,7 @@ class JarvisDaemon:
                 except OSError:
                     # Process doesn't exist, remove stale PID file
                     pid_file.unlink()
-            except (ValueError, IOError):
+            except (OSError, ValueError):
                 pass
         return False
 
@@ -172,7 +173,7 @@ class JarvisDaemon:
         state_file = self.config.data_dir / "daemon_state.json"
         if state_file.exists():
             try:
-                with open(state_file, "r") as f:
+                with open(state_file) as f:
                     self._state = json.load(f)
                 logger.debug("Loaded daemon state")
             except Exception as e:
@@ -205,7 +206,7 @@ class JarvisDaemon:
         return task
 
     @property
-    def uptime(self) -> Optional[float]:
+    def uptime(self) -> float | None:
         """Get uptime in seconds."""
         if self._start_time:
             return (datetime.now() - self._start_time).total_seconds()
@@ -249,7 +250,7 @@ WantedBy=default.target
             user=os.environ.get("USER", "root"),
             home=Path.home(),
             python=sys.executable,
-            log=Path.home() / ".jarvis" / "jarvis.log"
+            log=Path.home() / ".jarvis" / "jarvis.log",
         )
 
         service_path = Path.home() / ".config" / "systemd" / "user" / "jarvis.service"
@@ -258,9 +259,11 @@ WantedBy=default.target
         try:
             with open(service_path, "w") as f:
                 f.write(service_content)
-            
+
             logger.info(f"Created systemd service: {service_path}")
-            logger.info("Run: systemctl --user daemon-reload && systemctl --user enable --now jarvis")
+            logger.info(
+                "Run: systemctl --user daemon-reload && systemctl --user enable --now jarvis"
+            )
             return True
         except Exception as e:
             logger.error(f"Failed to install systemd service: {e}")
@@ -296,10 +299,7 @@ WantedBy=default.target
     <string>{home}/.jarvis/jarvis.log</string>
 </dict>
 </plist>
-""".format(
-            python=sys.executable,
-            home=Path.home()
-        )
+""".format(python=sys.executable, home=Path.home())
 
         plist_path = Path.home() / "Library" / "LaunchAgents" / "com.jarvis.desktop.plist"
         plist_path.parent.mkdir(parents=True, exist_ok=True)
@@ -307,7 +307,7 @@ WantedBy=default.target
         try:
             with open(plist_path, "w") as f:
                 f.write(plist_content)
-            
+
             logger.info(f"Created LaunchAgent: {plist_path}")
             logger.info("Run: launchctl load ~/Library/LaunchAgents/com.jarvis.desktop.plist")
             return True
@@ -347,9 +347,11 @@ WantedBy=default.target
 def run_daemon():
     """Run JARVIS as a standalone daemon."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="JARVIS Desktop Assistant Daemon")
-    parser.add_argument("command", nargs="?", default="start", choices=["start", "stop", "restart", "status"])
+    parser.add_argument(
+        "command", nargs="?", default="start", choices=["start", "stop", "restart", "status"]
+    )
     args = parser.parse_args()
 
     daemon = JarvisDaemon()
@@ -380,6 +382,7 @@ def run_daemon():
         # Would need proper implementation
 
     else:  # start
+
         async def main():
             await daemon.start()
             # Keep running

@@ -7,9 +7,9 @@ import os
 import platform
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
-from jarvis.tools.base import WriteTool, ReadOnlyTool, ToolResult
+from jarvis.tools.base import ReadOnlyTool, ToolResult, WriteTool
 
 
 class GetSystemInfoTool(ReadOnlyTool):
@@ -28,14 +28,12 @@ class GetSystemInfoTool(ReadOnlyTool):
         return self.CATEGORY_SYSTEM
 
     @property
-    def parameters(self) -> Dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {},
-            "required": []
-        }
+    def parameters(self) -> dict[str, Any]:
+        return {"type": "object", "properties": {}, "required": []}
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             info = {
                 "os": platform.system(),
@@ -67,7 +65,7 @@ class GetSystemInfoTool(ReadOnlyTool):
 
 class OpenAppTool(WriteTool):
     """Open an application, URL, or file with proper verification.
-    
+
     Features:
     - Comprehensive alias registry for common applications
     - Browser URL handling (open google → https://www.google.com)
@@ -83,7 +81,6 @@ class OpenAppTool(WriteTool):
         "youtube": "https://youtube.com",
         "bing": "https://www.bing.com",
         "duckduckgo": "https://duckduckgo.com",
-        
         # Development
         "github": "https://github.com",
         "gitlab": "https://gitlab.com",
@@ -91,14 +88,12 @@ class OpenAppTool(WriteTool):
         "stackoverflow": "https://stackoverflow.com",
         "hugging face": "https://huggingface.co",
         "huggingface": "https://huggingface.co",
-        
         # AI Services
         "chatgpt": "https://chat.openai.com",
         "claude": "https://claude.ai",
         "gemini": "https://gemini.google.com",
         "ollama": "https://ollama.com",
         "groq": "https://console.groq.com",
-        
         # Communication
         "gmail": "https://mail.google.com",
         "linkedin": "https://linkedin.com",
@@ -107,19 +102,16 @@ class OpenAppTool(WriteTool):
         "slack": "https://slack.com",
         "whatsapp": "https://web.whatsapp.com",
         "telegram": "https://web.telegram.org",
-        
         # Social
         "twitter": "https://twitter.com",
         "facebook": "https://facebook.com",
         "instagram": "https://instagram.com",
         "threads": "https://threads.net",
-        
         # Media
         "netflix": "https://netflix.com",
         "spotify": "https://spotify.com",
         "twitch": "https://twitch.tv",
         "youtube music": "https://music.youtube.com",
-        
         # Reference
         "wikipedia": "https://wikipedia.org",
         "amazon": "https://amazon.com",
@@ -135,25 +127,21 @@ class OpenAppTool(WriteTool):
         "calculator": "calc.exe",
         "calc": "calc.exe",
         "paint": "mspaint.exe",
-        
         # Terminals
         "cmd": "cmd.exe",
         "command prompt": "cmd.exe",
         "terminal": "cmd.exe",
         "powershell": "powershell.exe",
         "pwsh": "powershell.exe",
-        
         # File explorer
         "explorer": "explorer.exe",
         "files": "explorer.exe",
         "file explorer": "explorer.exe",
-        
         # Microsoft Office
         "word": "winword.exe",
         "excel": "excel.exe",
         "powerpoint": "powerpnt.exe",
         "outlook": "outlook.exe",
-        
         # Browsers
         "chrome": "chrome.exe",
         "google chrome": "chrome.exe",
@@ -163,7 +151,6 @@ class OpenAppTool(WriteTool):
         "brave": "brave.exe",
         "opera": "opera.exe",
         "browser": "msedge.exe",
-        
         # Development tools
         "vscode": "Code.exe",
         "vs code": "Code.exe",
@@ -171,7 +158,6 @@ class OpenAppTool(WriteTool):
         "code": "Code.exe",
         "notepad++": "notepad++.exe",
         "sublime": "sublime_text.exe",
-        
         # Communication
         "spotify": "spotify.exe",
         "discord": "discord.exe",
@@ -181,7 +167,6 @@ class OpenAppTool(WriteTool):
         "teams": "teams.exe",
         "slack": "slack.exe",
         "whatsapp": "WhatsApp.exe",
-        
         # System tools
         "task manager": "taskmgr.exe",
         "taskmgr": "taskmgr.exe",
@@ -189,12 +174,10 @@ class OpenAppTool(WriteTool):
         "settings": "ms-settings:",
         "registry": "regedit.exe",
         "regedit": "regedit.exe",
-        
         # Media
         "vlc": "vlc.exe",
         "media player": "wmplayer.exe",
         "windows media player": "wmplayer.exe",
-        
         # Misc
         "snipping tool": "SnippingTool.exe",
         "snip": "SnippingTool.exe",
@@ -216,7 +199,7 @@ class OpenAppTool(WriteTool):
 
     def __init__(self):
         super().__init__()
-        self._installed_apps_cache: Dict[str, str] = {}
+        self._installed_apps_cache: dict[str, str] = {}
 
     @property
     def name(self) -> str:
@@ -231,45 +214,45 @@ class OpenAppTool(WriteTool):
         return self.CATEGORY_SYSTEM
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
                 "target": {
                     "type": "string",
-                    "description": "App name, file path, or URL to open. Supports aliases like 'chrome', 'vscode', 'calculator', 'google', 'youtube', etc."
+                    "description": "App name, file path, or URL to open. Supports aliases like 'chrome', 'vscode', 'calculator', 'google', 'youtube', etc.",
                 },
                 "background": {
                     "type": "boolean",
-                    "description": "Open in background without focus"
-                }
+                    "description": "Open in background without focus",
+                },
             },
-            "required": ["target"]
+            "required": ["target"],
         }
 
     def _is_url(self, target: str) -> bool:
         """Check if target is a URL."""
         return target.lower().startswith(("http://", "https://", "www."))
 
-    def _is_browser_search(self, target: str) -> Optional[str]:
+    def _is_browser_search(self, target: str) -> str | None:
         """Check if target is a browser search term.
-        
+
         Returns URL if it matches a known browser search, else None.
         """
         lower = target.lower().strip()
         # Remove "open " prefix if present
         if lower.startswith("open "):
             lower = lower[5:].strip()
-        
+
         # Check exact match
         if lower in self.BROWSER_URLS:
             return self.BROWSER_URLS[lower]
-        
+
         # Check partial match
         for key, url in self.BROWSER_URLS.items():
             if key in lower or lower in key:
                 return url
-        
+
         return None
 
     def _resolve_windows_alias(self, target: str) -> str:
@@ -278,15 +261,15 @@ class OpenAppTool(WriteTool):
         # Remove "open " prefix if present
         if lower_target.startswith("open "):
             lower_target = lower_target[5:].strip()
-        
+
         return self.WINDOWS_ALIASES.get(lower_target, target)
 
-    def _find_in_path(self, executable: str) -> Optional[str]:
+    def _find_in_path(self, executable: str) -> str | None:
         """Find executable in system PATH."""
         # Handle common Windows executables
         if not executable.endswith((".exe", ".bat", ".cmd")):
             executable = executable + ".exe"
-        
+
         for path_dir in os.environ.get("PATH", "").split(os.pathsep):
             if os.path.isdir(path_dir):
                 candidate = os.path.join(path_dir, executable)
@@ -294,18 +277,18 @@ class OpenAppTool(WriteTool):
                     return candidate
         return None
 
-    def _find_in_windows_paths(self, executable: str) -> Optional[str]:
+    def _find_in_windows_paths(self, executable: str) -> str | None:
         """Search common Windows installation directories."""
         if not executable.endswith((".exe", ".bat", ".cmd", ".lnk")):
             search_names = [executable + ext for ext in self.EXECUTABLE_EXTENSIONS]
         else:
             search_names = [executable]
-        
+
         for search_path in self.WINDOWS_SEARCH_PATHS:
             if not os.path.isdir(search_path):
                 continue
             try:
-                for root, dirs, files in os.walk(search_path):
+                for root, _dirs, files in os.walk(search_path):
                     for name in files:
                         if any(name.lower() == s.lower() for s in search_names):
                             return os.path.join(root, name)
@@ -313,42 +296,42 @@ class OpenAppTool(WriteTool):
                 continue
         return None
 
-    def _find_installed_app(self, target: str) -> Optional[str]:
+    def _find_installed_app(self, target: str) -> str | None:
         """Find an installed application on Windows."""
         if target in self._installed_apps_cache:
             return self._installed_apps_cache[target]
-        
+
         # First try PATH
         path_exe = self._find_in_path(target)
         if path_exe:
             self._installed_apps_cache[target] = path_exe
             return path_exe
-        
+
         # Then search common installation directories
         win_exe = self._find_in_windows_paths(target)
         if win_exe:
             self._installed_apps_cache[target] = win_exe
             return win_exe
-        
+
         return None
 
     def _launch_windows(self, target: str, background: bool = False) -> tuple[bool, str, str]:
         """Launch a Windows application.
-        
+
         Returns: (success, executable_path, message)
         """
         # Check if it's a URL
         if self._is_url(target):
             return self._launch_url(target)
-        
+
         # Check if it's a browser search
         browser_url = self._is_browser_search(target)
         if browser_url:
             return self._launch_url(browser_url)
-        
+
         # Resolve alias
         resolved = self._resolve_windows_alias(target)
-        
+
         # Check for special protocols (ms-settings:, etc.)
         if ":" in resolved and not resolved.endswith((".exe", ".bat", ".cmd", ".lnk")):
             try:
@@ -356,30 +339,30 @@ class OpenAppTool(WriteTool):
                 return True, resolved, f"Opened via protocol: {resolved}"
             except OSError as e:
                 return False, resolved, str(e)
-        
+
         # Try to find the executable
         executable_path = self._find_installed_app(resolved)
-        
+
         if not executable_path:
             # Try direct path or unresolved target
             if os.path.isfile(resolved):
                 executable_path = resolved
             elif os.path.isfile(resolved + ".exe"):
                 executable_path = resolved + ".exe"
-        
+
         if not executable_path:
             # Build search list for error message
             search_locations = []
             if not resolved.endswith((".exe", ".bat", ".cmd", ".lnk")):
-                search_locations.append(f"  - Program Files")
-                search_locations.append(f"  - Program Files (x86)")
-                search_locations.append(f"  - PATH environment variable")
-                search_locations.append(f"  - Start Menu")
+                search_locations.append("  - Program Files")
+                search_locations.append("  - Program Files (x86)")
+                search_locations.append("  - PATH environment variable")
+                search_locations.append("  - Start Menu")
             else:
                 search_locations.append(f"  - {resolved}")
-            
-            return False, "", f"Application not found.\n\nSearched:\n" + "\n".join(search_locations)
-        
+
+            return False, "", "Application not found.\n\nSearched:\n" + "\n".join(search_locations)
+
         # Launch the application
         try:
             if background:
@@ -387,7 +370,7 @@ class OpenAppTool(WriteTool):
                     [executable_path],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
-                    start_new_session=True
+                    start_new_session=True,
                 )
             else:
                 os.startfile(executable_path)
@@ -401,7 +384,7 @@ class OpenAppTool(WriteTool):
             # Normalize URL
             if url.startswith("www.") and not url.startswith("http"):
                 url = "https://" + url
-            
+
             # Use startfile which opens URLs in default browser
             os.startfile(url)
             return True, url, "Opened in default browser"
@@ -414,7 +397,7 @@ class OpenAppTool(WriteTool):
             cmd = ["open"]
             if background:
                 cmd.append("-g")
-            
+
             # Normalize URL
             if target.startswith("www.") and not target.startswith("http"):
                 target = "https://" + target
@@ -422,10 +405,10 @@ class OpenAppTool(WriteTool):
                 url = self._is_browser_search(target)
                 if url:
                     target = url
-            
+
             cmd.append(target)
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            
+
             if result.returncode == 0:
                 return True, target, "SUCCESS"
             else:
@@ -441,7 +424,7 @@ class OpenAppTool(WriteTool):
             cmd = ["xdg-open"]
             if background:
                 cmd = ["nohup"] + cmd
-            
+
             # Normalize URL
             if target.startswith("www.") and not target.startswith("http"):
                 target = "https://" + target
@@ -449,10 +432,10 @@ class OpenAppTool(WriteTool):
                 url = self._is_browser_search(target)
                 if url:
                     target = url
-            
+
             cmd.append(target)
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            
+
             if result.returncode == 0:
                 return True, target, "SUCCESS"
             else:
@@ -462,7 +445,9 @@ class OpenAppTool(WriteTool):
         except Exception as e:
             return False, target, str(e)
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             target = input_data["target"]
             background = input_data.get("background", False)
@@ -471,7 +456,11 @@ class OpenAppTool(WriteTool):
 
             # Build opening message
             display_name = target.lower().replace("open ", "").strip()
-            display_name = display_name.title() if display_name not in self.BROWSER_URLS else display_name.upper()
+            display_name = (
+                display_name.title()
+                if display_name not in self.BROWSER_URLS
+                else display_name.upper()
+            )
             opening_msg = f"Opening {display_name}..."
 
             if system == "Windows":
@@ -510,23 +499,25 @@ class GetEnvironmentTool(ReadOnlyTool):
         return self.CATEGORY_SYSTEM
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
                 "prefix": {
                     "type": "string",
-                    "description": "Filter variables by prefix (e.g., PATH, HOME)"
+                    "description": "Filter variables by prefix (e.g., PATH, HOME)",
                 },
                 "all": {
                     "type": "boolean",
-                    "description": "Return all variables (careful - may be large)"
-                }
+                    "description": "Return all variables (careful - may be large)",
+                },
             },
-            "required": []
+            "required": [],
         }
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             all_vars = input_data.get("all", False)
             prefix = input_data.get("prefix", "")
@@ -535,15 +526,14 @@ class GetEnvironmentTool(ReadOnlyTool):
                 output = "\n".join(f"{k}={v}" for k, v in sorted(os.environ.items()))
             elif prefix:
                 output = "\n".join(
-                    f"{k}={v}" for k, v in sorted(os.environ.items())
+                    f"{k}={v}"
+                    for k, v in sorted(os.environ.items())
                     if k.startswith(prefix.upper())
                 )
             else:
                 # Default: show common variables
                 common = ["PATH", "HOME", "USER", "PWD", "SHELL", "LANG", "TERM"]
-                output = "\n".join(
-                    f"{k}={os.environ.get(k, '')}" for k in common
-                )
+                output = "\n".join(f"{k}={os.environ.get(k, '')}" for k in common)
 
             return ToolResult(success=True, output=output)
 
@@ -567,23 +557,19 @@ class SetEnvironmentTool(WriteTool):
         return self.CATEGORY_SYSTEM
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "variable": {
-                    "type": "string",
-                    "description": "Variable name"
-                },
-                "value": {
-                    "type": "string",
-                    "description": "Variable value"
-                }
+                "variable": {"type": "string", "description": "Variable name"},
+                "value": {"type": "string", "description": "Variable value"},
             },
-            "required": ["variable", "value"]
+            "required": ["variable", "value"],
         }
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             variable = input_data["variable"]
             value = input_data["value"]
@@ -612,30 +598,24 @@ class GetClipboardTool(ReadOnlyTool):
         return self.CATEGORY_SYSTEM
 
     @property
-    def parameters(self) -> Dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {},
-            "required": []
-        }
+    def parameters(self) -> dict[str, Any]:
+        return {"type": "object", "properties": {}, "required": []}
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             system = platform.system()
 
             if system == "Darwin":
-                result = subprocess.run(
-                    ["pbpaste"], capture_output=True, text=True
-                )
+                result = subprocess.run(["pbpaste"], capture_output=True, text=True)
             elif system == "Windows":
                 result = subprocess.run(
-                    ["powershell", "-Command", "Get-Clipboard"],
-                    capture_output=True, text=True
+                    ["powershell", "-Command", "Get-Clipboard"], capture_output=True, text=True
                 )
             else:  # Linux
                 result = subprocess.run(
-                    ["xclip", "-selection", "clipboard", "-o"],
-                    capture_output=True, text=True
+                    ["xclip", "-selection", "clipboard", "-o"], capture_output=True, text=True
                 )
 
             content = result.stdout.strip() if result.stdout else "(empty)"
@@ -664,37 +644,37 @@ class SetClipboardTool(WriteTool):
         return self.CATEGORY_SYSTEM
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "content": {
-                    "type": "string",
-                    "description": "Content to copy to clipboard"
-                }
+                "content": {"type": "string", "description": "Content to copy to clipboard"}
             },
-            "required": ["content"]
+            "required": ["content"],
         }
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             content = input_data["content"]
             system = platform.system()
 
             if system == "Darwin":
-                subprocess.run(
-                    ["pbcopy"], input=content, text=True, capture_output=True
-                )
+                subprocess.run(["pbcopy"], input=content, text=True, capture_output=True)
             elif system == "Windows":
                 escaped = content.replace("'", "''")
                 subprocess.run(
                     ["powershell", "-Command", f"Set-Clipboard -Value '{escaped}'"],
-                    capture_output=True, text=True
+                    capture_output=True,
+                    text=True,
                 )
             else:  # Linux
                 subprocess.run(
                     ["xclip", "-selection", "clipboard", "-i"],
-                    input=content, text=True, capture_output=True
+                    input=content,
+                    text=True,
+                    capture_output=True,
                 )
 
             return ToolResult(success=True, output="Clipboard set")

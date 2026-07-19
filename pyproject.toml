@@ -119,8 +119,18 @@ addopts = "-q --tb=short"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = ["venv", "archive", ".venv", "verify_all.py", "verify_endpoints.py", "verify_ids.py", "verify_runtime.py", "runtime_verify.py"]
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B", "SIM"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
 [tool.black]
 line-length = 100

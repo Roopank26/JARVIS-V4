@@ -21,9 +21,9 @@ logger = logging.getLogger(__name__)
 class PaletteItem:
     id: str
     title: str
-    category: str           # command | agent | plugin | file | model | memory | setting | history
+    category: str  # command | agent | plugin | file | model | memory | setting | history
     subtitle: str = ""
-    action: str = ""        # e.g. "send:...", "run:...", "open:..."
+    action: str = ""  # e.g. "send:...", "run:...", "open:..."
     keywords: str = ""
 
     def matches(self, query: str) -> bool:
@@ -46,18 +46,46 @@ class CommandPalette:
         self._static = [
             PaletteItem("cmd.help", "Show help", "command", "Built-in commands and usage", "help"),
             PaletteItem("cmd.tools", "List tools", "command", "All registered tools", "tools"),
-            PaletteItem("cmd.status", "System status", "command", "Provider, memory, tasks", "status"),
-            PaletteItem("cmd.memory", "Show memory", "command", "Stored long-term memory", "memory"),
+            PaletteItem(
+                "cmd.status", "System status", "command", "Provider, memory, tasks", "status"
+            ),
+            PaletteItem(
+                "cmd.memory", "Show memory", "command", "Stored long-term memory", "memory"
+            ),
             PaletteItem("cmd.clear", "Clear conversation", "command", "Reset chat", "clear"),
-            PaletteItem("cmd.voice.on", "Start voice", "command", "Begin wake-word listening", "voice start"),
+            PaletteItem(
+                "cmd.voice.on", "Start voice", "command", "Begin wake-word listening", "voice start"
+            ),
             PaletteItem("cmd.voice.off", "Stop voice", "command", "Stop listening", "voice stop"),
             PaletteItem("cmd.research", "Research topic", "command", "Web research", "research"),
-            PaletteItem("cmd.index", "Index repository", "command", "Code analysis + indexing", "index repository"),
-            PaletteItem("cmd.rag", "Ingest document", "command", "Add a PDF/doc to knowledge base", "ingest"),
+            PaletteItem(
+                "cmd.index",
+                "Index repository",
+                "command",
+                "Code analysis + indexing",
+                "index repository",
+            ),
+            PaletteItem(
+                "cmd.rag", "Ingest document", "command", "Add a PDF/doc to knowledge base", "ingest"
+            ),
             PaletteItem("set.theme.dark", "Toggle dark mode", "setting", "UI theme", "theme dark"),
-            PaletteItem("set.theme.light", "Toggle light mode", "setting", "UI theme", "theme light"),
-            PaletteItem("set.model", "Switch model", "setting", "Change active model/provider", "model switch provider"),
-            PaletteItem("set.voice", "Voice settings", "setting", "Mic, thresholds, wake word", "voice config"),
+            PaletteItem(
+                "set.theme.light", "Toggle light mode", "setting", "UI theme", "theme light"
+            ),
+            PaletteItem(
+                "set.model",
+                "Switch model",
+                "setting",
+                "Change active model/provider",
+                "model switch provider",
+            ),
+            PaletteItem(
+                "set.voice",
+                "Voice settings",
+                "setting",
+                "Mic, thresholds, wake word",
+                "voice config",
+            ),
         ]
 
     # ---- Dynamic contributions ----
@@ -69,12 +97,16 @@ class CommandPalette:
             coord = get_agent_coordinator()
             for a in getattr(coord, "agents", {}).values():
                 name = getattr(a, "name", None) or getattr(a, "role", "agent")
-                items.append(PaletteItem(
-                    f"agent.{name}",
-                    f"Agent: {name}",
-                    "agent",
-                    getattr(a, "description", ""), "agent", action=f"agent:{name}",
-                ))
+                items.append(
+                    PaletteItem(
+                        f"agent.{name}",
+                        f"Agent: {name}",
+                        "agent",
+                        getattr(a, "description", ""),
+                        "agent",
+                        action=f"agent:{name}",
+                    )
+                )
         except Exception:
             pass
         return items
@@ -86,13 +118,16 @@ class CommandPalette:
 
             pm = get_plugin_manager()
             for p in pm.list_plugins():
-                items.append(PaletteItem(
-                    f"plugin.{p['id']}",
-                    f"Plugin: {p['name']}",
-                    "plugin",
-                    p.get("description", ""),
-                    "plugin", action=f"plugin:{p['id']}",
-                ))
+                items.append(
+                    PaletteItem(
+                        f"plugin.{p['id']}",
+                        f"Plugin: {p['name']}",
+                        "plugin",
+                        p.get("description", ""),
+                        "plugin",
+                        action=f"plugin:{p['id']}",
+                    )
+                )
         except Exception:
             pass
         return items
@@ -106,10 +141,16 @@ class CommandPalette:
             provider = pm.providers.get(pm.primary_provider) if pm.primary_provider else None
             if provider:
                 for m in provider.available_models:
-                    items.append(PaletteItem(
-                        f"model.{m}", f"Model: {m}", "model",
-                        provider.config.provider.value, "model", action=f"model:{m}",
-                    ))
+                    items.append(
+                        PaletteItem(
+                            f"model.{m}",
+                            f"Model: {m}",
+                            "model",
+                            provider.config.provider.value,
+                            "model",
+                            action=f"model:{m}",
+                        )
+                    )
         except Exception:
             pass
         return items
@@ -127,13 +168,25 @@ class CommandPalette:
 
             mem = get_enhanced_memory()
             for fact in getattr(mem, "memories", [])[:30]:
-                key = getattr(fact, "key", None) or fact.get("key") if isinstance(fact, dict) else None
-                val = getattr(fact, "value", None) or (fact.get("value") if isinstance(fact, dict) else None)
+                key = (
+                    getattr(fact, "key", None) or fact.get("key")
+                    if isinstance(fact, dict)
+                    else None
+                )
+                val = getattr(fact, "value", None) or (
+                    fact.get("value") if isinstance(fact, dict) else None
+                )
                 if key:
-                    items.append(PaletteItem(
-                        f"memory.{key}", f"Memory: {key}", "memory",
-                        str(val)[:80] if val else "", "memory", action=f"recall:{key}",
-                    ))
+                    items.append(
+                        PaletteItem(
+                            f"memory.{key}",
+                            f"Memory: {key}",
+                            "memory",
+                            str(val)[:80] if val else "",
+                            "memory",
+                            action=f"recall:{key}",
+                        )
+                    )
         except Exception:
             pass
         return items
@@ -143,15 +196,24 @@ class CommandPalette:
         try:
             for dirpath, dirnames, filenames in os.walk(root):
                 # Skip heavy/irrelevant dirs
-                dirnames[:] = [d for d in dirnames if d not in (".git", "__pycache__", "venv", "node_modules", ".ruff_cache")]
+                dirnames[:] = [
+                    d
+                    for d in dirnames
+                    if d not in (".git", "__pycache__", "venv", "node_modules", ".ruff_cache")
+                ]
                 for fn in filenames:
                     if fn.endswith((".pyc",)):
                         continue
-                    items.append(PaletteItem(
-                        f"file.{os.path.join(dirpath, fn)}",
-                        fn, "file",
-                        os.path.join(dirpath, fn), "file open", action=f"open:{os.path.join(dirpath, fn)}",
-                    ))
+                    items.append(
+                        PaletteItem(
+                            f"file.{os.path.join(dirpath, fn)}",
+                            fn,
+                            "file",
+                            os.path.join(dirpath, fn),
+                            "file open",
+                            action=f"open:{os.path.join(dirpath, fn)}",
+                        )
+                    )
                     if len(items) >= limit:
                         return items
         except Exception:
@@ -161,14 +223,17 @@ class CommandPalette:
     def add_history(self, query: str) -> None:
         if not query.strip():
             return
-        self._history.insert(0, PaletteItem(
-            id=f"hist.{time.time()}",
-            title=query,
-            category="history",
-            subtitle="Previous request",
-            keywords="history",
-            action=f"send:{query}",
-        ))
+        self._history.insert(
+            0,
+            PaletteItem(
+                id=f"hist.{time.time()}",
+                title=query,
+                category="history",
+                subtitle="Previous request",
+                keywords="history",
+                action=f"send:{query}",
+            ),
+        )
         self._history = self._history[:50]
 
     def search(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
@@ -194,7 +259,16 @@ class CommandPalette:
 
         matches = [i for i in unique if i.matches(query)]
         # Rank: history first for exact-ish, then by category priority
-        cat_priority = {"history": 0, "command": 1, "agent": 2, "plugin": 3, "model": 4, "memory": 5, "file": 6, "setting": 7}
+        cat_priority = {
+            "history": 0,
+            "command": 1,
+            "agent": 2,
+            "plugin": 3,
+            "model": 4,
+            "memory": 5,
+            "file": 6,
+            "setting": 7,
+        }
         matches.sort(key=lambda i: (cat_priority.get(i.category, 9), i.title.lower()))
         return [asdict(i) for i in matches[:limit]]
 

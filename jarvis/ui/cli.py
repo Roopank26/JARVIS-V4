@@ -6,9 +6,6 @@ import asyncio
 import logging
 import os
 import sys
-from typing import Optional
-
-logger = logging.getLogger(__name__)
 
 try:
     from rich.console import Console
@@ -16,21 +13,32 @@ try:
     from rich.panel import Panel
     from rich.prompt import Prompt
     from rich.table import Table
+
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
 
 from jarvis.core.agent import JarvisAgent, create_jarvis
-from jarvis.tools.registry import get_registry
 from jarvis.tools.file_tools import (
-    ReadFileTool, WriteFileTool, ListDirectoryTool,
-    FindFilesTool, DeleteFileTool, DiskUsageTool
+    DeleteFileTool,
+    DiskUsageTool,
+    FindFilesTool,
+    ListDirectoryTool,
+    ReadFileTool,
+    WriteFileTool,
 )
-from jarvis.tools.terminal_tools import BashTool, RunScriptTool, CreateTempFileTool
+from jarvis.tools.registry import get_registry
 from jarvis.tools.system_tools import (
-    GetSystemInfoTool, OpenAppTool, GetEnvironmentTool,
-    SetEnvironmentTool, GetClipboardTool, SetClipboardTool
+    GetClipboardTool,
+    GetEnvironmentTool,
+    GetSystemInfoTool,
+    OpenAppTool,
+    SetClipboardTool,
+    SetEnvironmentTool,
 )
+from jarvis.tools.terminal_tools import BashTool, CreateTempFileTool, RunScriptTool
+
+logger = logging.getLogger(__name__)
 
 
 class JarvisCLI:
@@ -38,7 +46,7 @@ class JarvisCLI:
     Command-line interface for JARVIS.
     """
 
-    def __init__(self, agent: Optional[JarvisAgent] = None):
+    def __init__(self, agent: JarvisAgent | None = None):
         self.console = Console() if HAS_RICH else None
         self.agent = agent
         self._running = False
@@ -93,29 +101,30 @@ class JarvisCLI:
         registry.register(GetClipboardTool())
         registry.register(SetClipboardTool())
 
-    async def initialize(self, api_key: Optional[str] = None):
+    async def initialize(self, api_key: str | None = None):
         """Initialize the CLI and agent."""
         self.register_tools()
         self.agent = create_jarvis(api_key=api_key)
-        
+
         # Initialize voice runtime for TTS
         try:
             from jarvis.voice.voice_runtime import get_voice_runtime
+
             voice_runtime = get_voice_runtime()
             await voice_runtime.initialize()
-            
+
             def _speak_callback(text: str):
                 try:
                     loop = asyncio.get_event_loop()
                     loop.create_task(voice_runtime.speak(text))
                 except RuntimeError:
                     pass
-            
+
             self.agent.set_speak_callback(_speak_callback)
             print("[Jarvis] Voice output enabled")
         except Exception as e:
             print(f"[Jarvis] Voice output unavailable: {e}")
-        
+
         await self.agent.start()
 
     def print_banner(self):
@@ -255,7 +264,8 @@ You can also use tools directly:
                 self.console.clear()
             else:
                 import os
-                os.system('cls' if os.name == 'nt' else 'clear')
+
+                os.system("cls" if os.name == "nt" else "clear")
             return True
 
         if cmd in ["exit", "quit", "/exit", "/quit", "q"]:
@@ -280,10 +290,11 @@ You can also use tools directly:
             await self.initialize()
 
         self._running = True
-        
+
         # Auto-start wake-word listening
         try:
             from jarvis.voice.voice_runtime import get_voice_runtime
+
             voice_runtime = get_voice_runtime()
             await voice_runtime.start_wake_word_listening(agent=self.agent)
             self._print("[Jarvis] Wake-word listening active. Say 'Hey Jarvis' to wake me.\n")
@@ -297,13 +308,11 @@ You can also use tools directly:
                 # Get input
                 if self.console:
                     user_input = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda: Prompt.ask("[bold cyan]You[/bold cyan]")
+                        None, lambda: Prompt.ask("[bold cyan]You[/bold cyan]")
                     )
                 else:
                     user_input = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda: input("You: ")
+                        None, lambda: input("You: ")
                     )
 
                 if not user_input.strip():
@@ -332,7 +341,7 @@ You can also use tools directly:
         await self.shutdown()
 
 
-async def run_cli(api_key: Optional[str] = None):
+async def run_cli(api_key: str | None = None):
     """Run the JARVIS CLI."""
     cli = JarvisCLI()
     await cli.initialize(api_key=api_key)
@@ -344,6 +353,8 @@ if __name__ == "__main__":
     api_key = os.environ.get("JARVIS_API_KEY")
     if len(sys.argv) > 1:
         api_key = sys.argv[1]
-        logger.warning("Passing API key as CLI argument is insecure; use JARVIS_API_KEY env var instead")
+        logger.warning(
+            "Passing API key as CLI argument is insecure; use JARVIS_API_KEY env var instead"
+        )
 
     asyncio.run(run_cli(api_key=api_key))

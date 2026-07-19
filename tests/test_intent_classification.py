@@ -4,15 +4,11 @@ Tests that natural language questions stay in chat mode,
 memory operations work correctly, and tool execution is triggered properly.
 """
 
-import pytest
-import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-from jarvis.core.agent import (
-    Intent,
-    classify_intent,
-    JarvisAgent
-)
+import pytest
+
+from jarvis.core.agent import Intent, JarvisAgent, classify_intent
 
 
 class TestIntentClassification:
@@ -88,7 +84,9 @@ class TestIntentClassification:
         ]
         for p in patterns:
             intent = classify_intent(p)
-            assert intent == Intent.TOOL_EXECUTION, f"'{p}' should be TOOL_EXECUTION but got {intent}"
+            assert (
+                intent == Intent.TOOL_EXECUTION
+            ), f"'{p}' should be TOOL_EXECUTION but got {intent}"
 
     def test_casual_conversation_stays_in_chat(self):
         """Test that casual conversation stays in chat mode."""
@@ -139,26 +137,25 @@ class TestAgentIntentRouting:
             config=MagicMock(),
             memory_manager=MagicMock(),
             tool_registry=MagicMock(),
-            llm_client=MagicMock()
+            llm_client=MagicMock(),
         )
         # Mock the LLM client
         agent.llm.generate_with_history = AsyncMock(return_value="Test response")
         agent.llm.generate = AsyncMock(return_value="Test response")
-        
+
         # Mock executor
-        agent.executor.execute = AsyncMock(return_value=MagicMock(
-            success=True,
-            summary="Task completed",
-            error=None,
-            completed_steps=[]
-        ))
-        
+        agent.executor.execute = AsyncMock(
+            return_value=MagicMock(
+                success=True, summary="Task completed", error=None, completed_steps=[]
+            )
+        )
+
         # Mock memory manager
         agent.memory.remember = MagicMock()
         agent.memory.recall = MagicMock(return_value=[])
         agent.memory.add_user_message = MagicMock()
         agent.memory.add_assistant_message = MagicMock()
-        
+
         return agent
 
     @pytest.mark.asyncio
@@ -166,9 +163,9 @@ class TestAgentIntentRouting:
         """Test that factual questions don't trigger tool execution."""
         # Override recall to return empty (no stored memory)
         mock_agent.memory.recall = MagicMock(return_value=[])
-        
-        response = await mock_agent.process("what is machine learning")
-        
+
+        await mock_agent.process("what is machine learning")
+
         # Should call LLM directly, not executor
         mock_agent.llm.generate_with_history.assert_called_once()
         mock_agent.executor.execute.assert_not_called()
@@ -176,8 +173,8 @@ class TestAgentIntentRouting:
     @pytest.mark.asyncio
     async def test_study_plan_does_not_use_tools(self, mock_agent):
         """Test that study plan requests don't trigger tools."""
-        response = await mock_agent.process("create a study plan for machine learning")
-        
+        await mock_agent.process("create a study plan for machine learning")
+
         # Should call LLM directly, not executor
         mock_agent.llm.generate_with_history.assert_called_once()
         mock_agent.executor.execute.assert_not_called()
@@ -185,8 +182,8 @@ class TestAgentIntentRouting:
     @pytest.mark.asyncio
     async def test_tool_command_uses_executor(self, mock_agent):
         """Test that explicit tool commands use executor."""
-        response = await mock_agent.process("ls -la /home")
-        
+        await mock_agent.process("ls -la /home")
+
         # Should call executor
         mock_agent.executor.execute.assert_called_once()
         mock_agent.llm.generate_with_history.assert_not_called()
@@ -195,7 +192,7 @@ class TestAgentIntentRouting:
     async def test_memory_store_calls_memory(self, mock_agent):
         """Test that memory store calls memory manager."""
         response = await mock_agent.process("remember my favorite color is blue")
-        
+
         # Should call memory.remember
         mock_agent.memory.remember.assert_called()
         assert "blue" in response.lower() or "favorite" in response.lower()
@@ -203,12 +200,10 @@ class TestAgentIntentRouting:
     @pytest.mark.asyncio
     async def test_memory_recall_calls_memory(self, mock_agent):
         """Test that memory recall calls memory manager."""
-        mock_agent.memory.recall = MagicMock(return_value=[
-            {"key": "color", "value": "blue"}
-        ])
-        
-        response = await mock_agent.process("what is my favorite color")
-        
+        mock_agent.memory.recall = MagicMock(return_value=[{"key": "color", "value": "blue"}])
+
+        await mock_agent.process("what is my favorite color")
+
         # Should call memory.recall
         mock_agent.memory.recall.assert_called()
 
@@ -219,9 +214,7 @@ class TestMemoryOperations:
     @pytest.fixture
     def agent_with_memory(self):
         """Create agent with real memory manager."""
-        agent = JarvisAgent(
-            memory_manager=MagicMock()
-        )
+        agent = JarvisAgent(memory_manager=MagicMock())
         agent.memory.remember = MagicMock()
         agent.memory.recall = MagicMock(return_value=[])
         return agent
@@ -230,32 +223,34 @@ class TestMemoryOperations:
     async def test_memory_store_extracts_key_value(self, agent_with_memory):
         """Test that memory store extracts key and value correctly."""
         await agent_with_memory._handle_memory_store("remember my favorite color is blue")
-        
+
         agent_with_memory.memory.remember.assert_called()
         call_args = agent_with_memory.memory.remember.call_args
-        # Key should contain "color" 
+        # Key should contain "color"
         key = call_args[0][0] if call_args[0] else call_args[1].get("key")
         assert "color" in key.lower()
 
     @pytest.mark.asyncio
     async def test_memory_recall_returns_info(self, agent_with_memory):
         """Test that memory recall returns stored information."""
-        agent_with_memory.memory.recall = MagicMock(return_value=[
-            {"key": "color", "value": "blue"}
-        ])
-        
+        agent_with_memory.memory.recall = MagicMock(
+            return_value=[{"key": "color", "value": "blue"}]
+        )
+
         response = await agent_with_memory._handle_memory_recall("what is my favorite color")
-        
+
         assert "blue" in response or "color" in response.lower()
 
     @pytest.mark.asyncio
     async def test_memory_recall_not_found(self, agent_with_memory):
         """Test that memory recall handles not found case."""
         agent_with_memory.memory.recall = MagicMock(return_value=[])
-        
+
         response = await agent_with_memory._handle_memory_recall("what is my favorite food")
-        
-        assert "don't" in response.lower() or "don't" in response.lower() or "not" in response.lower()
+
+        assert (
+            "don't" in response.lower() or "don't" in response.lower() or "not" in response.lower()
+        )
 
 
 class TestEdgeCases:
@@ -275,7 +270,7 @@ class TestEdgeCases:
         """Test that 'create file' is tool but 'create plan' is chat."""
         # Create file should be tool
         assert classify_intent("create file test.txt") == Intent.TOOL_EXECUTION
-        
+
         # Create study plan should be chat
         assert classify_intent("create study plan") == Intent.CHAT
 

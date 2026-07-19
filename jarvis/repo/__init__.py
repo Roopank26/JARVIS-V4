@@ -7,4 +7,4 @@ from jarvis.repo.analyzer import RepositoryAnalyzer
 from jarvis.repo.ast_analysis import ASTAnalyzer
 from jarvis.repo.security import SecurityScanner
 
-__all__ = ["RepositoryAnalyzer", "ASTAnalyzer", "SecurityScanner"]
+__all__ = ["ASTAnalyzer", "RepositoryAnalyzer", "SecurityScanner"]

@@ -4,25 +4,27 @@ Adapted from Claude Code's Tool framework.
 """
 
 from abc import ABC, abstractmethod
-from enum import Enum
-from typing import Any, Dict, Optional
 from dataclasses import dataclass
+from enum import Enum
+from typing import Any
 
 
 class PermissionLevel(Enum):
     """Permission levels for tool execution."""
-    AUTOMATIC = "automatic"      # Always allowed
-    ASK_ONCE = "ask_once"         # Ask once per session
-    ASK_ALWAYS = "ask_always"     # Ask every time
-    DENY = "deny"                # Never allowed
+
+    AUTOMATIC = "automatic"  # Always allowed
+    ASK_ONCE = "ask_once"  # Ask once per session
+    ASK_ALWAYS = "ask_always"  # Ask every time
+    DENY = "deny"  # Never allowed
 
 
 @dataclass
 class ToolResult:
     """Result of tool execution."""
+
     success: bool
     output: Any
-    error: Optional[str] = None
+    error: str | None = None
 
     def __str__(self) -> str:
         if self.success:
@@ -56,7 +58,7 @@ class Tool(ABC):
         return self.CATEGORY_SYSTEM
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         """JSON schema for tool parameters."""
         return {"type": "object", "properties": {}, "required": []}
 
@@ -74,7 +76,7 @@ class Tool(ABC):
         """Get the permission level for this tool."""
         return self.permission_level
 
-    def check_permission(self, input_data: Dict[str, Any]) -> PermissionLevel:
+    def check_permission(self, input_data: dict[str, Any]) -> PermissionLevel:
         """
         Check if this tool can be executed with the given input.
         Can be overridden for input-specific permission checks.
@@ -82,7 +84,9 @@ class Tool(ABC):
         return self.get_permission_level()
 
     @abstractmethod
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         """
         Execute the tool with the given input.
 
@@ -95,7 +99,7 @@ class Tool(ABC):
         """
         pass
 
-    def validate_input(self, input_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+    def validate_input(self, input_data: dict[str, Any]) -> tuple[bool, str | None]:
         """
         Validate input parameters before execution.
 
@@ -104,7 +108,7 @@ class Tool(ABC):
         """
         return True, None
 
-    def format_for_display(self, input_data: Dict[str, Any]) -> str:
+    def format_for_display(self, input_data: dict[str, Any]) -> str:
         """Format tool call for display in UI."""
         params = ", ".join(f"{k}={v}" for k, v in input_data.items() if v is not None)
         return f"{self.name}({params})"
@@ -142,7 +146,7 @@ class DestructiveTool(Tool):
 class ToolCallback:
     """Callback interface for tool execution events."""
 
-    def on_tool_start(self, tool_name: str, input_data: Dict[str, Any]) -> None:
+    def on_tool_start(self, tool_name: str, input_data: dict[str, Any]) -> None:
         """Called when a tool starts executing."""
         pass
 

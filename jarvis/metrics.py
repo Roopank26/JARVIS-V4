@@ -48,8 +48,8 @@ def _ram() -> dict[str, Any]:
         vm = psutil.virtual_memory()
         return {
             "percent": round(vm.percent, 1),
-            "used_gb": round(vm.used / (1024 ** 3), 1),
-            "total_gb": round(vm.total / (1024 ** 3), 1),
+            "used_gb": round(vm.used / (1024**3), 1),
+            "total_gb": round(vm.total / (1024**3), 1),
         }
     except Exception:
         return {"percent": 0.0, "used_gb": 0.0, "total_gb": 0.0}
@@ -58,6 +58,7 @@ def _ram() -> dict[str, Any]:
 def _provider() -> str:
     try:
         from jarvis.api.providers import get_provider_manager
+
         pm = get_provider_manager()
         if pm.primary_provider:
             return pm.primary_provider.value
@@ -69,6 +70,7 @@ def _provider() -> str:
 def _model() -> str:
     try:
         from jarvis.api.providers import get_provider_manager
+
         pm = get_provider_manager()
         if pm.primary_provider and pm.primary_provider in pm.providers:
             return pm.providers[pm.primary_provider].model

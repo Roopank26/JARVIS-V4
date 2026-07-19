@@ -154,10 +154,13 @@ class SpeechStateMachine:
         logger.debug("Speech state: %s -> %s", old_state.value, new_state.value)
 
         event_type = _TRANSITION_EVENT_MAP.get(new_state, EventType.VOICE_STATE)
-        self._bus.emit(event_type, {
-            "state": new_state.value,
-            "previous_state": old_state.value,
-        })
+        self._bus.emit(
+            event_type,
+            {
+                "state": new_state.value,
+                "previous_state": old_state.value,
+            },
+        )
 
         for listener in list(self._listeners):
             try:

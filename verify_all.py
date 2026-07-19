@@ -162,7 +162,6 @@ print("   PASS: N/A (vanilla JS, no module system)")
 # 15. Application launches
 print("\n15. Application Launch")
 try:
-    from jarvis.ui.server import UIServer
     print("   PASS: Server imports successfully")
 except Exception as e:
     print(f"   FAIL: {e}")

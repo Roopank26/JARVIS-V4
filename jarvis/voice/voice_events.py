@@ -35,117 +35,168 @@ CONVERSATION_TIMEOUT = "conversation_timeout"
 
 
 def emit_voice_started(bus: EventBus | None = None) -> None:
-    (bus or get_event_bus()).emit(EventType.VOICE_STATE, {
-        "state": "started",
-        "detail": VOICE_STARTED,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.VOICE_STATE,
+        {
+            "state": "started",
+            "detail": VOICE_STARTED,
+        },
+    )
 
 
 def emit_voice_stopped(bus: EventBus | None = None) -> None:
-    (bus or get_event_bus()).emit(EventType.VOICE_STATE, {
-        "state": "stopped",
-        "detail": VOICE_STOPPED,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.VOICE_STATE,
+        {
+            "state": "stopped",
+            "detail": VOICE_STOPPED,
+        },
+    )
 
 
 def emit_voice_interrupted(bus: EventBus | None = None, reason: str = "") -> None:
-    (bus or get_event_bus()).emit(EventType.VOICE_INTERRUPT, {
-        "reason": reason,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.VOICE_INTERRUPT,
+        {
+            "reason": reason,
+        },
+    )
 
 
 def emit_voice_resumed(bus: EventBus | None = None) -> None:
-    (bus or get_event_bus()).emit(EventType.VOICE_STATE, {
-        "state": "resumed",
-        "detail": VOICE_RESUMED,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.VOICE_STATE,
+        {
+            "state": "resumed",
+            "detail": VOICE_RESUMED,
+        },
+    )
 
 
 def emit_user_started_speaking(bus: EventBus | None = None) -> None:
-    (bus or get_event_bus()).emit(EventType.VOICE_STATE, {
-        "state": "user_speaking",
-        "detail": USER_STARTED_SPEAKING,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.VOICE_STATE,
+        {
+            "state": "user_speaking",
+            "detail": USER_STARTED_SPEAKING,
+        },
+    )
 
 
 def emit_user_stopped_speaking(bus: EventBus | None = None) -> None:
-    (bus or get_event_bus()).emit(EventType.VOICE_STATE, {
-        "state": "user_stopped",
-        "detail": USER_STOPPED_SPEAKING,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.VOICE_STATE,
+        {
+            "state": "user_stopped",
+            "detail": USER_STOPPED_SPEAKING,
+        },
+    )
 
 
 def emit_stt_partial(bus: EventBus | None = None, text: str = "") -> None:
-    (bus or get_event_bus()).emit(EventType.VOICE_TRANSCRIPT, {
-        "partial": True,
-        "text": text,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.VOICE_TRANSCRIPT,
+        {
+            "partial": True,
+            "text": text,
+        },
+    )
 
 
 def emit_stt_final(bus: EventBus | None = None, text: str = "") -> None:
-    (bus or get_event_bus()).emit(EventType.VOICE_TRANSCRIPT, {
-        "partial": False,
-        "text": text,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.VOICE_TRANSCRIPT,
+        {
+            "partial": False,
+            "text": text,
+        },
+    )
 
 
 def emit_llm_stream_started(bus: EventBus | None = None) -> None:
-    (bus or get_event_bus()).emit(EventType.TOKEN, {
-        "detail": LLM_STREAM_STARTED,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.TOKEN,
+        {
+            "detail": LLM_STREAM_STARTED,
+        },
+    )
 
 
 def emit_llm_stream_token(bus: EventBus | None = None, token: str = "") -> None:
-    (bus or get_event_bus()).emit(EventType.TOKEN, {
-        "detail": LLM_STREAM_TOKEN,
-        "token": token,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.TOKEN,
+        {
+            "detail": LLM_STREAM_TOKEN,
+            "token": token,
+        },
+    )
 
 
 def emit_llm_stream_finished(bus: EventBus | None = None) -> None:
-    (bus or get_event_bus()).emit(EventType.TOKEN, {
-        "detail": LLM_STREAM_FINISHED,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.TOKEN,
+        {
+            "detail": LLM_STREAM_FINISHED,
+        },
+    )
 
 
 def emit_tts_started(bus: EventBus | None = None) -> None:
-    (bus or get_event_bus()).emit(EventType.VOICE_STATE, {
-        "state": "tts_started",
-        "detail": TTS_STARTED,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.VOICE_STATE,
+        {
+            "state": "tts_started",
+            "detail": TTS_STARTED,
+        },
+    )
 
 
 def emit_tts_chunk(bus: EventBus | None = None, index: int = 0) -> None:
-    (bus or get_event_bus()).emit(EventType.VOICE_STATE, {
-        "state": "tts_chunk",
-        "detail": TTS_CHUNK,
-        "chunk": index,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.VOICE_STATE,
+        {
+            "state": "tts_chunk",
+            "detail": TTS_CHUNK,
+            "chunk": index,
+        },
+    )
 
 
 def emit_tts_finished(bus: EventBus | None = None) -> None:
-    (bus or get_event_bus()).emit(EventType.VOICE_STATE, {
-        "state": "tts_finished",
-        "detail": TTS_FINISHED,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.VOICE_STATE,
+        {
+            "state": "tts_finished",
+            "detail": TTS_FINISHED,
+        },
+    )
 
 
 def emit_playback_started(bus: EventBus | None = None) -> None:
-    (bus or get_event_bus()).emit(EventType.VOICE_STATE, {
-        "state": "playback_started",
-        "detail": PLAYBACK_STARTED,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.VOICE_STATE,
+        {
+            "state": "playback_started",
+            "detail": PLAYBACK_STARTED,
+        },
+    )
 
 
 def emit_playback_finished(bus: EventBus | None = None) -> None:
-    (bus or get_event_bus()).emit(EventType.VOICE_STATE, {
-        "state": "playback_finished",
-        "detail": PLAYBACK_FINISHED,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.VOICE_STATE,
+        {
+            "state": "playback_finished",
+            "detail": PLAYBACK_FINISHED,
+        },
+    )
 
 
 def emit_conversation_timeout(bus: EventBus | None = None) -> None:
-    (bus or get_event_bus()).emit(EventType.VOICE_STATE, {
-        "state": "conversation_timeout",
-        "detail": CONVERSATION_TIMEOUT,
-    })
+    (bus or get_event_bus()).emit(
+        EventType.VOICE_STATE,
+        {
+            "state": "conversation_timeout",
+            "detail": CONVERSATION_TIMEOUT,
+        },
+    )

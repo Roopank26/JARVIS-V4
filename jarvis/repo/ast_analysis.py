@@ -4,50 +4,53 @@ Provides detailed Python code analysis using Abstract Syntax Trees.
 """
 
 import ast
-from typing import Dict, List, Optional, Any, Set
-from dataclasses import dataclass, field
 from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
 class FunctionInfo:
     """Information about a function."""
+
     name: str
     line: int
     end_line: int
-    args: List[str] = field(default_factory=list)
+    args: list[str] = field(default_factory=list)
     complexity: int = 1
-    decorators: List[str] = field(default_factory=list)
-    docstring: Optional[str] = None
-    returns: Optional[str] = None
+    decorators: list[str] = field(default_factory=list)
+    docstring: str | None = None
+    returns: str | None = None
 
 
 @dataclass
 class ClassInfo:
     """Information about a class."""
+
     name: str
     line: int
     end_line: int
-    bases: List[str] = field(default_factory=list)
-    methods: List[FunctionInfo] = field(default_factory=list)
-    docstring: Optional[str] = None
+    bases: list[str] = field(default_factory=list)
+    methods: list[FunctionInfo] = field(default_factory=list)
+    docstring: str | None = None
 
 
 @dataclass
 class FileInfo:
     """Complete information about a file."""
+
     path: str
-    functions: List[FunctionInfo] = field(default_factory=list)
-    classes: List[ClassInfo] = field(default_factory=list)
-    imports: List[str] = field(default_factory=list)
-    exports: List[str] = field(default_factory=list)  # __all__
-    docstring: Optional[str] = None
+    functions: list[FunctionInfo] = field(default_factory=list)
+    classes: list[ClassInfo] = field(default_factory=list)
+    imports: list[str] = field(default_factory=list)
+    exports: list[str] = field(default_factory=list)  # __all__
+    docstring: str | None = None
 
 
 class ASTAnalyzer:
     """
     Advanced Python AST analyzer.
-    
+
     Provides:
     - Call graph analysis
     - Dead code detection
@@ -57,8 +60,8 @@ class ASTAnalyzer:
     """
 
     def __init__(self):
-        self._file_info: Dict[str, FileInfo] = {}
-        self._call_graph: Dict[str, Set[str]] = defaultdict(set)
+        self._file_info: dict[str, FileInfo] = {}
+        self._call_graph: dict[str, set[str]] = defaultdict(set)
 
     def analyze_file(self, file_path: str) -> FileInfo:
         """Analyze a Python file."""
@@ -68,7 +71,7 @@ class ASTAnalyzer:
         info = FileInfo(path=file_path)
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
             tree = ast.parse(content)
@@ -81,12 +84,15 @@ class ASTAnalyzer:
             for node in tree.body:
                 if isinstance(node, ast.Assign):
                     for target in node.targets:
-                        if isinstance(target, ast.Name) and target.id == '__all__':
-                            if isinstance(node.value, (ast.List, ast.Tuple, ast.Set)):
-                                info.exports = [
-                                    elt.value if isinstance(elt, ast.Constant) else str(elt)
-                                    for elt in node.value.elts
-                                ]
+                        if (
+                            isinstance(target, ast.Name)
+                            and target.id == "__all__"
+                            and isinstance(node.value, (ast.List, ast.Tuple, ast.Set))
+                        ):
+                            info.exports = [
+                                elt.value if isinstance(elt, ast.Constant) else str(elt)
+                                for elt in node.value.elts
+                            ]
 
             # Walk the tree
             for node in ast.walk(tree):
@@ -104,12 +110,13 @@ class ASTAnalyzer:
                     info.classes.append(class_info)
 
                 # Top-level functions
-                elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    if not any(isinstance(parent, ast.ClassDef) for parent in ast.walk(tree)):
-                        func_info = self._analyze_function(node)
-                        info.functions.append(func_info)
+                elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not any(
+                    isinstance(parent, ast.ClassDef) for parent in ast.walk(tree)
+                ):
+                    func_info = self._analyze_function(node)
+                    info.functions.append(func_info)
 
-        except Exception as e:
+        except Exception:
             pass
 
         self._file_info[file_path] = info
@@ -169,13 +176,13 @@ class ASTAnalyzer:
         complexity = 1
 
         for child in ast.walk(node):
-            if isinstance(child, (ast.If, ast.While, ast.For, ast.AsyncFor)):
-                complexity += 1
-            elif isinstance(child, ast.ExceptHandler):
+            if isinstance(child, (ast.If, ast.While, ast.For, ast.AsyncFor, ast.ExceptHandler)):
                 complexity += 1
             elif isinstance(child, ast.BoolOp):
                 complexity += len(child.values) - 1
-            elif isinstance(child, (ast.IfExp, ast.DictComp, ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+            elif isinstance(
+                child, (ast.IfExp, ast.DictComp, ast.ListComp, ast.SetComp, ast.GeneratorExp)
+            ):
                 complexity += 1
 
         return complexity
@@ -203,7 +210,7 @@ class ASTAnalyzer:
             parts.append(node.id)
         return ".".join(reversed(parts))
 
-    def find_large_functions(self, min_lines: int = 50) -> List[Dict[str, Any]]:
+    def find_large_functions(self, min_lines: int = 50) -> list[dict[str, Any]]:
         """Find functions larger than specified lines."""
         large_funcs = []
 
@@ -211,50 +218,58 @@ class ASTAnalyzer:
             for func in file_info.functions:
                 lines = func.end_line - func.line
                 if lines >= min_lines:
-                    large_funcs.append({
-                        "file": file_info.path,
-                        "function": func.name,
-                        "lines": lines,
-                        "complexity": func.complexity,
-                    })
+                    large_funcs.append(
+                        {
+                            "file": file_info.path,
+                            "function": func.name,
+                            "lines": lines,
+                            "complexity": func.complexity,
+                        }
+                    )
 
             for cls in file_info.classes:
                 for method in cls.methods:
                     lines = method.end_line - method.line
                     if lines >= min_lines:
-                        large_funcs.append({
-                            "file": file_info.path,
-                            "function": f"{cls.name}.{method.name}",
-                            "lines": lines,
-                            "complexity": method.complexity,
-                        })
+                        large_funcs.append(
+                            {
+                                "file": file_info.path,
+                                "function": f"{cls.name}.{method.name}",
+                                "lines": lines,
+                                "complexity": method.complexity,
+                            }
+                        )
 
         return sorted(large_funcs, key=lambda x: x["lines"], reverse=True)
 
-    def find_duplicate_functions(self) -> List[Dict[str, Any]]:
+    def find_duplicate_functions(self) -> list[dict[str, Any]]:
         """Find functions with similar names or signatures."""
-        signatures: Dict[str, List[Dict]] = defaultdict(list)
+        signatures: dict[str, list[dict]] = defaultdict(list)
 
         for file_info in self._file_info.values():
             for func in file_info.functions:
                 sig = f"{func.name}({','.join(func.args)})"
-                signatures[sig].append({
-                    "file": file_info.path,
-                    "function": func.name,
-                    "args": func.args,
-                })
+                signatures[sig].append(
+                    {
+                        "file": file_info.path,
+                        "function": func.name,
+                        "args": func.args,
+                    }
+                )
 
         duplicates = []
         for sig, locations in signatures.items():
             if len(locations) > 1:
-                duplicates.append({
-                    "signature": sig,
-                    "locations": locations,
-                })
+                duplicates.append(
+                    {
+                        "signature": sig,
+                        "locations": locations,
+                    }
+                )
 
         return duplicates
 
-    def get_method_resolution_order(self, class_name: str, file_path: str) -> List[str]:
+    def get_method_resolution_order(self, class_name: str, file_path: str) -> list[str]:
         """Get MRO for a class."""
         file_info = self._file_info.get(file_path)
         if not file_info:
@@ -295,13 +310,17 @@ class ASTAnalyzer:
                     lines.append(f"     Bases: {', '.join(cls.bases)}")
                 lines.append(f"     Methods: {len(cls.methods)}")
                 for method in cls.methods:
-                    lines.append(f"       • {method.name}({', '.join(method.args)}) [{method.complexity}]")
+                    lines.append(
+                        f"       • {method.name}({', '.join(method.args)}) [{method.complexity}]"
+                    )
             lines.append("")
 
         if info.functions:
             lines.append(f"Functions ({len(info.functions)}):")
             for func in info.functions:
                 lines.append(f"  ⚙️ {func.name}({', '.join(func.args)})")
-                lines.append(f"     Lines: {func.end_line - func.line}, Complexity: {func.complexity}")
+                lines.append(
+                    f"     Lines: {func.end_line - func.line}, Complexity: {func.complexity}"
+                )
 
         return "\n".join(lines)

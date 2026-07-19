@@ -22,6 +22,7 @@ except the LLM provider the user already configured.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import time
@@ -88,10 +89,8 @@ class UIServer:
         if self._unsub:
             self._unsub()
         for ws in list(self._ws_clients):
-            try:
+            with contextlib.suppress(Exception):
                 await ws.close()
-            except Exception:
-                pass
         if self._runner:
             await self._runner.cleanup()
 
@@ -99,11 +98,13 @@ class UIServer:
     def _on_event(self, event: Any) -> None:
         if not self._ws_clients:
             return
-        payload = json.dumps({
-            "type": event.type.value,
-            "data": event.data,
-            "ts": event.timestamp,
-        })
+        payload = json.dumps(
+            {
+                "type": event.type.value,
+                "data": event.data,
+                "ts": event.timestamp,
+            }
+        )
         for ws in list(self._ws_clients):
             try:
                 asyncio.create_task(ws.send_str(payload))
@@ -205,12 +206,14 @@ class UIServer:
         query = request.query.get("q", "")
         category = request.query.get("category")
         tools = self.app.tool_library.search(query, category)
-        return web.json_response({
-            "tools": [t.__dict__ if hasattr(t, "__dict__") else t for t in tools],
-            "categories": self.app.tool_library.categories(),
-            "favorites": [t.name for t in self.app.tool_library.favorites()],
-            "recent": [t.name for t in self.app.tool_library.recent()],
-        })
+        return web.json_response(
+            {
+                "tools": [t.__dict__ if hasattr(t, "__dict__") else t for t in tools],
+                "categories": self.app.tool_library.categories(),
+                "favorites": [t.name for t in self.app.tool_library.favorites()],
+                "recent": [t.name for t in self.app.tool_library.recent()],
+            }
+        )
 
     async def _api_tools_favorite(self, request: Any) -> Any:
         from aiohttp import web

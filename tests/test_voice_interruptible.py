@@ -147,12 +147,14 @@ class TestVAD:
 
     def test_process_frame_speech(self):
         import numpy as np
+
         loud = (np.ones(3200, dtype=np.int16) * 30000).tobytes()
         result = self.vad.process_frame(loud)
         assert result.is_speech
 
     def test_reset(self):
         import numpy as np
+
         loud = (np.ones(3200, dtype=np.int16) * 30000).tobytes()
         self.vad.process_frame(loud)
         self.vad.reset()
@@ -161,6 +163,7 @@ class TestVAD:
 
     def test_speech_detected(self):
         import numpy as np
+
         silent = b"\x00\x00" * 1600
         self.vad.process_frame(silent)
         assert not self.vad.speech_detected()

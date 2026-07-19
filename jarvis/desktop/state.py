@@ -3,15 +3,14 @@ Persistent state management for JARVIS Desktop.
 Ensures state survives restarts and crashes.
 """
 
-import json
 import asyncio
+import json
+import logging
 import os
 import sys
-from pathlib import Path
-from typing import Dict, Optional
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
-import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +18,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AppState:
     """Application state that persists across restarts."""
+
     version: str = "3.0.0"
-    last_start: Optional[str] = None
-    last_stop: Optional[str] = None
+    last_start: str | None = None
+    last_stop: str | None = None
     crash_count: int = 0
-    last_crash: Optional[str] = None
+    last_crash: str | None = None
     restart_count: int = 0
     total_uptime_seconds: float = 0.0
     memory_entries: int = 0
@@ -34,13 +34,13 @@ class AppState:
     wake_word: str = "jarvis"
     daily_summary_time: str = "18:00"
     auto_index_projects: bool = True
-    session_start: Optional[str] = None
+    session_start: str | None = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "AppState":
+    def from_dict(cls, data: dict) -> "AppState":
         return cls(**{k: v for k, v in data.items() if k in cls.__annotations__})
 
 
@@ -60,7 +60,7 @@ class PersistentState:
         """Load state from file."""
         if self.state_file.exists():
             try:
-                with open(self.state_file, "r") as f:
+                with open(self.state_file) as f:
                     data = json.load(f)
                 self.state = AppState.from_dict(data)
                 logger.info(f"Loaded state from {self.state_file}")
@@ -85,7 +85,7 @@ class PersistentState:
         self.state.last_start = now
         self.state.session_start = now
         self.state.restart_count += 1
-        
+
         # Check for crash recovery
         if self.state.last_stop:
             last_stop = datetime.fromisoformat(self.state.last_stop)
@@ -95,41 +95,41 @@ class PersistentState:
                 self.state.crash_count += 1
                 self.state.last_crash = now
                 logger.warning(f"Possible crash detected (crash #{self.state.crash_count})")
-        
+
         await self.save()
 
     async def on_stop(self) -> None:
         """Called when JARVIS stops."""
         now = datetime.now().isoformat()
         self.state.last_stop = now
-        
+
         # Calculate uptime contribution
         if self.state.session_start:
             session_start = datetime.fromisoformat(self.state.session_start)
             session_uptime = (datetime.now() - session_start).total_seconds()
             self.state.total_uptime_seconds += session_uptime
             self.state.session_start = None
-        
+
         await self.save()
 
     async def on_crash(self, error: str) -> None:
         """Called when JARVIS crashes."""
         self.state.crash_count += 1
         self.state.last_crash = datetime.now().isoformat()
-        
+
         # Save crash info
         crash_file = self.state_file.parent / "crash.log"
         crash_info = {
             "timestamp": self.state.last_crash,
             "error": error,
-            "restart_count": self.state.restart_count
+            "restart_count": self.state.restart_count,
         }
         try:
             with open(crash_file, "a") as f:
                 f.write(json.dumps(crash_info) + "\n")
         except Exception:
             pass
-        
+
         await self.save()
 
     def update_stats(self, **kwargs) -> None:
@@ -138,13 +138,13 @@ class PersistentState:
             if hasattr(self.state, key):
                 setattr(self.state, key, value)
 
-    def get_recovery_info(self) -> Dict:
+    def get_recovery_info(self) -> dict:
         """Get information for crash recovery."""
         return {
             "crash_count": self.state.crash_count,
             "last_crash": self.state.last_crash,
             "total_uptime": self.state.total_uptime_seconds,
-            "restart_count": self.state.restart_count
+            "restart_count": self.state.restart_count,
         }
 
 
@@ -190,7 +190,7 @@ class StartupManager:
         # Use HOME environment variable (respects test overrides)
         home_dir = Path(os.environ.get("HOME", str(Path.home())))
         user_name = os.environ.get("USER", "root")
-        
+
         service_content = f"""[Unit]
 Description=JARVIS Desktop Assistant
 After=network.target
@@ -214,9 +214,11 @@ WantedBy=default.target
         try:
             with open(service_path, "w") as f:
                 f.write(service_content)
-            
+
             logger.info(f"Created systemd service: {service_path}")
-            logger.info("Run: systemctl --user daemon-reload && systemctl --user enable --now jarvis")
+            logger.info(
+                "Run: systemctl --user daemon-reload && systemctl --user enable --now jarvis"
+            )
             return True
         except Exception as e:
             logger.error(f"Failed to install systemd service: {e}")
@@ -287,11 +289,13 @@ WantedBy=default.target
     def _install_windows(self) -> bool:
         """Install Windows startup registry entry."""
         import winreg
-        
+
         key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
         try:
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_WRITE)
-            winreg.SetValueEx(key, "JARVIS", 0, winreg.REG_SZ, f'"{sys.executable}" -m jarvis.desktop run')
+            winreg.SetValueEx(
+                key, "JARVIS", 0, winreg.REG_SZ, f'"{sys.executable}" -m jarvis.desktop run'
+            )
             winreg.CloseKey(key)
             logger.info("Added Windows startup entry")
             return True

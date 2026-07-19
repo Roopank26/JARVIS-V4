@@ -6,8 +6,8 @@ Adapted from Mark-XXXIX-OR's planner.py
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -15,18 +15,20 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PlanStep:
     """Represents a single step in a plan."""
+
     step: int
     tool: str
     description: str
-    parameters: Dict[str, Any]
+    parameters: dict[str, Any]
     critical: bool = True
 
 
 @dataclass
 class Plan:
     """Represents a complete plan."""
+
     goal: str
-    steps: List[PlanStep]
+    steps: list[PlanStep]
 
     def to_dict(self) -> dict:
         return {
@@ -37,10 +39,10 @@ class Plan:
                     "tool": s.tool,
                     "description": s.description,
                     "parameters": s.parameters,
-                    "critical": s.critical
+                    "critical": s.critical,
                 }
                 for s in self.steps
-            ]
+            ],
         }
 
 
@@ -118,10 +120,7 @@ class Planner:
                 user_input += f"\n\nContext:\n{context}"
 
             response = await self.llm_client.generate(
-                system=self.system_prompt,
-                prompt=user_input,
-                temperature=0.2,
-                max_tokens=1024
+                system=self.system_prompt, prompt=user_input, temperature=0.2, max_tokens=1024
             )
 
             text = response.strip()
@@ -131,18 +130,17 @@ class Planner:
 
             steps = []
             for step_data in plan_data.get("steps", []):
-                steps.append(PlanStep(
-                    step=step_data.get("step", 0),
-                    tool=step_data.get("tool", ""),
-                    description=step_data.get("description", ""),
-                    parameters=step_data.get("parameters", {}),
-                    critical=step_data.get("critical", True)
-                ))
+                steps.append(
+                    PlanStep(
+                        step=step_data.get("step", 0),
+                        tool=step_data.get("tool", ""),
+                        description=step_data.get("description", ""),
+                        parameters=step_data.get("parameters", {}),
+                        critical=step_data.get("critical", True),
+                    )
+                )
 
-            return Plan(
-                goal=goal,
-                steps=steps
-            )
+            return Plan(goal=goal, steps=steps)
 
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse failed: {e}")
@@ -151,8 +149,9 @@ class Planner:
             logger.error(f"Planning failed: {e}")
             return self._fallback_plan(goal)
 
-    async def replan(self, goal: str, completed: List[Dict],
-                    failed: Optional[Dict], error: str) -> Plan:
+    async def replan(
+        self, goal: str, completed: list[dict], failed: dict | None, error: str
+    ) -> Plan:
         """
         Create a revised plan after a step failure.
 
@@ -170,25 +169,21 @@ class Planner:
 
         try:
             completed_str = "\n".join(
-                f"  - Step {s.get('step')} ({s.get('tool')}): DONE"
-                for s in completed
+                f"  - Step {s.get('step')} ({s.get('tool')}): DONE" for s in completed
             )
 
             prompt = f"""Goal: {goal}
 
 Already completed:
-{completed_str if completed_str else '  (none)'}
+{completed_str if completed_str else "  (none)"}
 
-Failed step: [{failed.get('tool')}] {failed.get('description')}
+Failed step: [{failed.get("tool")}] {failed.get("description")}
 Error: {error}
 
 Create a REVISED plan for the remaining work only. Do not repeat completed steps."""
 
             response = await self.llm_client.generate(
-                system=self.system_prompt,
-                prompt=prompt,
-                temperature=0.3,
-                max_tokens=1024
+                system=self.system_prompt, prompt=prompt, temperature=0.3, max_tokens=1024
             )
 
             text = response.strip()
@@ -198,13 +193,15 @@ Create a REVISED plan for the remaining work only. Do not repeat completed steps
 
             steps = []
             for step_data in plan_data.get("steps", []):
-                steps.append(PlanStep(
-                    step=step_data.get("step", 0),
-                    tool=step_data.get("tool", ""),
-                    description=step_data.get("description", ""),
-                    parameters=step_data.get("parameters", {}),
-                    critical=step_data.get("critical", True)
-                ))
+                steps.append(
+                    PlanStep(
+                        step=step_data.get("step", 0),
+                        tool=step_data.get("tool", ""),
+                        description=step_data.get("description", ""),
+                        parameters=step_data.get("parameters", {}),
+                        critical=step_data.get("critical", True),
+                    )
+                )
 
             return Plan(goal=goal, steps=steps)
 
@@ -224,9 +221,9 @@ Create a REVISED plan for the remaining work only. Do not repeat completed steps
                         tool="bash",
                         description=f"Execute: {goal}",
                         parameters={"command": goal.split("execute ", 1)[-1].split("run ", 1)[-1]},
-                        critical=True
+                        critical=True,
                     )
-                ]
+                ],
             )
 
         return Plan(
@@ -237,16 +234,16 @@ Create a REVISED plan for the remaining work only. Do not repeat completed steps
                     tool="bash",
                     description=f"Help with: {goal}",
                     parameters={"command": f"echo '{goal}'"},
-                    critical=True
+                    critical=True,
                 )
-            ]
+            ],
         )
 
-    def validate_tool(self, tool_name: str, available_tools: List[str]) -> bool:
+    def validate_tool(self, tool_name: str, available_tools: list[str]) -> bool:
         """Check if a tool is available."""
         return tool_name in available_tools
 
-    def validate_plan(self, plan: Plan, available_tools: List[str]) -> tuple[bool, List[str]]:
+    def validate_plan(self, plan: Plan, available_tools: list[str]) -> tuple[bool, list[str]]:
         """
         Validate a plan against available tools.
 

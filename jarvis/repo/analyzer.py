@@ -6,41 +6,43 @@ Provides code analysis, architecture overview, and repository intelligence.
 import ast
 import os
 import re
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Set
-from dataclasses import dataclass, field
 from collections import defaultdict
+from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 
 @dataclass
 class FileAnalysis:
     """Analysis of a single file."""
+
     path: str
     language: str
     lines_of_code: int
-    functions: List[str] = field(default_factory=list)
-    classes: List[str] = field(default_factory=list)
-    imports: List[str] = field(default_factory=list)
+    functions: list[str] = field(default_factory=list)
+    classes: list[str] = field(default_factory=list)
+    imports: list[str] = field(default_factory=list)
     complexity: int = 0
-    issues: List[str] = field(default_factory=list)
+    issues: list[str] = field(default_factory=list)
 
 
 @dataclass
 class RepositoryStats:
     """Repository statistics."""
+
     total_files: int = 0
     total_lines: int = 0
     total_functions: int = 0
     total_classes: int = 0
-    languages: Dict[str, int] = field(default_factory=dict)
+    languages: dict[str, int] = field(default_factory=dict)
     complexity: int = 0
 
 
 class RepositoryAnalyzer:
     """
     Analyze code repositories and provide insights.
-    
+
     Capabilities:
     - AST-based code analysis
     - Dependency graph generation
@@ -51,28 +53,28 @@ class RepositoryAnalyzer:
     """
 
     SUPPORTED_EXTENSIONS = {
-        '.py': 'python',
-        '.js': 'javascript',
-        '.ts': 'typescript',
-        '.jsx': 'javascript',
-        '.tsx': 'typescript',
-        '.java': 'java',
-        '.go': 'go',
-        '.rs': 'rust',
-        '.cs': 'csharp',
-        '.cpp': 'cpp',
-        '.c': 'c',
-        '.h': 'c',
-        '.hpp': 'cpp',
+        ".py": "python",
+        ".js": "javascript",
+        ".ts": "typescript",
+        ".jsx": "javascript",
+        ".tsx": "typescript",
+        ".java": "java",
+        ".go": "go",
+        ".rs": "rust",
+        ".cs": "csharp",
+        ".cpp": "cpp",
+        ".c": "c",
+        ".h": "c",
+        ".hpp": "cpp",
     }
 
-    def __init__(self, repo_path: Optional[str] = None):
+    def __init__(self, repo_path: str | None = None):
         self.repo_path = Path(repo_path) if repo_path else Path.cwd()
-        self._file_cache: Dict[str, FileAnalysis] = {}
-        self._code_files_cache: Optional[List[Path]] = None
-        self._dependency_graph: Dict[str, Set[str]] = defaultdict(set)
+        self._file_cache: dict[str, FileAnalysis] = {}
+        self._code_files_cache: list[Path] | None = None
+        self._dependency_graph: dict[str, set[str]] = defaultdict(set)
 
-    def analyze(self) -> Dict[str, Any]:
+    def analyze(self) -> dict[str, Any]:
         """Run full repository analysis."""
         stats = self.get_statistics()
         architecture = self.get_architecture()
@@ -104,20 +106,29 @@ class RepositoryAnalyzer:
 
                 lang = analysis.language
                 stats.languages[lang] = stats.languages.get(lang, 0) + 1
-            except Exception as e:
+            except Exception:
                 continue
 
         return stats
 
-    def _get_code_files(self) -> List[Path]:
+    def _get_code_files(self) -> list[Path]:
         """Get all code files in repository (cached)."""
         if self._code_files_cache is not None:
             return self._code_files_cache
 
         code_files = []
         exclude_dirs = {
-            'node_modules', '.git', '__pycache__', '.venv', 'venv',
-            'build', 'dist', '.idea', '.vscode', 'env', '.env'
+            "node_modules",
+            ".git",
+            "__pycache__",
+            ".venv",
+            "venv",
+            "build",
+            "dist",
+            ".idea",
+            ".vscode",
+            "env",
+            ".env",
         }
 
         for root, dirs, files in os.walk(self.repo_path):
@@ -140,17 +151,17 @@ class RepositoryAnalyzer:
 
         analysis = FileAnalysis(
             path=str(file_path),
-            language=self.SUPPORTED_EXTENSIONS.get(file_path.suffix, 'unknown'),
+            language=self.SUPPORTED_EXTENSIONS.get(file_path.suffix, "unknown"),
             lines_of_code=0,
         )
 
         try:
-            content = file_path.read_text(encoding='utf-8')
+            content = file_path.read_text(encoding="utf-8")
             analysis.lines_of_code = len(content.splitlines())
 
-            if file_path.suffix == '.py':
+            if file_path.suffix == ".py":
                 analysis = self._analyze_python(file_path, content)
-            elif file_path.suffix in {'.js', '.ts', '.jsx', '.tsx'}:
+            elif file_path.suffix in {".js", ".ts", ".jsx", ".tsx"}:
                 analysis = self._analyze_javascript(file_path, content)
         except Exception:
             pass
@@ -162,7 +173,7 @@ class RepositoryAnalyzer:
         """Analyze Python file using AST."""
         analysis = FileAnalysis(
             path=str(file_path),
-            language='python',
+            language="python",
             lines_of_code=len(content.splitlines()),
         )
 
@@ -174,9 +185,8 @@ class RepositoryAnalyzer:
                 if isinstance(node, ast.Import):
                     for alias in node.names:
                         analysis.imports.append(alias.name)
-                elif isinstance(node, ast.ImportFrom):
-                    if node.module:
-                        analysis.imports.append(node.module)
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    analysis.imports.append(node.module)
 
             # Find classes and functions
             for node in ast.iter_child_nodes(tree):
@@ -200,7 +210,7 @@ class RepositoryAnalyzer:
         """Basic JavaScript analysis."""
         analysis = FileAnalysis(
             path=str(file_path),
-            language='javascript',
+            language="javascript",
             lines_of_code=len(content.splitlines()),
         )
 
@@ -209,7 +219,7 @@ class RepositoryAnalyzer:
         analysis.imports = re.findall(import_pattern, content)
 
         # Find functions (basic)
-        func_pattern = r'(?:function\s+(\w+)|(?:const|let|var)\s+(\w+)\s*=)'
+        func_pattern = r"(?:function\s+(\w+)|(?:const|let|var)\s+(\w+)\s*=)"
         matches = re.findall(func_pattern, content)
         for match in matches:
             func_name = match[0] or match[1]
@@ -228,12 +238,12 @@ class RepositoryAnalyzer:
                 complexity += len(child.values) - 1
         return complexity
 
-    def get_architecture(self) -> Dict[str, Any]:
+    def get_architecture(self) -> dict[str, Any]:
         """Get repository architecture overview."""
         modules = defaultdict(list)
 
         for file_path in self._get_code_files():
-            if file_path.suffix == '.py':
+            if file_path.suffix == ".py":
                 parts = file_path.relative_to(self.repo_path).parts
                 if len(parts) > 1:
                     module = parts[0]
@@ -248,7 +258,7 @@ class RepositoryAnalyzer:
             "root_files": [f.name for f in self.repo_path.iterdir() if f.is_file()],
         }
 
-    def _build_tree(self, path: Path, depth: int = 0) -> Dict[str, Any]:
+    def _build_tree(self, path: Path, depth: int = 0) -> dict[str, Any]:
         """Build directory tree."""
         if depth > 3:  # Limit depth
             return {}
@@ -258,60 +268,61 @@ class RepositoryAnalyzer:
         if path.is_dir():
             children = {}
             for item in sorted(path.iterdir()):
-                if item.name.startswith('.'):
+                if item.name.startswith("."):
                     continue
                 children[item.name] = self._build_tree(item, depth + 1)
             tree["children"] = children
 
         return tree
 
-    def get_dependencies(self) -> Dict[str, Any]:
+    def get_dependencies(self) -> dict[str, Any]:
         """Get dependency graph."""
         dependencies = defaultdict(set)
 
         for file_path in self._get_code_files():
-            if file_path.suffix == '.py':
+            if file_path.suffix == ".py":
                 try:
-                    content = file_path.read_text(encoding='utf-8')
+                    content = file_path.read_text(encoding="utf-8")
                     tree = ast.parse(content)
 
                     for node in ast.walk(tree):
                         if isinstance(node, ast.Import):
                             for alias in node.names:
                                 dependencies[file_path.name].add(alias.name)
-                        elif isinstance(node, ast.ImportFrom):
-                            if node.module:
-                                dependencies[file_path.name].add(node.module)
+                        elif isinstance(node, ast.ImportFrom) and node.module:
+                            dependencies[file_path.name].add(node.module)
                 except (SyntaxError, ValueError):
                     pass
 
         return {k: list(v) for k, v in dependencies.items()}
 
-    def find_todos(self) -> List[Dict[str, Any]]:
+    def find_todos(self) -> list[dict[str, Any]]:
         """Find TODO comments in code."""
         todos = []
-        patterns = ['TODO', 'FIXME', 'HACK', 'XXX', 'BUG', 'NOTE']
+        patterns = ["TODO", "FIXME", "HACK", "XXX", "BUG", "NOTE"]
 
         for file_path in self._get_code_files():
             try:
-                content = file_path.read_text(encoding='utf-8')
+                content = file_path.read_text(encoding="utf-8")
                 lines = content.splitlines()
 
                 for i, line in enumerate(lines, 1):
                     for pattern in patterns:
                         if pattern in line:
-                            todos.append({
-                                "file": str(file_path.relative_to(self.repo_path)),
-                                "line": i,
-                                "type": pattern,
-                                "content": line.strip(),
-                            })
+                            todos.append(
+                                {
+                                    "file": str(file_path.relative_to(self.repo_path)),
+                                    "line": i,
+                                    "type": pattern,
+                                    "content": line.strip(),
+                                }
+                            )
             except (OSError, UnicodeDecodeError):
                 pass
 
         return todos
 
-    def scan_security(self) -> List[Dict[str, Any]]:
+    def scan_security(self) -> list[dict[str, Any]]:
         """Basic security vulnerability scan."""
         issues = []
 
@@ -321,29 +332,31 @@ class RepositoryAnalyzer:
             (r'api[_-]?key\s*=\s*["\'][^"\']+["\']', "Hardcoded API key"),
             (r'secret\s*=\s*["\'][^"\']+["\']', "Hardcoded secret"),
             (r'token\s*=\s*["\'][^"\']+["\']', "Hardcoded token"),
-            (r'eval\s*\(', "Use of eval()"),
-            (r'exec\s*\(', "Use of exec()"),
-            (r'os\.system\s*\(', "Use of os.system()"),
-            (r'subprocess\s*\.\s*call\s*\([^,]*shell\s*=\s*True', "Shell injection risk"),
+            (r"eval\s*\(", "Use of eval()"),
+            (r"exec\s*\(", "Use of exec()"),
+            (r"os\.system\s*\(", "Use of os.system()"),
+            (r"subprocess\s*\.\s*call\s*\([^,]*shell\s*=\s*True", "Shell injection risk"),
         ]
 
         for file_path in self._get_code_files():
-            if file_path.suffix not in {'.py', '.js', '.ts'}:
+            if file_path.suffix not in {".py", ".js", ".ts"}:
                 continue
 
             try:
-                content = file_path.read_text(encoding='utf-8')
+                content = file_path.read_text(encoding="utf-8")
                 lines = content.splitlines()
 
                 for i, line in enumerate(lines, 1):
                     for pattern, issue_type in patterns:
                         if re.search(pattern, line, re.IGNORECASE):
-                            issues.append({
-                                "file": str(file_path.relative_to(self.repo_path)),
-                                "line": i,
-                                "type": issue_type,
-                                "content": line.strip(),
-                            })
+                            issues.append(
+                                {
+                                    "file": str(file_path.relative_to(self.repo_path)),
+                                    "line": i,
+                                    "type": issue_type,
+                                    "content": line.strip(),
+                                }
+                            )
             except (OSError, UnicodeDecodeError):
                 pass
 
@@ -373,10 +386,12 @@ class RepositoryAnalyzer:
         for lang, count in stats.languages.items():
             lines.append(f"- {lang}: {count} files")
 
-        lines.extend([
-            "",
-            "## Modules",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Modules",
+            ]
+        )
 
         for module, files in arch["modules"].items():
             lines.append(f"### {module}/")
@@ -386,10 +401,12 @@ class RepositoryAnalyzer:
                 lines.append(f"- ... and {len(files) - 5} more")
 
         if todos:
-            lines.extend([
-                "",
-                "## TODO Items",
-            ])
+            lines.extend(
+                [
+                    "",
+                    "## TODO Items",
+                ]
+            )
             for todo in todos[:20]:  # Show first 20
                 lines.append(f"- [{todo['file']}:{todo['line']}] {todo['content']}")
 

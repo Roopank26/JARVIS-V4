@@ -27,9 +27,7 @@ class StreamingTTS:
         self._backend = tts_backend
         self._chunk_index = 0
 
-    async def stream_speak(
-        self, text: str, interrupt_event: asyncio.Event
-    ) -> AsyncIterator[bytes]:
+    async def stream_speak(self, text: str, interrupt_event: asyncio.Event) -> AsyncIterator[bytes]:
         """
         Yield audio chunks for ``text`` until interrupted or exhausted.
         """
@@ -55,6 +53,7 @@ class StreamingTTS:
                 if hasattr(self._backend, "speak_to_file"):
                     import os
                     import tempfile
+
                     fd = None
                     path = None
                     try:

@@ -3,12 +3,12 @@ Unified memory manager for JARVIS.
 Combines session and long-term memory systems.
 """
 
-from typing import Any, Dict, List, Optional
 from pathlib import Path
+from typing import Any
 
 from jarvis.memory.base import MemoryBase, MemoryCategory
-from jarvis.memory.session import SessionMemory
 from jarvis.memory.long_term import LongTermMemory
+from jarvis.memory.session import SessionMemory
 
 
 class MemoryManager(MemoryBase):
@@ -18,7 +18,7 @@ class MemoryManager(MemoryBase):
     - Long-term memory (persistent JSON, across sessions)
     """
 
-    def __init__(self, memory_path: Optional[Path] = None):
+    def __init__(self, memory_path: Path | None = None):
         self.session = SessionMemory()
         self.long_term = LongTermMemory(memory_path)
 
@@ -26,7 +26,7 @@ class MemoryManager(MemoryBase):
         """Store information in long-term memory."""
         self.long_term.remember(key, value, category)
 
-    def recall(self, query: str) -> List[Dict[str, Any]]:
+    def recall(self, query: str) -> list[dict[str, Any]]:
         """Recall from long-term memory based on query."""
         return self.long_term.recall(query)
 
@@ -60,7 +60,7 @@ class MemoryManager(MemoryBase):
         """Get formatted conversation context."""
         return self.session.get_context_string(max_messages)
 
-    def get_history_summary(self) -> Dict[str, Any]:
+    def get_history_summary(self) -> dict[str, Any]:
         """Get summary of session history."""
         return self.session.get_history_summary()
 
@@ -77,25 +77,25 @@ class MemoryManager(MemoryBase):
         """Quick update for projects."""
         return self.long_term.remember(key, value, MemoryCategory.PROJECTS)
 
-    def get_identity(self) -> Dict[str, Any]:
+    def get_identity(self) -> dict[str, Any]:
         """Get identity information."""
         return self.long_term.get_identity()
 
-    def get_preferences(self) -> Dict[str, Any]:
+    def get_preferences(self) -> dict[str, Any]:
         """Get user preferences."""
         return self.long_term.get_preferences()
 
-    def get_projects(self) -> Dict[str, Any]:
+    def get_projects(self) -> dict[str, Any]:
         """Get user projects."""
         return self.long_term.get_projects()
 
-    def get_full_memory(self) -> Dict[str, Dict]:
+    def get_full_memory(self) -> dict[str, dict]:
         """Get the full long-term memory structure."""
         return self.long_term.load()
 
 
 # Global memory manager instance
-_memory_manager: Optional[MemoryManager] = None
+_memory_manager: MemoryManager | None = None
 
 
 def get_memory_manager() -> MemoryManager:
@@ -106,7 +106,7 @@ def get_memory_manager() -> MemoryManager:
     return _memory_manager
 
 
-def init_memory_manager(memory_path: Optional[Path] = None) -> MemoryManager:
+def init_memory_manager(memory_path: Path | None = None) -> MemoryManager:
     """Initialize the global memory manager."""
     global _memory_manager
     _memory_manager = MemoryManager(memory_path)

@@ -3,13 +3,15 @@ Tests for Voice Router and Provider Management.
 """
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 
-from jarvis.voice.voice_router import VoiceRouter, VoiceCommandProcessor
 from jarvis.api.providers import (
-    ProviderManager, OllamaProvider, GroqProvider,
-    ProviderType, LLMConfig, LLMResponse
+    GroqProvider,
+    LLMConfig,
+    OllamaProvider,
+    ProviderManager,
+    ProviderType,
 )
+from jarvis.voice.voice_router import VoiceCommandProcessor, VoiceRouter
 
 
 class TestVoiceCommandProcessor:
@@ -29,7 +31,9 @@ class TestVoiceCommandProcessor:
 
     def test_parse_ai_query(self):
         """Test parsing AI query."""
-        intent, arg = VoiceCommandProcessor.parse_voice_command("hey jarvis what is machine learning")
+        intent, arg = VoiceCommandProcessor.parse_voice_command(
+            "hey jarvis what is machine learning"
+        )
         assert intent == "ai_query"
 
     def test_preprocess_voice_text(self):
@@ -105,7 +109,7 @@ class TestProviderManager:
         manager.primary_provider = ProviderType.OLLAMA
 
         manager.add_provider(provider)
-        
+
         status = manager.format_status()
         assert "Ollama" in status or "OLLAMA" in status
         assert "qwen3:8b" in status
@@ -117,7 +121,7 @@ class TestProviderManager:
         provider = OllamaProvider(config)
         provider._available_models = ["qwen3:8b", "deepseek-r1:8b"]
         manager.add_provider(provider)
-        
+
         models = manager.format_models()
         assert "qwen3:8b" in models
         assert "deepseek-r1:8b" in models
@@ -192,10 +196,7 @@ class TestLLMConfig:
     def test_custom_values(self):
         """Test custom config values."""
         config = LLMConfig(
-            provider=ProviderType.OLLAMA,
-            model="custom-model",
-            max_tokens=1000,
-            temperature=0.5
+            provider=ProviderType.OLLAMA, model="custom-model", max_tokens=1000, temperature=0.5
         )
         assert config.provider == ProviderType.OLLAMA
         assert config.model == "custom-model"
@@ -228,13 +229,13 @@ class TestIntelligentModelRouting:
     def test_get_best_model_for_task_reasoning(self):
         """Test reasoning task routing."""
         manager = ProviderManager()
-        
+
         # Add mock Ollama provider
         config = LLMConfig(provider=ProviderType.OLLAMA)
         provider = OllamaProvider(config)
         provider._available_models = ["qwen3:8b", "deepseek-r1:8b"]
         manager.add_provider(provider)
-        
+
         # Test reasoning task
         model = manager.get_best_model_for_task("Solve this step by step")
         assert "deepseek" in model.lower()
@@ -242,13 +243,13 @@ class TestIntelligentModelRouting:
     def test_get_best_model_for_task_general(self):
         """Test general task routing."""
         manager = ProviderManager()
-        
+
         # Add mock Ollama provider
         config = LLMConfig(provider=ProviderType.OLLAMA)
         provider = OllamaProvider(config)
         provider._available_models = ["qwen3:8b", "deepseek-r1:8b"]
         manager.add_provider(provider)
-        
+
         # Test general task
         model = manager.get_best_model_for_task("What is Python?")
         assert "qwen" in model.lower() or "llama" in model.lower()
@@ -260,12 +261,12 @@ class TestModelSwitching:
     def test_set_model_ollama(self):
         """Test switching to Ollama model."""
         manager = ProviderManager()
-        
+
         config = LLMConfig(provider=ProviderType.OLLAMA)
         provider = OllamaProvider(config)
         provider._available_models = ["qwen3:8b", "deepseek-r1:8b"]
         manager.add_provider(provider)
-        
+
         success, model = manager.set_model("qwen3")
         assert success is True
         assert model == "qwen3:8b"
@@ -274,12 +275,12 @@ class TestModelSwitching:
     def test_set_model_normalizes_name(self):
         """Test model name normalization."""
         manager = ProviderManager()
-        
+
         config = LLMConfig(provider=ProviderType.OLLAMA)
         provider = OllamaProvider(config)
         provider._available_models = ["qwen3:8b"]
         manager.add_provider(provider)
-        
+
         success, model = manager.set_model("qwen3")
         assert success is True
         assert model == "qwen3:8b"
@@ -289,11 +290,11 @@ class TestModelSwitching:
         """Test getting current model."""
         manager = ProviderManager()
         manager.primary_provider = ProviderType.OLLAMA
-        
+
         config = LLMConfig(provider=ProviderType.OLLAMA, model="qwen3:8b")
         provider = OllamaProvider(config)
         manager.add_provider(provider)
-        
+
         assert manager.get_current_model() == "qwen3:8b"
 
 
@@ -303,12 +304,12 @@ class TestBenchmarkAndCompare:
     def test_compare_models(self):
         """Test model comparison."""
         manager = ProviderManager()
-        
+
         config = LLMConfig(provider=ProviderType.OLLAMA)
         provider = OllamaProvider(config)
         provider._available_models = ["qwen3:8b", "deepseek-r1:8b"]
         manager.add_provider(provider)
-        
+
         result = manager.compare_models("qwen3:8b", "deepseek-r1:8b")
         assert "qwen3" in result
         assert "deepseek" in result
@@ -321,13 +322,13 @@ class TestProviderFallback:
         """Test fallback order is correct."""
         priority = ProviderManager.PROVIDER_PRIORITY
         assert priority[0] == ProviderType.OLLAMA  # Local first
-        assert priority[1] == ProviderType.GROQ     # Cloud fallback
+        assert priority[1] == ProviderType.GROQ  # Cloud fallback
 
     def test_provider_manager_has_generate(self):
         """Test ProviderManager has generate method."""
         manager = ProviderManager()
-        assert hasattr(manager, 'generate')
-        assert hasattr(manager, 'stream_generate')
+        assert hasattr(manager, "generate")
+        assert hasattr(manager, "stream_generate")
 
 
 if __name__ == "__main__":

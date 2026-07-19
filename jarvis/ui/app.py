@@ -73,7 +73,7 @@ class JarvisApp:
             self.agent.set_speak_callback(lambda text: _speak(rt, text))
 
             # Wire voice interrupt to orchestrator for barge-in
-            if hasattr(rt, '_interrupt_manager'):
+            if hasattr(rt, "_interrupt_manager"):
                 interrupt_event = asyncio.Event()
                 self.orchestrator.set_interrupt_event(interrupt_event)
                 rt._interrupt_manager._async_event = interrupt_event
@@ -94,18 +94,18 @@ class JarvisApp:
 
     def _on_voice_state(self, event: Any) -> None:
         """Handle voice state changes."""
-        data = event.data if hasattr(event, 'data') else {}
-        state = data.get('state', '')
-        if state == 'listening':
+        data = event.data if hasattr(event, "data") else {}
+        state = data.get("state", "")
+        if state == "listening":
             self.desktop_ui.set_listening(True)
             self.desktop_ui.set_speaking(False)
-        elif state in ('speaking', 'tts_started', 'playback_started'):
+        elif state in ("speaking", "tts_started", "playback_started"):
             self.desktop_ui.set_speaking(True)
             self.desktop_ui.set_listening(False)
-        elif state in ('idle', 'stopped', 'playback_finished', 'tts_finished'):
+        elif state in ("idle", "stopped", "playback_finished", "tts_finished"):
             self.desktop_ui.set_speaking(False)
             self.desktop_ui.set_listening(False)
-        elif state == 'user_speaking':
+        elif state == "user_speaking":
             self.desktop_ui.set_listening(True)
 
     def _on_voice_interrupt(self, event: Any) -> None:
@@ -115,10 +115,10 @@ class JarvisApp:
 
     def _on_voice_transcript(self, event: Any) -> None:
         """Handle voice transcript."""
-        data = event.data if hasattr(event, 'data') else {}
-        text = data.get('text', '')
-        if text and not data.get('partial', False):
-            self.desktop_ui.add_message('user', text)
+        data = event.data if hasattr(event, "data") else {}
+        text = data.get("text", "")
+        if text and not data.get("partial", False):
+            self.desktop_ui.add_message("user", text)
 
     async def process(self, text: str) -> str:
         """Process a user request through the orchestrator."""

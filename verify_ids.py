@@ -1,4 +1,5 @@
 import re
+
 html = open('C:/Users/LENOVO/JARVIS-V4/jarvis/ui/static/index.html', encoding='utf-8').read()
 js_files = ['app.js','stages.js','chat.js','panels.js','widgets.js','boot.js']
 html_ids = set(re.findall(r'id="([^"]+)"', html))
