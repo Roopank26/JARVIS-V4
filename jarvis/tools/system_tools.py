@@ -66,29 +66,157 @@ class GetSystemInfoTool(ReadOnlyTool):
 
 
 class OpenAppTool(WriteTool):
-    """Open an application or URL."""
+    """Open an application, URL, or file with proper verification.
+    
+    Features:
+    - Comprehensive alias registry for common applications
+    - Browser URL handling (open google → https://www.google.com)
+    - Installed application detection
+    - Launch verification before reporting success
+    - Rich output with executable path
+    """
+
+    # Browser URL mappings (web searches)
+    BROWSER_URLS = {
+        # Search engines
+        "google": "https://www.google.com",
+        "youtube": "https://youtube.com",
+        "bing": "https://www.bing.com",
+        "duckduckgo": "https://duckduckgo.com",
+        
+        # Development
+        "github": "https://github.com",
+        "gitlab": "https://gitlab.com",
+        "bitbucket": "https://bitbucket.org",
+        "stackoverflow": "https://stackoverflow.com",
+        "hugging face": "https://huggingface.co",
+        "huggingface": "https://huggingface.co",
+        
+        # AI Services
+        "chatgpt": "https://chat.openai.com",
+        "claude": "https://claude.ai",
+        "gemini": "https://gemini.google.com",
+        "ollama": "https://ollama.com",
+        "groq": "https://console.groq.com",
+        
+        # Communication
+        "gmail": "https://mail.google.com",
+        "linkedin": "https://linkedin.com",
+        "reddit": "https://reddit.com",
+        "discord": "https://discord.com",
+        "slack": "https://slack.com",
+        "whatsapp": "https://web.whatsapp.com",
+        "telegram": "https://web.telegram.org",
+        
+        # Social
+        "twitter": "https://twitter.com",
+        "facebook": "https://facebook.com",
+        "instagram": "https://instagram.com",
+        "threads": "https://threads.net",
+        
+        # Media
+        "netflix": "https://netflix.com",
+        "spotify": "https://spotify.com",
+        "twitch": "https://twitch.tv",
+        "youtube music": "https://music.youtube.com",
+        
+        # Reference
+        "wikipedia": "https://wikipedia.org",
+        "amazon": "https://amazon.com",
+        "medium": "https://medium.com",
+        "dev.to": "https://dev.to",
+    }
 
     # Common Windows application aliases
     WINDOWS_ALIASES = {
+        # Basic utilities
         "notepad": "notepad.exe",
-        "calc": "calc.exe",
+        "wordpad": "wordpad.exe",
         "calculator": "calc.exe",
+        "calc": "calc.exe",
+        "paint": "mspaint.exe",
+        
+        # Terminals
         "cmd": "cmd.exe",
+        "command prompt": "cmd.exe",
+        "terminal": "cmd.exe",
         "powershell": "powershell.exe",
+        "pwsh": "powershell.exe",
+        
+        # File explorer
         "explorer": "explorer.exe",
+        "files": "explorer.exe",
+        "file explorer": "explorer.exe",
+        
+        # Microsoft Office
         "word": "winword.exe",
         "excel": "excel.exe",
-        "browser": "msedge.exe",
-        "edge": "msedge.exe",
+        "powerpoint": "powerpnt.exe",
+        "outlook": "outlook.exe",
+        
+        # Browsers
         "chrome": "chrome.exe",
+        "google chrome": "chrome.exe",
+        "edge": "msedge.exe",
+        "microsoft edge": "msedge.exe",
         "firefox": "firefox.exe",
-        "paint": "mspaint.exe",
+        "brave": "brave.exe",
+        "opera": "opera.exe",
+        "browser": "msedge.exe",
+        
+        # Development tools
+        "vscode": "Code.exe",
+        "vs code": "Code.exe",
+        "visual studio code": "Code.exe",
+        "code": "Code.exe",
+        "notepad++": "notepad++.exe",
+        "sublime": "sublime_text.exe",
+        
+        # Communication
+        "spotify": "spotify.exe",
+        "discord": "discord.exe",
+        "steam": "steam.exe",
+        "telegram": "telegram.exe",
+        "zoom": "zoom.exe",
+        "teams": "teams.exe",
+        "slack": "slack.exe",
+        "whatsapp": "WhatsApp.exe",
+        
+        # System tools
+        "task manager": "taskmgr.exe",
         "taskmgr": "taskmgr.exe",
-        "taskmanager": "taskmgr.exe",
-        "control": "control.exe",
+        "control panel": "control.exe",
         "settings": "ms-settings:",
+        "registry": "regedit.exe",
         "regedit": "regedit.exe",
+        
+        # Media
+        "vlc": "vlc.exe",
+        "media player": "wmplayer.exe",
+        "windows media player": "wmplayer.exe",
+        
+        # Misc
+        "snipping tool": "SnippingTool.exe",
+        "snip": "SnippingTool.exe",
+        "character map": "charmap.exe",
     }
+
+    # Windows search paths for installed applications
+    WINDOWS_SEARCH_PATHS = [
+        os.path.expandvars(r"C:\Program Files"),
+        os.path.expandvars(r"C:\Program Files (x86)"),
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs"),
+        os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs"),
+        os.path.expandvars(r"%USERPROFILE%\AppData\Local\Microsoft\WindowsApps"),
+        r"C:\Users\Public\Desktop",
+    ]
+
+    # Executable extensions
+    EXECUTABLE_EXTENSIONS = [".exe", ".bat", ".cmd", ".ps1", ".lnk"]
+
+    def __init__(self):
+        super().__init__()
+        self._installed_apps_cache: Dict[str, str] = {}
 
     @property
     def name(self) -> str:
@@ -96,7 +224,7 @@ class OpenAppTool(WriteTool):
 
     @property
     def description(self) -> str:
-        return "Open an application, file, or URL using the system's default handler."
+        return "Open an application, file, or URL. Supports aliases (chrome, vscode, calculator)."
 
     @property
     def category(self) -> str:
@@ -109,7 +237,7 @@ class OpenAppTool(WriteTool):
             "properties": {
                 "target": {
                     "type": "string",
-                    "description": "App name, file path, or URL to open"
+                    "description": "App name, file path, or URL to open. Supports aliases like 'chrome', 'vscode', 'calculator', 'google', 'youtube', etc."
                 },
                 "background": {
                     "type": "boolean",
@@ -119,10 +247,220 @@ class OpenAppTool(WriteTool):
             "required": ["target"]
         }
 
+    def _is_url(self, target: str) -> bool:
+        """Check if target is a URL."""
+        return target.lower().startswith(("http://", "https://", "www."))
+
+    def _is_browser_search(self, target: str) -> Optional[str]:
+        """Check if target is a browser search term.
+        
+        Returns URL if it matches a known browser search, else None.
+        """
+        lower = target.lower().strip()
+        # Remove "open " prefix if present
+        if lower.startswith("open "):
+            lower = lower[5:].strip()
+        
+        # Check exact match
+        if lower in self.BROWSER_URLS:
+            return self.BROWSER_URLS[lower]
+        
+        # Check partial match
+        for key, url in self.BROWSER_URLS.items():
+            if key in lower or lower in key:
+                return url
+        
+        return None
+
     def _resolve_windows_alias(self, target: str) -> str:
         """Resolve Windows application aliases to executable names."""
         lower_target = target.lower().strip()
+        # Remove "open " prefix if present
+        if lower_target.startswith("open "):
+            lower_target = lower_target[5:].strip()
+        
         return self.WINDOWS_ALIASES.get(lower_target, target)
+
+    def _find_in_path(self, executable: str) -> Optional[str]:
+        """Find executable in system PATH."""
+        # Handle common Windows executables
+        if not executable.endswith((".exe", ".bat", ".cmd")):
+            executable = executable + ".exe"
+        
+        for path_dir in os.environ.get("PATH", "").split(os.pathsep):
+            if os.path.isdir(path_dir):
+                candidate = os.path.join(path_dir, executable)
+                if os.path.isfile(candidate):
+                    return candidate
+        return None
+
+    def _find_in_windows_paths(self, executable: str) -> Optional[str]:
+        """Search common Windows installation directories."""
+        if not executable.endswith((".exe", ".bat", ".cmd", ".lnk")):
+            search_names = [executable + ext for ext in self.EXECUTABLE_EXTENSIONS]
+        else:
+            search_names = [executable]
+        
+        for search_path in self.WINDOWS_SEARCH_PATHS:
+            if not os.path.isdir(search_path):
+                continue
+            try:
+                for root, dirs, files in os.walk(search_path):
+                    for name in files:
+                        if any(name.lower() == s.lower() for s in search_names):
+                            return os.path.join(root, name)
+            except (OSError, PermissionError):
+                continue
+        return None
+
+    def _find_installed_app(self, target: str) -> Optional[str]:
+        """Find an installed application on Windows."""
+        if target in self._installed_apps_cache:
+            return self._installed_apps_cache[target]
+        
+        # First try PATH
+        path_exe = self._find_in_path(target)
+        if path_exe:
+            self._installed_apps_cache[target] = path_exe
+            return path_exe
+        
+        # Then search common installation directories
+        win_exe = self._find_in_windows_paths(target)
+        if win_exe:
+            self._installed_apps_cache[target] = win_exe
+            return win_exe
+        
+        return None
+
+    def _launch_windows(self, target: str, background: bool = False) -> tuple[bool, str, str]:
+        """Launch a Windows application.
+        
+        Returns: (success, executable_path, message)
+        """
+        # Check if it's a URL
+        if self._is_url(target):
+            return self._launch_url(target)
+        
+        # Check if it's a browser search
+        browser_url = self._is_browser_search(target)
+        if browser_url:
+            return self._launch_url(browser_url)
+        
+        # Resolve alias
+        resolved = self._resolve_windows_alias(target)
+        
+        # Check for special protocols (ms-settings:, etc.)
+        if ":" in resolved and not resolved.endswith((".exe", ".bat", ".cmd", ".lnk")):
+            try:
+                os.startfile(resolved)
+                return True, resolved, f"Opened via protocol: {resolved}"
+            except OSError as e:
+                return False, resolved, str(e)
+        
+        # Try to find the executable
+        executable_path = self._find_installed_app(resolved)
+        
+        if not executable_path:
+            # Try direct path or unresolved target
+            if os.path.isfile(resolved):
+                executable_path = resolved
+            elif os.path.isfile(resolved + ".exe"):
+                executable_path = resolved + ".exe"
+        
+        if not executable_path:
+            # Build search list for error message
+            search_locations = []
+            if not resolved.endswith((".exe", ".bat", ".cmd", ".lnk")):
+                search_locations.append(f"  - Program Files")
+                search_locations.append(f"  - Program Files (x86)")
+                search_locations.append(f"  - PATH environment variable")
+                search_locations.append(f"  - Start Menu")
+            else:
+                search_locations.append(f"  - {resolved}")
+            
+            return False, "", f"Application not found.\n\nSearched:\n" + "\n".join(search_locations)
+        
+        # Launch the application
+        try:
+            if background:
+                subprocess.Popen(
+                    [executable_path],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True
+                )
+            else:
+                os.startfile(executable_path)
+            return True, executable_path, "SUCCESS"
+        except OSError as e:
+            return False, executable_path, str(e)
+
+    def _launch_url(self, url: str) -> tuple[bool, str, str]:
+        """Launch a URL in the default browser."""
+        try:
+            # Normalize URL
+            if url.startswith("www.") and not url.startswith("http"):
+                url = "https://" + url
+            
+            # Use startfile which opens URLs in default browser
+            os.startfile(url)
+            return True, url, "Opened in default browser"
+        except OSError as e:
+            return False, url, str(e)
+
+    def _launch_macos(self, target: str, background: bool = False) -> tuple[bool, str, str]:
+        """Launch on macOS."""
+        try:
+            cmd = ["open"]
+            if background:
+                cmd.append("-g")
+            
+            # Normalize URL
+            if target.startswith("www.") and not target.startswith("http"):
+                target = "https://" + target
+            elif self._is_browser_search(target):
+                url = self._is_browser_search(target)
+                if url:
+                    target = url
+            
+            cmd.append(target)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0:
+                return True, target, "SUCCESS"
+            else:
+                return False, target, result.stderr or "Failed to open"
+        except subprocess.TimeoutExpired:
+            return False, target, "Timeout while opening"
+        except Exception as e:
+            return False, target, str(e)
+
+    def _launch_linux(self, target: str, background: bool = False) -> tuple[bool, str, str]:
+        """Launch on Linux."""
+        try:
+            cmd = ["xdg-open"]
+            if background:
+                cmd = ["nohup"] + cmd
+            
+            # Normalize URL
+            if target.startswith("www.") and not target.startswith("http"):
+                target = "https://" + target
+            elif self._is_browser_search(target):
+                url = self._is_browser_search(target)
+                if url:
+                    target = url
+            
+            cmd.append(target)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0:
+                return True, target, "SUCCESS"
+            else:
+                return False, target, result.stderr or "Failed to open"
+        except subprocess.TimeoutExpired:
+            return False, target, "Timeout while opening"
+        except Exception as e:
+            return False, target, str(e)
 
     async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
         try:
@@ -131,40 +469,26 @@ class OpenAppTool(WriteTool):
 
             system = platform.system()
 
-            if system == "Darwin":  # macOS
-                cmd = ["open"]
-                if background:
-                    cmd.append("-g")
-                cmd.append(target)
-                subprocess.run(cmd, capture_output=True, text=True)
-                
-            elif system == "Windows":
-                # Resolve aliases
-                resolved_target = self._resolve_windows_alias(target)
-                
-                # Use os.startfile() for best Windows compatibility
-                # Falls back to cmd /c start if os.startfile fails
-                try:
-                    # os.startfile works for files, URLs, and registered applications
-                    os.startfile(resolved_target)
-                except (OSError, AttributeError):
-                    # Fallback: use cmd /c start
-                    # The empty string after "start" prevents it from treating
-                    # the target as a window title
-                    if background:
-                        subprocess.run(["cmd", "/c", "start", "/B", "", resolved_target], 
-                                       capture_output=True, text=True)
-                    else:
-                        subprocess.run(["cmd", "/c", "start", "", resolved_target], 
-                                       capture_output=True, text=True)
-            else:  # Linux
-                cmd = ["xdg-open"]
-                if background:
-                    cmd = ["nohup"] + cmd
-                cmd.append(target)
-                subprocess.run(cmd, capture_output=True, text=True)
+            # Build opening message
+            display_name = target.lower().replace("open ", "").strip()
+            display_name = display_name.title() if display_name not in self.BROWSER_URLS else display_name.upper()
+            opening_msg = f"Opening {display_name}..."
 
-            return ToolResult(success=True, output=f"Opened: {target}")
+            if system == "Windows":
+                success, executable, message = self._launch_windows(target, background)
+            elif system == "Darwin":
+                success, executable, message = self._launch_macos(target, background)
+            else:
+                success, executable, message = self._launch_linux(target, background)
+
+            if success:
+                output = f"{opening_msg}\n"
+                if executable:
+                    output += f"Executable: {executable}\n"
+                output += f"Status: {message}"
+                return ToolResult(success=True, output=output)
+            else:
+                return ToolResult(success=False, output=None, error=message)
 
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e))

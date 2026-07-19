@@ -1,0 +1,17 @@
+{
+    "stt_model": "base",
+    "stt_language": "en",
+    "stt_device": "auto",
+    "tts_model": "en_US-lessac-medium",
+    "tts_voice": "en_US-lessac-medium.onnx",
+    "tts_speaker": 0,
+    "wake_word": "jarvis",
+    "wake_word_threshold": 0.5,
+    "wake_word_model": "jarvis-onnx",
+    "sample_rate": 16000,
+    "channels": 1,
+    "energy_threshold": 300,
+    "pause_threshold": 0.8,
+    "phrase_threshold": 0.3,
+    "non_speech_threshold": 0.2
+}

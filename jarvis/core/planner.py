@@ -4,9 +4,12 @@ Adapted from Mark-XXXIX-OR's planner.py
 """
 
 import json
+import logging
 import re
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -142,10 +145,10 @@ class Planner:
             )
 
         except json.JSONDecodeError as e:
-            print(f"[Planner] JSON parse failed: {e}")
+            logger.error(f"JSON parse failed: {e}")
             return self._fallback_plan(goal)
         except Exception as e:
-            print(f"[Planner] Planning failed: {e}")
+            logger.error(f"Planning failed: {e}")
             return self._fallback_plan(goal)
 
     async def replan(self, goal: str, completed: List[Dict],
@@ -206,7 +209,7 @@ Create a REVISED plan for the remaining work only. Do not repeat completed steps
             return Plan(goal=goal, steps=steps)
 
         except Exception as e:
-            print(f"[Planner] Replan failed: {e}")
+            logger.error(f"Replan failed: {e}")
             return self._fallback_plan(goal)
 
     def _fallback_plan(self, goal: str) -> Plan:

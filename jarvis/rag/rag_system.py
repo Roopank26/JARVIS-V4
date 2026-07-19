@@ -2,14 +2,13 @@
 RAG System for JARVIS - Retrieval Augmented Generation with local knowledge base.
 """
 
-import asyncio
 import json
 import logging
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
-from jarvis.rag.document_processor import DocumentProcessor, ProcessedDocument, StudyAssistant
+from jarvis.rag.document_processor import DocumentProcessor, StudyAssistant
 from jarvis.memory.knowledge import LocalKnowledgeBase
 
 logger = logging.getLogger(__name__)

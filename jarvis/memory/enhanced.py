@@ -6,7 +6,6 @@ Integrates user profile with long-term and session memory.
 import re
 from typing import Any, Dict, List, Optional
 
-from jarvis.memory.base import MemoryCategory
 from jarvis.memory.memory_manager import MemoryManager
 from jarvis.memory.user_profile import UserProfile, get_user_profile
 

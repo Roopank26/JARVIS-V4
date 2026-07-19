@@ -10,6 +10,7 @@ build/
 dist/
 *.egg-info/
 *.egg
+*.whl
 
 # PyInstaller
 *.spec
@@ -25,6 +26,7 @@ env/
 .vscode/
 *.swp
 *.swo
+*~
 
 # Testing
 .pytest_cache/
@@ -32,20 +34,57 @@ env/
 htmlcov/
 .tox/
 .nox/
+*.cover
+*.py,cover
 
 # JARVIS data
 .jarvis/
 *.log
 *.tmp
+*.bak
 
 # OS files
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Secrets
 .env
+.env.*
+!.env.example
 *.pem
 *.key
+*.p12
+*.pfx
 
 # Demo output
 demo_output/
+
+# Build artifacts
+*.exe
+*.msi
+*.dmg
+*.AppImage
+
+# Documentation builds
+docs/_build/
+site/
+
+# Type checking
+.mypy_cache/
+.pyright/
+
+# Profiling
+*.prof
+*.lprof
+
+# JARVIS runtime
+runtime_validation.txt
+version_info.txt
+debug.txt
+stderr.txt
+print_unicode*.txt
+unicode_*.txt
+bare_excepts*.txt
+speak_count.txt
+test_data/output/

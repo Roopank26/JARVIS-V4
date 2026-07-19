@@ -3,8 +3,12 @@ JARVIS CLI - Command-line interface.
 """
 
 import asyncio
+import logging
+import os
 import sys
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 try:
     from rich.console import Console
@@ -93,6 +97,25 @@ class JarvisCLI:
         """Initialize the CLI and agent."""
         self.register_tools()
         self.agent = create_jarvis(api_key=api_key)
+        
+        # Initialize voice runtime for TTS
+        try:
+            from jarvis.voice.voice_runtime import get_voice_runtime
+            voice_runtime = get_voice_runtime()
+            await voice_runtime.initialize()
+            
+            def _speak_callback(text: str):
+                try:
+                    loop = asyncio.get_event_loop()
+                    loop.create_task(voice_runtime.speak(text))
+                except RuntimeError:
+                    pass
+            
+            self.agent.set_speak_callback(_speak_callback)
+            print("[Jarvis] Voice output enabled")
+        except Exception as e:
+            print(f"[Jarvis] Voice output unavailable: {e}")
+        
         await self.agent.start()
 
     def print_banner(self):
@@ -257,6 +280,15 @@ You can also use tools directly:
             await self.initialize()
 
         self._running = True
+        
+        # Auto-start wake-word listening
+        try:
+            from jarvis.voice.voice_runtime import get_voice_runtime
+            voice_runtime = get_voice_runtime()
+            await voice_runtime.start_wake_word_listening(agent=self.agent)
+            self._print("[Jarvis] Wake-word listening active. Say 'Hey Jarvis' to wake me.\n")
+        except Exception as e:
+            self._print(f"[Jarvis] Wake-word unavailable: {e}\n")
 
         self._print("\nType 'help' for available commands or just ask me anything!\n")
 
@@ -291,6 +323,9 @@ You can also use tools directly:
             except KeyboardInterrupt:
                 self._print("\n", end="")
                 break
+            except EOFError:
+                self._print("\nNon-interactive session detected. Goodbye.")
+                break
             except Exception as e:
                 self._print(f"\nError: {e}", style="red")
 
@@ -305,9 +340,10 @@ async def run_cli(api_key: Optional[str] = None):
 
 
 if __name__ == "__main__":
-    # Allow passing API key as argument
-    api_key = None
+    # Allow passing API key via environment variable (not CLI arg for security)
+    api_key = os.environ.get("JARVIS_API_KEY")
     if len(sys.argv) > 1:
         api_key = sys.argv[1]
+        logger.warning("Passing API key as CLI argument is insecure; use JARVIS_API_KEY env var instead")
 
     asyncio.run(run_cli(api_key=api_key))

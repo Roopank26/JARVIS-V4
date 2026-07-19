@@ -93,6 +93,9 @@ class GroqClient:
         if client is None:
             return "API client not available"
 
+        if not self.api_key:
+            return self._auth_error_message()
+
         try:
             messages = []
             if system:
@@ -109,6 +112,9 @@ class GroqClient:
             return response.choices[0].message.content
 
         except Exception as e:
+            if self._is_auth_error(e):
+                logger.warning(f"[Groq] Auth error: {self._auth_error_message()}")
+                return self._auth_error_message()
             logger.error(f"[Groq] Generation error: {e}")
             return f"Error: {e}"
 
@@ -137,6 +143,9 @@ class GroqClient:
         if client is None:
             return "API client not available"
 
+        if not self.api_key:
+            return self._auth_error_message()
+
         try:
             chat_messages = []
 
@@ -159,12 +168,32 @@ class GroqClient:
             return response.choices[0].message.content
 
         except Exception as e:
+            if self._is_auth_error(e):
+                logger.warning(f"[Groq] Auth error: {self._auth_error_message()}")
+                return self._auth_error_message()
             logger.error(f"[Groq] Generation error: {e}")
             return f"Error: {e}"
 
     def is_available(self) -> bool:
         """Check if the API client is available."""
         return self._ensure_client() is not None and self.api_key is not None
+
+    def _is_auth_error(self, exc: Exception) -> bool:
+        msg = str(exc).lower()
+        return (
+            "401" in msg
+            or "invalid api key" in msg
+            or "invalid_api_key" in msg
+            or "unauthorized" in msg
+        )
+
+    def _auth_error_message(self) -> str:
+        return (
+            "Groq API key is invalid or missing. "
+            "Set it via the GROQ_API_KEY environment variable, "
+            "pass it with --api-key, or add it to ~/.jarvis/api_keys.json. "
+            "Get your key at https://console.groq.com/keys"
+        )
 
 
 # Backward compatibility alias

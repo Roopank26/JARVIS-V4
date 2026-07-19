@@ -34,7 +34,7 @@ class ScreenCapture:
         """Initialize mss."""
         try:
             import mss
-            self._mss = mss
+            self._mss = mss.MSS()
         except ImportError:
             print("[Vision] mss not available")
 
@@ -52,13 +52,12 @@ class ScreenCapture:
             raise RuntimeError("Screen capture not available (mss not installed)")
 
         try:
-            with self._mss.mss() as sct:
-                shot = sct.grab(sct.monitors[self._monitor])
+            shot = self._mss.grab(self._mss.monitors[self._monitor])
 
-                if output_path:
-                    self._mss.tools.to_png(shot.rgb, shot.size, output=str(output_path))
+            if output_path:
+                mss.tools.to_png(shot.rgb, shot.size, output=str(output_path))
 
-                return self._mss.tools.to_png(shot.rgb, shot.size)
+            return mss.tools.to_png(shot.rgb, shot.size)
 
         except Exception as e:
             raise RuntimeError(f"Screen capture failed: {e}")
@@ -78,19 +77,19 @@ class ScreenCapture:
             raise RuntimeError("Screen capture not available")
 
         try:
-            with self._mss.mss() as sct:
-                monitor = {
-                    "left": region.x,
-                    "top": region.y,
-                    "width": region.width,
-                    "height": region.height
-                }
-                shot = sct.grab(monitor)
+            import mss
+            monitor = {
+                "left": region.x,
+                "top": region.y,
+                "width": region.width,
+                "height": region.height
+            }
+            shot = self._mss.grab(monitor)
 
-                if output_path:
-                    self._mss.tools.to_png(shot.rgb, shot.size, output=str(output_path))
+            if output_path:
+                mss.tools.to_png(shot.rgb, shot.size, output=str(output_path))
 
-                return self._mss.tools.to_png(shot.rgb, shot.size)
+            return mss.tools.to_png(shot.rgb, shot.size)
 
         except Exception as e:
             raise RuntimeError(f"Region capture failed: {e}")
@@ -134,9 +133,8 @@ class ScreenCapture:
             return (0, 0)
 
         try:
-            with self._mss.mss() as sct:
-                monitor = sct.monitors[self._monitor]
-                return (monitor["width"], monitor["height"])
+            monitor = self._mss.monitors[self._monitor]
+            return (monitor["width"], monitor["height"])
         except Exception:
             return (0, 0)
 
@@ -146,11 +144,10 @@ class ScreenCapture:
             return []
 
         try:
-            with self._mss.mss() as sct:
-                return [
-                    {"index": i, **m}
-                    for i, m in enumerate(sct.monitors)
-                ]
+            return [
+                {"index": i, **m}
+                for i, m in enumerate(self._mss.monitors)
+            ]
         except Exception:
             return []
 
@@ -241,7 +238,6 @@ class ScreenAnalyzer:
         try:
             import cv2
             import numpy as np
-            from PIL import Image
 
             # Convert to OpenCV format
             nparr = np.frombuffer(image_data, np.uint8)

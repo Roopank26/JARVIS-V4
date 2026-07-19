@@ -13,12 +13,10 @@ Usage:
 import asyncio
 import argparse
 import logging
-import sys
 from pathlib import Path
 
 from jarvis.desktop import DesktopAssistant, DesktopConfig
 from jarvis.desktop.state import PersistentState, StartupManager
-from jarvis.desktop.platform import get_platform, Platform
 
 # Configure logging
 logging.basicConfig(

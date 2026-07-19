@@ -5,7 +5,6 @@ Provides continuous listening for "Jarvis" wake word activation.
 
 import asyncio
 import io
-import struct
 from typing import Callable, Optional
 from dataclasses import dataclass
 import logging

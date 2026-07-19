@@ -324,7 +324,7 @@ class WindowsTrayIcon:
     @staticmethod
     def save_icon(output_path: Path) -> bool:
         """Save JARVIS icon as ICO file."""
-        from PIL import Image, ImageDraw, ImageOps
+        from PIL import Image, ImageDraw
 
         # Create 256x256 image
         img = Image.new('RGBA', (256, 256), color=(30, 60, 90, 255))

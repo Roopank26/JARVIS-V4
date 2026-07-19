@@ -5,12 +5,10 @@ Wake Word → STT → Intent Classification → Agent → TTS
 
 import asyncio
 import logging
-from typing import Optional, Callable, Awaitable
-from pathlib import Path
+from typing import Optional, Callable
 
-from jarvis.voice.wake_word import WakeWordEngine, WakeWordConfig, VoiceStateMachine
-from jarvis.voice.audio import AudioConfig
-from jarvis.core.agent import JarvisAgent, classify_intent, Intent
+from jarvis.voice.wake_word import WakeWordEngine, VoiceStateMachine
+from jarvis.core.agent import JarvisAgent
 
 logger = logging.getLogger(__name__)
 

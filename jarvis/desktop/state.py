@@ -5,8 +5,10 @@ Ensures state survives restarts and crashes.
 
 import json
 import asyncio
+import os
+import sys
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 from datetime import datetime
 from dataclasses import dataclass, asdict
 import logging
@@ -157,7 +159,6 @@ class StartupManager:
 
     def _detect_platform(self) -> str:
         """Detect operating system."""
-        import sys
         if sys.platform == "linux":
             return "linux"
         elif sys.platform == "darwin":
@@ -186,8 +187,9 @@ class StartupManager:
 
     def _install_systemd(self) -> bool:
         """Install systemd user service."""
-        import sys
-        from pathlib import Path
+        # Use HOME environment variable (respects test overrides)
+        home_dir = Path(os.environ.get("HOME", str(Path.home())))
+        user_name = os.environ.get("USER", "root")
         
         service_content = f"""[Unit]
 Description=JARVIS Desktop Assistant
@@ -195,18 +197,18 @@ After=network.target
 
 [Service]
 Type=simple
-User={Path.home().name}
+User={user_name}
 WorkingDirectory={Path.cwd()}
 ExecStart={sys.executable} -m jarvis.desktop run
 Restart=on-failure
 RestartSec=10
-StandardOutput=append:{Path.home()}/.jarvis/jarvis.log
-StandardError=append:{Path.home()}/.jarvis/jarvis.log
+StandardOutput=append:{home_dir}/.jarvis/jarvis.log
+StandardError=append:{home_dir}/.jarvis/jarvis.log
 
 [Install]
 WantedBy=default.target
 """
-        service_path = Path.home() / ".config" / "systemd" / "user" / "jarvis.service"
+        service_path = home_dir / ".config" / "systemd" / "user" / "jarvis.service"
         service_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
@@ -222,7 +224,6 @@ WantedBy=default.target
 
     def _uninstall_systemd(self) -> bool:
         """Remove systemd service."""
-        from pathlib import Path
         service_path = Path.home() / ".config" / "systemd" / "user" / "jarvis.service"
         try:
             if service_path.exists():
@@ -235,9 +236,6 @@ WantedBy=default.target
 
     def _install_launchagent(self) -> bool:
         """Install LaunchAgent for macOS."""
-        import sys
-        from pathlib import Path
-        
         plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -276,7 +274,6 @@ WantedBy=default.target
 
     def _uninstall_launchagent(self) -> bool:
         """Remove LaunchAgent."""
-        from pathlib import Path
         plist_path = Path.home() / "Library" / "LaunchAgents" / "com.jarvis.desktop.plist"
         try:
             if plist_path.exists():
@@ -289,7 +286,6 @@ WantedBy=default.target
 
     def _install_windows(self) -> bool:
         """Install Windows startup registry entry."""
-        import sys
         import winreg
         
         key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -306,9 +302,7 @@ WantedBy=default.target
     def is_auto_start_enabled(self) -> bool:
         """Check if auto-start is enabled."""
         if self.platform == "linux":
-            from pathlib import Path
             return (Path.home() / ".config" / "systemd" / "user" / "jarvis.service").exists()
         elif self.platform == "macos":
-            from pathlib import Path
             return (Path.home() / "Library" / "LaunchAgents" / "com.jarvis.desktop.plist").exists()
         return False

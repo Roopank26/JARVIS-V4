@@ -50,9 +50,6 @@ class Tool(ABC):
     CATEGORY_DEVELOPMENT = "development"
     CATEGORY_MEMORY = "memory"
 
-    name: str = ""
-    description: str = ""
-
     @property
     def category(self) -> str:
         """Tool category for organization."""

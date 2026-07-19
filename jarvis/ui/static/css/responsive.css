@@ -1,0 +1,32 @@
+/* Responsive */
+@media (max-width: 1200px) {
+  .right-panel { width: 260px; min-width: 260px; }
+}
+@media (max-width: 992px) {
+  .right-panel { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; transform: translateX(100%); }
+  .right-panel.mobile-open { transform: translateX(0); }
+  .sidebar { position: absolute; left: 0; top: 0; bottom: 0; z-index: 20; transform: translateX(-100%); }
+  .sidebar.mobile-open { transform: translateX(0); }
+}
+@media (max-width: 768px) {
+  :root { --sidebar-w: 240px; --right-w: 300px; }
+  .main { min-width: 0; width: 100%; overflow-x: hidden; }
+  .topbar { gap: 8px; padding: 0 10px; overflow-x: auto; flex-wrap: nowrap; }
+  .topbar h2 { font-size: 13px; }
+  .topbar .pill, .topbar .icon-btn { flex-shrink: 0; }
+  .topbar .spacer { min-width: 4px; }
+  .view { padding: 0; }
+  .chat-container { padding: 10px; }
+  .tool-grid { grid-template-columns: 1fr; }
+  .grid.metrics { grid-template-columns: repeat(2, 1fr); }
+  .composer-inner { flex-wrap: wrap; }
+  .composer-input-wrap { flex: 1; min-width: 0; }
+  .sidebar { width: var(--sidebar-w); }
+  .right-panel { width: var(--right-w); }
+  .messages, .stages, .ai-core-section { max-width: 100%; }
+}
+@media (max-width: 480px) {
+  .grid.metrics { grid-template-columns: 1fr; }
+  .nav-ico { font-size: 16px; }
+  .brand { font-size: 16px; letter-spacing: 2px; }
+}

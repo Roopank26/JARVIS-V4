@@ -232,7 +232,7 @@ class SelfImprovementLogs:
                 "total": 0,
                 "success": 0,
                 "failed": 0,
-                "intents": Counter()
+                "intents": {}
             }
         
         daily = self._stats["daily"][today]
@@ -243,7 +243,7 @@ class SelfImprovementLogs:
         elif log.outcome == Outcome.FAILED:
             daily["failed"] += 1
         
-        daily["intents"][log.intent] += 1
+        daily["intents"][log.intent] = daily["intents"].get(log.intent, 0) + 1
         
         # Trim old daily stats
         cutoff = (datetime.now() - timedelta(days=30)).date().isoformat()

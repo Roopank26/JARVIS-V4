@@ -115,6 +115,10 @@ class DocumentProcessor:
             return await self._process_markdown(file_path)
         elif suffix == '.docx':
             return await self._process_docx(file_path)
+        elif suffix == '.html':
+            return await self._process_html(file_path)
+        elif suffix == '.json':
+            return await self._process_json(file_path)
         else:
             raise ValueError(f"Unsupported file type: {suffix}")
 
@@ -197,6 +201,88 @@ class DocumentProcessor:
         text = "\n\n".join(paragraphs)
         chunks = self._split_into_chunks(text, str(file_path), metadata)
         return ProcessedDocument(title=file_path.stem, source_path=str(file_path), file_type="docx", chunks=chunks, metadata=metadata)
+
+    async def _process_html(self, file_path: Path) -> ProcessedDocument:
+        """Process an HTML file."""
+        from html.parser import HTMLParser
+        
+        metadata = {"file_name": file_path.name, "file_size": file_path.stat().st_size, "file_type": "html"}
+        
+        class TextExtractor(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.text_parts = []
+                self.skip_tags = {'script', 'style', 'nav', 'header', 'footer'}
+                self.current_tag = None
+                
+            def handle_starttag(self, tag, attrs):
+                self.current_tag = tag
+                
+            def handle_endtag(self, tag):
+                self.current_tag = None
+                
+            def handle_data(self, data):
+                if self.current_tag not in self.skip_tags and data.strip():
+                    self.text_parts.append(data.strip())
+        
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            html_content = f.read()
+        
+        extractor = TextExtractor()
+        extractor.feed(html_content)
+        
+        title_match = re.search(r'<title>(.*?)</title>', html_content, re.IGNORECASE | re.DOTALL)
+        if title_match:
+            metadata["title"] = title_match.group(1).strip()
+        
+        text = "\n\n".join(extractor.text_parts)
+        chunks = self._split_into_chunks(text, str(file_path), metadata)
+        
+        return ProcessedDocument(
+            title=metadata.get("title", file_path.stem),
+            source_path=str(file_path),
+            file_type="html",
+            chunks=chunks,
+            metadata=metadata
+        )
+
+    async def _process_json(self, file_path: Path) -> ProcessedDocument:
+        """Process a JSON file."""
+        import json
+        
+        metadata = {"file_name": file_path.name, "file_size": file_path.stat().st_size, "file_type": "json"}
+        
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            data = json.load(f)
+        
+        text_parts = []
+        
+        def extract_text(obj, depth=0):
+            if depth > 10:
+                return
+            if isinstance(obj, str) and obj.strip():
+                text_parts.append(obj.strip())
+            elif isinstance(obj, dict):
+                for key, value in obj.items():
+                    if isinstance(value, str) and value.strip():
+                        text_parts.append(f"{key}: {value.strip()}")
+                    else:
+                        extract_text(value, depth + 1)
+            elif isinstance(obj, list):
+                for item in obj:
+                    extract_text(item, depth + 1)
+        
+        extract_text(data)
+        text = "\n\n".join(text_parts)
+        chunks = self._split_into_chunks(text, str(file_path), metadata)
+        
+        return ProcessedDocument(
+            title=file_path.stem,
+            source_path=str(file_path),
+            file_type="json",
+            chunks=chunks,
+            metadata=metadata
+        )
 
 
 class StudyAssistant:

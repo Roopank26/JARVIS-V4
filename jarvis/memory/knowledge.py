@@ -3,7 +3,6 @@ Local knowledge base for JARVIS.
 Provides semantic search using vector embeddings with robust fallback.
 """
 
-import asyncio
 import json
 import re
 import hashlib

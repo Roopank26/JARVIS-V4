@@ -7,7 +7,7 @@ import asyncio
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 
-from jarvis.tools.base import WriteTool, ReadOnlyTool, ToolResult
+from jarvis.tools.base import ReadOnlyTool, ToolResult
 
 
 @dataclass
@@ -236,7 +236,6 @@ class SearchWebTool(ReadOnlyTool):
             from selenium.webdriver.chrome.service import Service
             from selenium.webdriver.common.by import By
             from webdriver_manager.chrome import ChromeDriverManager
-            import time
 
             options = Options()
             options.add_argument("--headless")
@@ -249,7 +248,7 @@ class SearchWebTool(ReadOnlyTool):
 
             # Navigate to Google
             driver.get(f"https://www.google.com/search?q={query}")
-            time.sleep(2)
+            await asyncio.sleep(2)
 
             results = []
             search_results = driver.find_elements(By.CSS_SELECTOR, "div.g")[:num_results]
@@ -260,7 +259,7 @@ class SearchWebTool(ReadOnlyTool):
                     link = result.find_element(By.CSS_SELECTOR, "a").get_attribute("href")
                     snippet = result.find_element(By.CSS_SELECTOR, "div.IsZvec").text[:200]
                     results.append(f"Title: {title}\nURL: {link}\nSnippet: {snippet}\n")
-                except:
+                except Exception:
                     continue
 
             driver.quit()
@@ -306,7 +305,6 @@ class ScrapeWebTool(ReadOnlyTool):
             from selenium.webdriver.chrome.service import Service
             from selenium.webdriver.common.by import By
             from webdriver_manager.chrome import ChromeDriverManager
-            import time
 
             options = Options()
             options.add_argument("--headless")
@@ -318,7 +316,7 @@ class ScrapeWebTool(ReadOnlyTool):
             )
 
             driver.get(url)
-            time.sleep(2)
+            await asyncio.sleep(2)
 
             if selector:
                 elements = driver.find_elements(By.CSS_SELECTOR, selector)

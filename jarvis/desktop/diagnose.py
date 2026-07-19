@@ -3,13 +3,11 @@ JARVIS Desktop - Diagnostic and Verification Tools
 Run diagnostics to verify all components work correctly.
 """
 
-import sys
 import asyncio
-from pathlib import Path
 from typing import Dict, Any, List
 
 from jarvis.desktop.platform import (
-    get_platform, Platform, get_platform_info,
+    get_platform, get_platform_info,
     CrossPlatformAudio, CrossPlatformTray, CrossPlatformService,
     CrossPlatformVSCode
 )
@@ -215,7 +213,6 @@ def run_jarvis_diagnostics() -> DiagnosticRunner:
     
     # Test imports
     try:
-        from jarvis.desktop import DesktopAssistant, DesktopConfig
         runner.add(DiagnosticResult(
             "JARVIS Core",
             True,
@@ -231,7 +228,6 @@ def run_jarvis_diagnostics() -> DiagnosticRunner:
     
     # Test voice components
     try:
-        from jarvis.voice.listener import ContinuousListener
         runner.add(DiagnosticResult(
             "Voice Listener",
             True,
@@ -246,7 +242,6 @@ def run_jarvis_diagnostics() -> DiagnosticRunner:
     
     # Test memory components
     try:
-        from jarvis.memory.long_term import LongTermMemory
         runner.add(DiagnosticResult(
             "Long-Term Memory",
             True,
@@ -261,7 +256,6 @@ def run_jarvis_diagnostics() -> DiagnosticRunner:
     
     # Test scheduler
     try:
-        from jarvis.services.scheduler import TaskScheduler
         runner.add(DiagnosticResult(
             "Task Scheduler",
             True,
@@ -276,7 +270,6 @@ def run_jarvis_diagnostics() -> DiagnosticRunner:
     
     # Test plugins
     try:
-        from jarvis.plugins.base import PluginManager
         runner.add(DiagnosticResult(
             "Plugin System",
             True,

@@ -1,0 +1,6 @@
+/* Animations */
+@keyframes fade { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: none; } }
+@keyframes pop { from { opacity: 0; transform: scale(.96);} to { opacity: 1; transform: none; } }
+@keyframes pulse-dot { 0%,100%{box-shadow:0 0 8px var(--primary)} 50%{box-shadow:0 0 20px var(--primary),0 0 40px rgba(0,229,255,0.3)} }
+@keyframes shimmer { 0%{background-position:100% 0} 100%{background-position:-100% 0} }
+.skeleton { background: linear-gradient(90deg, var(--card) 25%, var(--card-2) 37%, var(--card) 63%); background-size: 400% 100%; animation: shimmer 1.3s infinite; border-radius: 8px; }

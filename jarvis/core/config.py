@@ -43,8 +43,6 @@ class Config:
     def _set_defaults(self):
         """Set default configuration values."""
         defaults = {
-            "model": "llama-3.3-70b-versatile",
-            "live_model": "llama-3.3-70b-versatile",
             "voice_enabled": True,
             "language": "en",
             "voice_name": "Charon",
