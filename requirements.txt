@@ -7,6 +7,9 @@ groq>=0.4.0
 # Audio I/O
 sounddevice>=0.4.0
 
+# Scheduling
+croniter>=1.4.0
+
 # Voice/Speech (Speech-to-Text & Text-to-Speech)
 gTTS>=2.4.0
 pydub>=0.25.1
