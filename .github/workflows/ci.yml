@@ -51,7 +51,7 @@ jobs:
           python -c "from jarvis.voice.voice_router import VoiceRouter; print('Voice OK')"
           python -c "from jarvis.memory.enhanced import EnhancedMemoryManager; print('Memory OK')"
           python -c "from jarvis.rag.rag_system import RAGSystem; print('RAG OK')"
-          python -c "from jarvis.plugins.plugin_manager import PluginManager; print('Plugins OK')"
+          python -c "from jarvis.plugins import get_plugin_manager; print('Plugins OK')"
           python -c "from jarvis.integrations.vscode import VSCodeBridge; print('Integrations OK')"
           python -c "from jarvis.research.research_agent import ResearchAgent; print('Research OK')"
 
