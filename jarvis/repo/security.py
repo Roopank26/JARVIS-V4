@@ -6,7 +6,7 @@ Scans code for common security vulnerabilities and issues.
 import re
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

@@ -3,11 +3,10 @@ JARVIS Desktop UI
 Modern dark-themed desktop interface.
 """
 
-import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("jarvis.ui.desktop")
 
@@ -32,8 +31,8 @@ class ConversationMessage:
     """A conversation message."""
     role: str  # user, assistant, system
     content: str
-    timestamp: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    timestamp: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class DesktopUI:
@@ -51,17 +50,19 @@ class DesktopUI:
     - Notification center
     """
     
-    def __init__(self, theme: Optional[UITheme] = None):
+    def __init__(self, theme: UITheme | None = None):
         self.theme = theme or UITheme()
         self._running = False
-        self._messages: List[ConversationMessage] = []
-        self._listeners: Dict[str, List[Callable]] = {}
+        self._messages: list[ConversationMessage] = []
+        self._listeners: dict[str, list[Callable]] = {}
         
         # UI State
         self._current_model = "qwen3"
         self._current_provider = "ollama"
         self._is_speaking = False
         self._is_listening = False
+        self._is_interrupted = False
+        self._conversation_active = False
         self._cpu_usage = 0.0
         self._memory_usage = 0.0
     
@@ -76,7 +77,7 @@ class DesktopUI:
         logger.info("Stopping desktop UI...")
         self._running = False
     
-    def add_message(self, role: str, content: str, metadata: Optional[Dict] = None) -> None:
+    def add_message(self, role: str, content: str, metadata: dict | None = None) -> None:
         """Add a message to the conversation."""
         from datetime import datetime
         message = ConversationMessage(
@@ -88,7 +89,7 @@ class DesktopUI:
         self._messages.append(message)
         self._emit("message", message)
     
-    def get_conversation(self) -> List[ConversationMessage]:
+    def get_conversation(self) -> list[ConversationMessage]:
         """Get the current conversation."""
         return self._messages.copy()
     
@@ -333,9 +334,56 @@ class DesktopUI:
             .replace("'", "&#39;")
         )
     
-    def get_status(self) -> Dict[str, Any]:
-        """Get UI status."""
+    @property
+    def is_speaking(self) -> bool:
+        return self._is_speaking
+
+    @property
+    def is_listening(self) -> bool:
+        return self._is_listening
+
+    @property
+    def is_interrupted(self) -> bool:
+        return getattr(self, '_is_interrupted', False)
+
+    @property
+    def conversation_active(self) -> bool:
+        return getattr(self, '_conversation_active', False)
+
+    def set_interrupted(self, interrupted: bool) -> None:
+        """Set interrupted state."""
+        self._is_interrupted = interrupted
+        self._emit("interrupted", interrupted)
+
+    def set_conversation_active(self, active: bool) -> None:
+        """Set conversation mode state."""
+        self._conversation_active = active
+        self._emit("conversation_active", active)
+
+    def get_voice_status(self) -> dict[str, Any]:
+        """Get current voice status for UI."""
         return {
+            "is_speaking": self._is_speaking,
+            "is_listening": self._is_listening,
+            "is_interrupted": getattr(self, '_is_interrupted', False),
+            "conversation_active": getattr(self, '_conversation_active', False),
+            "state": self._get_voice_state_label(),
+        }
+
+    def _get_voice_state_label(self) -> str:
+        if getattr(self, '_is_interrupted', False):
+            return "Interrupted"
+        if self._is_speaking:
+            return "Speaking"
+        if self._is_listening:
+            return "Listening"
+        if getattr(self, '_conversation_active', False):
+            return "Conversation Active"
+        return "Idle"
+
+    def get_status(self) -> dict[str, Any]:
+        """Get UI status."""
+        status = {
             "running": self._running,
             "theme": self.theme.name,
             "current_model": self._current_model,
@@ -344,6 +392,8 @@ class DesktopUI:
             "is_listening": self._is_listening,
             "message_count": len(self._messages),
         }
+        status.update(self.get_voice_status())
+        return status
 
 
 # Console UI fallback
@@ -368,5 +418,5 @@ class ConsoleUI:
         print(f"\n[{prefix}]")
         print(content)
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {"running": self._running, "type": "console"}

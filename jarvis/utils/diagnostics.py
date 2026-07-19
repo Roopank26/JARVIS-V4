@@ -3,13 +3,12 @@ JARVIS Diagnostics Module
 System checks and health monitoring.
 """
 
-import asyncio
 import logging
 import platform
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("jarvis.diagnostics")
 
@@ -423,12 +422,12 @@ class DiagnosticsRunner:
                 result = await check.run()
                 results.append(result)
                 
-                status = "✓" if result.passed else "✗"
+                status = "[OK]" if result.passed else "[FAIL]"
                 if check.required or not result.passed:
                     logger.info(f"  {status} {check.name}: {result.message}")
                     
             except Exception as e:
-                logger.error(f"  ✗ {check.name}: Failed to run - {e}")
+                logger.error(f"  [FAIL] {check.name}: Failed to run - {e}")
                 results.append(DiagnosticResult(
                     name=check.name,
                     passed=False,
@@ -459,7 +458,7 @@ class DiagnosticsRunner:
             check = next((c for c in self._checks if c.name == result.name), None)
             required = check.required if check else False
             
-            status = "✓" if result.passed else "✗"
+            status = "[OK]" if result.passed else "[FAIL]"
             req_tag = " [REQUIRED]" if required else " [OPTIONAL]"
             
             lines.append(f"{status} {result.name}{req_tag}: {result.message}")

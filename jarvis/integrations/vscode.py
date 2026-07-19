@@ -5,7 +5,6 @@ Provides two-way communication between JARVIS and VS Code.
 
 import asyncio
 import json
-from pathlib import Path
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass
 from enum import Enum

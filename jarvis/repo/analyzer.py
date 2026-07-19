@@ -5,8 +5,7 @@ Provides code analysis, architecture overview, and repository intelligence.
 
 import ast
 import os
-import json
-import subprocess
+import re
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set
 from dataclasses import dataclass, field
@@ -70,6 +69,7 @@ class RepositoryAnalyzer:
     def __init__(self, repo_path: Optional[str] = None):
         self.repo_path = Path(repo_path) if repo_path else Path.cwd()
         self._file_cache: Dict[str, FileAnalysis] = {}
+        self._code_files_cache: Optional[List[Path]] = None
         self._dependency_graph: Dict[str, Set[str]] = defaultdict(set)
 
     def analyze(self) -> Dict[str, Any]:
@@ -110,7 +110,10 @@ class RepositoryAnalyzer:
         return stats
 
     def _get_code_files(self) -> List[Path]:
-        """Get all code files in repository."""
+        """Get all code files in repository (cached)."""
+        if self._code_files_cache is not None:
+            return self._code_files_cache
+
         code_files = []
         exclude_dirs = {
             'node_modules', '.git', '__pycache__', '.venv', 'venv',
@@ -126,6 +129,7 @@ class RepositoryAnalyzer:
                 if ext in self.SUPPORTED_EXTENSIONS:
                     code_files.append(Path(root) / file)
 
+        self._code_files_cache = code_files
         return code_files
 
     def analyze_file(self, file_path: Path) -> FileAnalysis:
@@ -199,8 +203,6 @@ class RepositoryAnalyzer:
             language='javascript',
             lines_of_code=len(content.splitlines()),
         )
-
-        import re
 
         # Find imports
         import_pattern = r'(?:import|require)\s*\([\'"]([^\'"]+)[\'"]\)'
@@ -280,7 +282,7 @@ class RepositoryAnalyzer:
                         elif isinstance(node, ast.ImportFrom):
                             if node.module:
                                 dependencies[file_path.name].add(node.module)
-                except:
+                except (SyntaxError, ValueError):
                     pass
 
         return {k: list(v) for k, v in dependencies.items()}
@@ -304,7 +306,7 @@ class RepositoryAnalyzer:
                                 "type": pattern,
                                 "content": line.strip(),
                             })
-            except:
+            except (OSError, UnicodeDecodeError):
                 pass
 
         return todos
@@ -335,7 +337,6 @@ class RepositoryAnalyzer:
 
                 for i, line in enumerate(lines, 1):
                     for pattern, issue_type in patterns:
-                        import re
                         if re.search(pattern, line, re.IGNORECASE):
                             issues.append({
                                 "file": str(file_path.relative_to(self.repo_path)),
@@ -343,7 +344,7 @@ class RepositoryAnalyzer:
                                 "type": issue_type,
                                 "content": line.strip(),
                             })
-            except:
+            except (OSError, UnicodeDecodeError):
                 pass
 
         return issues

@@ -7,9 +7,8 @@ import asyncio
 import logging
 import platform
 import subprocess
-import shlex
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
+from typing import List, Optional
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -276,12 +275,12 @@ class DesktopAutomation:
                 return result.returncode == 0
                 
             elif self.is_windows:
-                # Alt+F4 equivalent
+                # Use PowerShell to send Alt+F4
                 await self.focus_window(title)
                 await asyncio.sleep(0.2)
                 subprocess.run(
-                    ["xdotool", "key", "Alt+F4"] if self.is_linux else ["Alt+F4"],
-                    shell=True,
+                    ["powershell", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('%{F4}')"],
+                    capture_output=True,
                     timeout=2
                 )
                 return True
@@ -410,8 +409,12 @@ class DesktopAutomation:
                 return True
                 
             elif self.is_windows:
+                # Use base64 encoding to avoid PowerShell injection
+                import base64
+                encoded = base64.b64encode(text.encode("utf-16-le")).decode("ascii")
                 subprocess.run(
-                    ["powershell", "-Command", f"Set-Clipboard -Value '{text}'"],
+                    ["powershell", "-Command",
+                     f"$decoded = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('{encoded}')); Set-Clipboard -Value $decoded"],
                     capture_output=True,
                     timeout=2
                 )
@@ -459,14 +462,18 @@ class DesktopAutomation:
                     return str(path)
                     
             elif self.is_windows:
-                # Use PowerShell
+                # Use PowerShell with escaped path
+                escaped_path = str(path).replace("'", "''")
                 script = f'''
                 Add-Type -AssemblyName System.Windows.Forms
-                [System.Windows.Forms.Screen]::PrimaryScreen
-                $bitmap = New-Object System.Drawing.Bitmap([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width, [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height)
+                Add-Type -AssemblyName System.Drawing
+                $screen = [System.Windows.Forms.Screen]::PrimaryScreen
+                $bitmap = New-Object System.Drawing.Bitmap($screen.Bounds.Width, $screen.Bounds.Height)
                 $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-                $graphics.CopyFromScreen([System.Drawing.Point]::Empty, [System.Drawing.Point]::Empty, $bitmap.Size)
-                $bitmap.Save("{path}")
+                $graphics.CopyFromScreen($screen.Bounds.Location, [System.Drawing.Point]::Empty, $screen.Bounds.Size)
+                $bitmap.Save('{escaped_path}')
+                $bitmap.Dispose()
+                $graphics.Dispose()
                 '''
                 result = subprocess.run(
                     ["powershell", "-Command", script],
@@ -517,9 +524,30 @@ class DesktopAutomation:
                 return True
                 
             elif self.is_windows:
+                # Convert key combinations to SendKeys format
+                sendkeys_map = {
+                    "ctrl": "^", "alt": "%", "shift": "+",
+                    "win": "^({ESC})", "tab": "{TAB}", "enter": "{ENTER}",
+                    "escape": "{ESC}", "delete": "{DELETE}", "backspace": "{BACKSPACE}",
+                    "up": "{UP}", "down": "{DOWN}", "left": "{LEFT}", "right": "{RIGHT}",
+                    "home": "{HOME}", "end": "{END}", "pageup": "{PGUP}", "pagedown": "{PGDN}",
+                    "f1": "{F1}", "f2": "{F2}", "f3": "{F3}", "f4": "{F4}", "f5": "{F5}",
+                    "f6": "{F6}", "f7": "{F7}", "f8": "{F8}", "f9": "{F9}", "f10": "{F10}",
+                    "f11": "{F11}", "f12": "{F12}",
+                }
+                keys = key_str.lower().split("+")
+                sendkeys_str = ""
+                for key in keys:
+                    key = key.strip()
+                    if key in sendkeys_map:
+                        sendkeys_str += sendkeys_map[key]
+                    else:
+                        sendkeys_str += key.upper()
+                # Escape braces for PowerShell
+                escaped = sendkeys_str.replace("{", "`{").replace("}", "`}")
                 subprocess.run(
-                    ["xdotool", "key", key_str] if self.is_linux else key_str.split("+"),
-                    shell=True,
+                    ["powershell", "-Command", f"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{escaped}')"],
+                    capture_output=True,
                     timeout=2
                 )
                 return True
@@ -564,10 +592,21 @@ class DesktopAutomation:
                 return True
                 
             elif self.is_windows:
+                # Escape special SendKeys characters
+                sendkeys_special = set("+=^%~(){}[]")
+                escaped_text = ""
+                for ch in text:
+                    if ch in sendkeys_special:
+                        escaped_text += "{" + ch + "}"
+                    elif ch == "\n":
+                        escaped_text += "{ENTER}"
+                    else:
+                        escaped_text += ch
                 subprocess.run(
-                    ["powershell", "-Command", f"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{text}')"],
+                    ["powershell", "-Command",
+                     f"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{escaped_text.replace(chr(39), chr(39)+chr(39))}')"],
                     capture_output=True,
-                    timeout=len(text) * 0.1
+                    timeout=max(len(text) * 0.1, 2)
                 )
                 return True
                 

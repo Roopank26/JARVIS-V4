@@ -2,13 +2,12 @@
 Plugin system for JARVIS - Extensible architecture for custom commands and integrations.
 """
 
-import asyncio
 import json
 import importlib
 import importlib.util
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Callable, Type
+from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 import logging

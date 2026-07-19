@@ -3,13 +3,13 @@ JARVIS Production Research Agent
 Professional research with multi-source search and citations.
 """
 
-import asyncio
 import logging
 import re
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("jarvis.research")
 
@@ -75,8 +75,8 @@ class Source:
 
 
 @dataclass
-class ResearchResult:
-    """Result from research query."""
+class ProductionResearchResult:
+    """Result from production research query."""
     query: str
     findings: List[str] = field(default_factory=list)
     sources: List[Source] = field(default_factory=list)
@@ -383,7 +383,7 @@ class ResearchAgent:
         providers: Optional[List[str]] = None,
         num_results: int = 10,
         citation_format: CitationFormat = CitationFormat.APA,
-    ) -> ResearchResult:
+    ) -> ProductionResearchResult:
         """
         Conduct research on a topic.
         
@@ -394,12 +394,12 @@ class ResearchAgent:
             citation_format: Format for citations
             
         Returns:
-            ResearchResult with findings, sources, and citations
+            ProductionResearchResult with findings, sources, and citations
         """
         logger.info(f"Researching: {query}")
         
         providers = providers or self._default_providers
-        result = ResearchResult(query=query)
+        result = ProductionResearchResult(query=query)
         
         # Search all providers
         for provider_name in providers:
@@ -538,7 +538,7 @@ class ResearchAgent:
     
     async def generate_report(
         self,
-        research: ResearchResult,
+        research: ProductionResearchResult,
         title: str = "Research Report",
         citation_format: CitationFormat = CitationFormat.APA,
     ) -> str:
@@ -546,7 +546,7 @@ class ResearchAgent:
         Generate a full research report.
         
         Args:
-            research: ResearchResult to format
+            research: ProductionResearchResult to format
             title: Report title
             citation_format: Citation format
             

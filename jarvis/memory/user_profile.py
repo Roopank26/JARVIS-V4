@@ -6,7 +6,7 @@ Provides structured personal information storage with natural language extractio
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from datetime import datetime
 from threading import Lock
 

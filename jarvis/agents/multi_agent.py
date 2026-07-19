@@ -6,11 +6,10 @@ Coordinates multiple specialized agents for complex tasks.
 
 import asyncio
 import logging
-import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 logger = logging.getLogger(__name__)

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JARVIS — AI Operating System</title>
+<link rel="stylesheet" href="/static/css/theme.css" />
+<link rel="stylesheet" href="/static/css/layout.css" />
+<link rel="stylesheet" href="/static/css/components.css" />
+<link rel="stylesheet" href="/static/css/chat.css" />
+<link rel="stylesheet" href="/static/css/aicore.css" />
+<link rel="stylesheet" href="/static/css/panels.css" />
+<link rel="stylesheet" href="/static/css/animations.css" />
+<link rel="stylesheet" href="/static/css/responsive.css" />
+</head>
+<body>
+  <canvas id="bgCanvas"></canvas>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><span class="brand-dot"></span>JARVIS</div>
+    <div class="nav-section">Core Systems</div>
+    <div class="nav-item active" data-view="chat"><span class="nav-ico">◈</span> AI Core</div>
+    <div class="nav-item" data-view="dashboard"><span class="nav-ico">◫</span> Dashboard</div>
+    <div class="nav-item" data-view="timeline"><span class="nav-ico">◱</span> Execution</div>
+    <div class="nav-section">Capabilities</div>
+    <div class="nav-item" data-view="tools"><span class="nav-ico">⚙</span> Tools</div>
+    <div class="nav-item" data-view="tasks"><span class="nav-ico">↻</span> Tasks</div>
+    <div class="nav-item" data-view="activity"><span class="nav-ico">◰</span> Activity</div>
+    <div class="nav-section">Configuration</div>
+    <div class="sidebar-foot">Local-first · Private<br/>AI Operating System · v4.0</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h2 id="viewTitle">AI Core</h2>
+      <div class="spacer"></div>
+      <span class="pill"><span class="dot" id="dotInternet"></span> Internet</span>
+      <span class="pill"><span class="dot" id="dotVoice"></span> Voice</span>
+      <span class="pill" id="pillModel">model</span>
+      <span class="pill" id="pillProvider">provider</span>
+      <button class="icon-btn" id="btnTheme" title="Toggle theme">◐</button>
+      <button class="icon-btn" id="btnPalette" title="Command palette (Ctrl+Shift+P)">⌘</button>
+    </div>
+
+    <!-- Chat -->
+    <section class="view active" id="view-chat">
+      <div class="chat-container">
+        <div class="ai-core-section">
+          <div class="ai-core-canvas">
+            <div class="ai-core-ring"></div>
+            <div class="ai-core-ring"></div>
+            <div class="ai-core-ring"></div>
+            <div class="ai-core-ring"></div>
+            <div class="ai-core-center" id="aiCoreCenter">◈</div>
+          </div>
+          <div class="ai-core-label">AI Core</div>
+          <div class="ai-core-status" id="aiCoreStatus">Online · Ready</div>
+          <div class="exec-agents" id="execAgents"></div>
+        </div>
+        <div class="stages" id="stages"></div>
+        <div class="messages" id="messages"></div>
+        <div id="suggBox"></div>
+        <div class="composer-area">
+          <div class="composer-inner">
+            <div class="composer-input-wrap">
+              <input id="chatInput" class="composer-input" placeholder="Ask JARVIS anything…  (or press Ctrl+Shift+P)" autocomplete="off" />
+            </div>
+            <div class="composer-actions">
+              <button class="btn btn-icon" id="voiceBtn" title="Voice input">🎤</button>
+              <button class="btn btn-icon" id="attachBtn" title="Attach file">📎</button>
+              <button class="btn primary" id="sendBtn">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dashboard -->
+    <section class="view" id="view-dashboard">
+      <div class="grid metrics" id="metricGrid"></div>
+      <div style="height:16px"></div>
+      <div class="card">
+        <div class="section-title">Providers</div>
+        <div class="list" id="providerList"></div>
+      </div>
+      <div style="height:16px"></div>
+      <div class="card">
+        <div class="section-title">Voice & Memory</div>
+        <div class="grid metrics" id="secondaryGrid"></div>
+      </div>
+    </section>
+
+    <!-- Tools -->
+    <section class="view" id="view-tools">
+      <div class="toolbar">
+        <input id="toolSearch" placeholder="Search tools…" />
+        <select id="toolCat"><option value="">All categories</option></select>
+      </div>
+      <div class="chips" id="toolChips"></div>
+      <div class="tool-grid" id="toolGrid"></div>
+    </section>
+
+    <!-- Tasks -->
+    <section class="view" id="view-tasks">
+      <div class="section-title">Background Tasks</div>
+      <div class="list" id="taskList"></div>
+    </section>
+
+    <!-- Timeline -->
+    <section class="view" id="view-timeline">
+      <div class="section-title">Workflow Timeline</div>
+      <div class="timeline" id="timeline"></div>
+    </section>
+
+    <!-- Activity -->
+    <section class="view" id="view-activity">
+      <div class="section-title">Activity Center</div>
+      <div class="chips" id="actCats"></div>
+      <div class="list" id="actList" style="margin-top:12px"></div>
+    </section>
+  </main>
+
+  <aside class="right-panel" id="rightPanel">
+    <div class="rp-section">
+      <div class="rp-section-title">Live Intelligence</div>
+      <div class="rp-item" data-provider="ollama">
+        <div class="rp-icon">◉</div>
+        <div class="rp-info"><div class="rp-name">Ollama</div><div class="rp-meta" id="ollama-meta">llama3 · local</div></div>
+        <div class="rp-status online" id="ollama-status"></div>
+      </div>
+      <div class="rp-item" data-provider="groq">
+        <div class="rp-icon">⚡</div>
+        <div class="rp-info"><div class="rp-name">Groq</div><div class="rp-meta" id="groq-meta">mixtral-8x7b · 45ms</div></div>
+        <div class="rp-status online" id="groq-status"></div>
+      </div>
+      <div class="rp-item" data-provider="gemini">
+        <div class="rp-icon">◆</div>
+        <div class="rp-info"><div class="rp-name">Gemini</div><div class="rp-meta" id="gemini-meta">pro · 120ms</div></div>
+        <div class="rp-status busy" id="gemini-status"></div>
+      </div>
+      <div class="rp-item" data-provider="openai">
+        <div class="rp-icon">◈</div>
+        <div class="rp-info"><div class="rp-name">OpenAI</div><div class="rp-meta" id="openai-meta">gpt-4o · 89ms</div></div>
+        <div class="rp-status online" id="openai-status"></div>
+      </div>
+    </div>
+    <div class="rp-section">
+      <div class="rp-section-title">Memory</div>
+      <div class="mini-metric"><span class="mini-metric-label">Session</span><span class="mini-metric-value" id="session-memory">12 entries</span></div>
+      <div class="mini-bar"><span style="width:60%" id="session-bar"></span></div>
+      <div class="mini-metric" style="margin-top:8px"><span class="mini-metric-label">Long-term</span><span class="mini-metric-value" id="longterm-memory">1.2k</span></div>
+      <div class="mini-bar"><span style="width:80%" id="longterm-bar"></span></div>
+      <div class="mini-metric" style="margin-top:8px"><span class="mini-metric-label">Vector DB</span><span class="mini-metric-value" id="vector-db">847 dims</span></div>
+      <div class="mini-bar"><span style="width:45%" id="vector-bar"></span></div>
+    </div>
+    <div class="rp-section">
+      <div class="rp-section-title">System</div>
+      <div class="mini-metric"><span class="mini-metric-label">CPU</span><span class="mini-metric-value" id="cpu-usage">23%</span></div>
+      <div class="mini-bar"><span style="width:23%" id="cpu-bar"></span></div>
+      <div class="mini-metric" style="margin-top:8px"><span class="mini-metric-label">RAM</span><span class="mini-metric-value" id="ram-usage">6.4 / 16 GB</span></div>
+      <div class="mini-bar"><span style="width:40%" id="ram-bar"></span></div>
+      <div class="mini-metric" style="margin-top:8px"><span class="mini-metric-label">GPU</span><span class="mini-metric-value" id="gpu-usage">RTX 4090</span></div>
+      <div class="mini-bar"><span style="width:92%" id="gpu-bar"></span></div>
+    </div>
+  </aside>
+
+  <!-- Command palette -->
+  <div class="overlay" id="overlay">
+    <div class="palette">
+      <input id="palInput" placeholder="Search commands, agents, plugins, files, models, memory…" autocomplete="off" />
+      <div class="results" id="palResults"></div>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts"></div>
+
+<script src="/static/js/particles.js"></script>
+<script src="/static/js/app.js"></script>
+<script src="/static/js/stages.js"></script>
+<script src="/static/js/chat.js"></script>
+<script src="/static/js/panels.js"></script>
+<script src="/static/js/widgets.js"></script>
+<script src="/static/js/boot.js"></script>
+</body>
+</html>

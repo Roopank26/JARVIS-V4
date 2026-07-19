@@ -1,4 +1,4 @@
-# JARVIS Requirements
+# JARVIS-V4 Requirements
 # Core dependencies
 
 # LLM/AI - Groq (primary)
@@ -23,6 +23,7 @@ numpy>=1.24.0
 # System automation
 pyautogui>=0.9.54
 pyperclip>=1.8.0
+psutil>=5.9.0
 
 # Browser automation
 selenium>=4.15.0
@@ -31,11 +32,16 @@ webdriver-manager>=4.0.0
 # Web utilities
 requests>=2.31.0
 beautifulsoup4>=4.12.0
+aiohttp>=3.9.0
 
 # CLI/UI
 rich>=13.0.0
 prompt_toolkit>=3.0.0
 
-# Development
-# pytest>=7.0.0
-# pytest-asyncio>=0.21.0
+# Testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+
+# Linting/Formatting
+ruff>=0.1.0
+black>=23.0.0

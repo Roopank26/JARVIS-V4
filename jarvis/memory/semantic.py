@@ -3,24 +3,22 @@ JARVIS Semantic Memory System
 Long-term memory with embeddings for semantic search.
 """
 
-import asyncio
 import hashlib
 import json
 import logging
-import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 import numpy as np
 
 logger = logging.getLogger("jarvis.memory.semantic")
 
 
-class MemoryCategory(Enum):
-    """Categories for memories."""
+class SemanticMemoryCategory(Enum):
+    """Categories for semantic memories."""
     PERSON = "person"
     PROJECT = "project"
     GOAL = "goal"
@@ -38,7 +36,7 @@ class MemoryEntry:
     """A single memory entry."""
     id: str
     content: str
-    category: MemoryCategory
+    category: SemanticMemoryCategory
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     importance: float = 1.0  # 0.0 - 1.0
@@ -68,7 +66,7 @@ class MemoryEntry:
         return cls(
             id=data["id"],
             content=data["content"],
-            category=MemoryCategory(data.get("category", "fact")),
+            category=SemanticMemoryCategory(data.get("category", "fact")),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data.get("updated_at", data["created_at"])),
             importance=data.get("importance", 1.0),
@@ -83,7 +81,7 @@ class MemoryEntry:
 class MemoryQuery:
     """Query for memory search."""
     text: str
-    category: Optional[MemoryCategory] = None
+    category: Optional[SemanticMemoryCategory] = None
     tags: Optional[Set[str]] = None
     limit: int = 10
     min_importance: float = 0.0
@@ -212,7 +210,7 @@ class SemanticMemory:
     async def remember(
         self,
         content: str,
-        category: MemoryCategory = MemoryCategory.FACT,
+        category: SemanticMemoryCategory = SemanticMemoryCategory.FACT,
         tags: Optional[Set[str]] = None,
         importance: float = 1.0,
         metadata: Optional[Dict[str, Any]] = None,
@@ -437,7 +435,7 @@ class SemanticMemory:
         ]
         
         # Group by category
-        by_category: Dict[MemoryCategory, List[MemoryEntry]] = {}
+        by_category: Dict[SemanticMemoryCategory, List[MemoryEntry]] = {}
         for entry in important:
             if entry.category not in by_category:
                 by_category[entry.category] = []
@@ -447,10 +445,10 @@ class SemanticMemory:
         lines = ["Here's what I know about you:", ""]
         
         for category in [
-            MemoryCategory.PERSON,
-            MemoryCategory.PREFERENCE,
-            MemoryCategory.GOAL,
-            MemoryCategory.PROJECT,
+            SemanticMemoryCategory.PERSON,
+            SemanticMemoryCategory.PREFERENCE,
+            SemanticMemoryCategory.GOAL,
+            SemanticMemoryCategory.PROJECT,
         ]:
             if category in by_category:
                 entries = by_category[category]

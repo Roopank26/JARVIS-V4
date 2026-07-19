@@ -8,7 +8,6 @@ import logging.handlers
 import sys
 from pathlib import Path
 from typing import Optional
-from datetime import datetime
 
 
 class JarvisLogger:

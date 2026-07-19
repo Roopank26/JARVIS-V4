@@ -3,7 +3,9 @@ Comprehensive utilities for JARVIS.
 """
 
 import os
+import re
 import sys
+import time
 import json
 import hashlib
 import secrets
@@ -253,23 +255,19 @@ class Validator:
     
     @staticmethod
     def is_valid_email(email: str) -> bool:
-        import re
         return bool(re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email))
     
     @staticmethod
     def is_valid_url(url: str) -> bool:
-        import re
         return bool(re.match(r'^https?://\S+$', url))
     
     @staticmethod
     def sanitize_filename(filename: str) -> str:
-        import re
         filename = re.sub(r'[<>:"\'|?*]', '_', filename)
         return filename[:255]
     
     @staticmethod
     def sanitize_command(command: str) -> str:
-        import re
         return re.sub(r'[^a-zA-Z0-9 _\-./]', '', command)
 
 
@@ -326,5 +324,4 @@ def retry(max_attempts: int = 3, delay: float = 1.0, exceptions: tuple = (Except
         except exceptions as e:
             if attempt == max_attempts - 1:
                 raise
-            import time
             time.sleep(delay * (attempt + 1))

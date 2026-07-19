@@ -238,7 +238,6 @@ class ScreenAnalyzer:
         try:
             import cv2
             import numpy as np
-            from PIL import Image
 
             # Convert to OpenCV format
             nparr = np.frombuffer(image_data, np.uint8)

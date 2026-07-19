@@ -53,7 +53,7 @@ def check_audio_availability() -> dict:
             devices = sd.query_devices()
             if devices:
                 status["microphone"] = True
-        except:
+        except Exception:
             pass
     except ImportError:
         logger.debug("sounddevice not installed")
@@ -232,7 +232,7 @@ class SpeechToText:
                 try:
                     text = recognizer.recognize_sphinx(audio)
                     return text
-                except:
+                except sr.UnknownValueError:
                     pass
 
             Path(wav_path).unlink(missing_ok=True)

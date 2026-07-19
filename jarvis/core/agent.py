@@ -3,17 +3,34 @@ JARVIS Main Agent
 The core AI assistant that combines all components with intent classification.
 """
 
+import asyncio
+import logging
 import re
 from typing import Any, Callable, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from jarvis.core.config import Config, get_config
 from jarvis.core.planner import Planner
 from jarvis.core.executor import Executor
 from jarvis.memory.enhanced import EnhancedMemoryManager, get_enhanced_memory
-from jarvis.rag import RAGSystem, get_rag_system
+from jarvis.rag import get_rag_system
 from jarvis.tools.base import ToolResult
 from jarvis.tools.registry import ToolRegistry, get_registry
 from jarvis.api.gemini import SimpleLLMClient
+
+SEPARATOR_WIDTH = 40
+DEFAULT_MAX_ITEMS = 5
+LEAK_BLOCK_THRESHOLD = 200
+LEAK_HASH_LENGTH = 300
+ECHOED_PROMPT_MAX_LENGTH = 80
+MIN_QUERY_LENGTH = 3
+AUDIO_TEST_DURATION = 3
+AUDIO_CALIBRATION_DURATION = 2
+MICROPHONE_TEST_SLEEP_MS = 3000
+CALIBRATION_SLEEP_MS = 2000
+DEFAULT_TONE_FREQUENCY = 440
+DEFAULT_TONE_DURATION = 0.5
 
 
 # Intent types
@@ -33,6 +50,7 @@ class Intent:
     VOICE_CONFIG = "voice_config"  # Voice calibration/test/devices
     REPO_QUERY = "repo_query"  # Repository analysis queries
     TOOL_EXECUTION = "tool_execution"  # Explicit tool/task execution
+    SPEAK = "speak"            # Explicit text-to-speech commands
 
 
 # Keywords for intent classification
@@ -84,7 +102,7 @@ RAG_QUERY_PATTERNS = [
 
 # Research patterns
 RESEARCH_PATTERNS = [
-    r"\bresearch\s+(?:about|on|for)\b",
+    r"\bresearch\s+(?:about|on|for)?\s*\w+",
     r"\bsearch\s+(?:the\s+web\s+)?(?:for\s+)?(?:info|information)\b",
     r"\bweb\s+search\b",
     r"\bsearch\s+the\s+web\b",
@@ -94,7 +112,7 @@ RESEARCH_PATTERNS = [
     r"\bgenerate\s+(?:research\s+)?report\b",
     r"\bdeep\s+research\b",
     r"\bfollow\s+(?:topic|story|news)\b",
-    r"\bcompare\s+(?:sources?|articles?|papers)\b",
+    r"\bcompare\s+\S+\s+(?:vs|with|and)\s+\S+",
     r"\bcitation\b",
     r"\bhow\s+do\s+I\s+cite\b",
 ]
@@ -112,9 +130,9 @@ DESKTOP_PATTERNS = [
     r"\bpaste\s+(?:from\s+)?clipboard\b",
     r"\b(?:ctrl|control)\+[a-z]\b",  # ctrl+c
     r"\balt\+[a-z]\b",  # alt+f4
-    r"\btype\s+\S+\b",
-    r"\bkey(?:press)?\s+\S+\b",
-    r"\bwindow\s+(?:manage|management)\b",
+    r"^\s*type\s+\S+\b",
+    r"^\s*key(?:press)?\s+\S+\b",
+    r"^\s*window\s+(?:manage|management)\b",
 ]
 
 # Provider/Model patterns
@@ -132,9 +150,12 @@ VOICE_CONTROL_PATTERNS = [
     r"\bvoice\s+stop\b",
     r"\bvoice\s+listen\b",
     r"\bvoice\s+pause\b",
+    r"\bvoice\s+restart\b",
     r"\bstart\s+voice\b",
     r"\bstop\s+voice\b",
     r"\blistening\s+(?:on|start|begin)\b",
+    r"\bwake\s+word\s+status\b",
+    r"\bvoice\s+wakeword\s+status\b",
 ]
 
 VOICE_CONFIG_PATTERNS = [
@@ -145,6 +166,11 @@ VOICE_CONFIG_PATTERNS = [
     r"\btest\s+(?:microphone|mic|speaker)\b",
     r"\bcalibrate\s+voice\b",
     r"\bset\s+(?:mic|microphone|speaker)\b",
+]
+
+SPEAK_PATTERNS = [
+    r"^\s*say\s+(.+)$",
+    r"^\s*speak\s+(.+)$",
 ]
 
 PROVIDER_QUERY_PATTERNS = [
@@ -249,6 +275,106 @@ CHAT_ONLY_PATTERNS = [
 ]
 
 
+LEAKAGE_PATTERNS = [
+    r"PHASE\s+\d+",
+    r"OBJECTIVE:",
+    r"ARCHITECTURE:",
+    r"Do not commit until",
+    r"Rules:",
+    r"RULES:",
+    r"Guidelines:",
+    r"GUIDELINES:",
+    r"You are a helpful AI assistant",
+    r"You are JARVIS",
+    r"Your capabilities:",
+    r"Available tools",
+    r"Personal memory:",
+    r"system prompt",
+    r"prompt injection",
+    r"instruction:",
+    r"INSTRUCTION:",
+    r"Task:",
+    r"TASK:",
+    r"Goal:",
+    r"GOAL:",
+]
+
+
+def _sanitize_response(response: str) -> str:
+    """
+    Strip leaked prompt/instruction blocks from responses.
+
+    Heuristics:
+    - Detect instruction-like headings or blocks
+    - Detect duplicated long blocks containing leakage-like content
+    - Detect accidental echoing of user prompts at start of response
+    - Preserve legitimate long outputs (reports, code, docs, analysis)
+    """
+    if not response or not isinstance(response, str):
+        return response
+
+    lines = response.splitlines()
+    cleaned = []
+    prev_block_hash = None
+    dup_count = 0
+    first_content_line_index = None
+
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        lower = stripped.lower()
+
+        # Preserve empty lines but track first content line
+        if not stripped:
+            cleaned.append(line)
+            continue
+
+        if first_content_line_index is None:
+            first_content_line_index = len(cleaned)
+
+        # Detect instruction/leakage headings
+        is_leak_heading = False
+        for pat in LEAKAGE_PATTERNS:
+            if re.search(pat, lower, re.IGNORECASE):
+                is_leak_heading = True
+                break
+
+        if is_leak_heading:
+            # Very long instruction-like blocks (>200 chars) are definitely leaks
+            if len(stripped) > LEAK_BLOCK_THRESHOLD:
+                break
+            # Short headings are skipped
+            continue
+
+        # Detect duplicated long blocks that contain leakage-like content
+        block_hash = hash(stripped[:LEAK_HASH_LENGTH])
+        if block_hash == prev_block_hash and len(stripped) > LEAK_HASH_LENGTH:
+            dup_count += 1
+            if dup_count >= 2:
+                break
+        else:
+            dup_count = 0
+        prev_block_hash = block_hash
+
+        cleaned.append(line)
+
+    result = "\n".join(cleaned).strip()
+
+    # Detect echoed user prompt at start of response
+    if result and first_content_line_index is not None:
+        first_lines = [ln.strip() for ln in result.splitlines() if ln.strip()]
+        if first_lines:
+            first = first_lines[0]
+            # Heuristic: very long first line (>80 chars) with no sentence-ending
+            # punctuation and followed by normal text is likely an echoed prompt.
+            if len(first) > ECHOED_PROMPT_MAX_LENGTH and first.count(".") + first.count("!") + first.count("?") <= 1:
+                # Only strip if there's more content after it
+                rest = "\n".join(first_lines[1:]).strip()
+                if rest:
+                    result = rest
+
+    return result if result else response
+
+
 SYSTEM_PROMPT = """You are JARVIS, Just A Rather Very Intelligent System.
 You are a helpful AI assistant that can help users with various tasks.
 
@@ -311,6 +437,12 @@ def classify_intent(user_input: str) -> Intent:
         if re.search(pattern, text):
             return Intent.VOICE_CONFIG
 
+    # Check for explicit speak/say commands
+    for pattern in SPEAK_PATTERNS:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return Intent.SPEAK
+
     # Check for provider/model queries
     for pattern in PROVIDER_QUERY_PATTERNS:
         if re.search(pattern, text):
@@ -365,7 +497,7 @@ def classify_intent(user_input: str) -> Intent:
     
     # Default to chat for conversational input
     # Short inputs or casual language
-    if len(text) < 30 or any(casual in text for casual in 
+    if len(text) < MIN_QUERY_LENGTH or any(casual in text for casual in 
         ["hey", "hi ", "hello", "thanks", "thank you", "please"]):
         return Intent.CHAT
     
@@ -406,6 +538,8 @@ class JarvisAgent:
         self._is_running = False
         self._speak_callback: Optional[Callable] = None
         self._message_handlers: List[Callable] = []
+        self._device_cache: Optional[tuple] = None
+        self._device_cache_ts: float = 0.0
 
     def set_speak_callback(self, callback: Callable):
         """Set callback for voice output."""
@@ -420,10 +554,13 @@ class JarvisAgent:
         """Speak a message through the callback."""
         if self._speak_callback:
             try:
-                self._speak_callback(message)
+                result = self._speak_callback(message)
+                if asyncio.iscoroutine(result):
+                    loop = asyncio.get_event_loop()
+                    loop.create_task(result)
             except Exception as e:
-                print(f"[Jarvis] Speak error: {e}")
-                print(f"[Jarvis] Message: {message}")
+                logger.error(f"Speak error: {e}")
+                logger.error(f"Message: {message}")
 
     def _format_tools(self) -> str:
         """Format available tools for the prompt."""
@@ -480,6 +617,8 @@ class JarvisAgent:
             result = await self._handle_voice_control(user_input)
         elif intent == Intent.VOICE_CONFIG:
             result = await self._handle_voice_config(user_input)
+        elif intent == Intent.SPEAK:
+            result = await self._handle_speak(user_input)
         elif intent == Intent.REPO_QUERY:
             result = await self._handle_repo_query(user_input)
         elif intent == Intent.PROVIDER_QUERY:
@@ -494,6 +633,7 @@ class JarvisAgent:
             # CHAT - answer directly without tools
             result = await self.answer_query(user_input)
 
+        result = _sanitize_response(result)
         self.memory.add_assistant_message(result)
         return result
 
@@ -634,8 +774,8 @@ class JarvisAgent:
             
             results = await agent.monitor_topic(topic, source)
             if results:
-                lines = [f"[{source.replace('hackernews', 'Hacker News').title()} News: {topic}]", "=" * 40]
-                for i, item in enumerate(results[:5], 1):
+                lines = [f"[{source.replace('hackernews', 'Hacker News').title()} News: {topic}]", "=" * SEPARATOR_WIDTH]
+                for i, item in enumerate(results[:DEFAULT_MAX_ITEMS], 1):
                     lines.append(f"\n{i}. {item.get('title', 'No title')}")
                     if item.get('url'):
                         lines.append(f"   URL: {item.get('url')}")
@@ -663,14 +803,14 @@ class JarvisAgent:
             try:
                 result = await agent.research(query)
                 
-                lines = [f"[Research: {query}]", "=" * 40]
+                lines = [f"[Research: {query}]", "=" * SEPARATOR_WIDTH]
                 lines.append(f"\nFound {len(result.sources)} sources\n")
                 
                 if result.summary:
                     lines.append(f"Summary: {result.summary[:300]}...")
                 
                 lines.append("\n\nSources:")
-                for i, source in enumerate(result.sources[:5], 1):
+                for i, source in enumerate(result.sources[:DEFAULT_MAX_ITEMS], 1):
                     lines.append(f"\n{i}. {source.title}")
                     lines.append(f"   {source.url}")
                 
@@ -746,7 +886,7 @@ Example: research about AI, then I'll cite the sources."""
         # Handle summarize commands
         if "summarize" in text_lower:
             # Try to get context for summarization
-            results = await self.rag.search(text_lower.replace("summarize", ""), limit=5)
+            results = await self.rag.search(text_lower.replace("summarize", ""), limit=DEFAULT_MAX_ITEMS)
             if results:
                 summary_parts = [r.get('content', '')[:200] for r in results[:3]]
                 return "Based on your knowledge base:\n\n" + "\n\n".join(summary_parts)
@@ -763,7 +903,7 @@ Example: research about AI, then I'll cite the sources."""
         
         # Handle revision notes
         if "revision" in text_lower or "notes" in text_lower:
-            results = await self.rag.search(text_lower, limit=5)
+            results = await self.rag.search(text_lower, limit=DEFAULT_MAX_ITEMS)
             if results:
                 notes = ["📝 Revision Notes:\n"]
                 for i, r in enumerate(results, 1):
@@ -773,7 +913,7 @@ Example: research about AI, then I'll cite the sources."""
             return "I couldn't find relevant content for revision notes."
         
         # Default: search knowledge base
-        results = await self.rag.search(text_lower, limit=5)
+        results = await self.rag.search(text_lower, limit=DEFAULT_MAX_ITEMS)
         if results:
             response = "From your knowledge base:\n\n"
             for i, r in enumerate(results, 1):
@@ -809,11 +949,11 @@ Example: research about AI, then I'll cite the sources."""
 
             elif "architecture" in text or "show architecture" in text:
                 arch = analyzer.get_architecture()
-                lines = ["[Repository Architecture]", "=" * 40, ""]
+                lines = ["[Repository Architecture]", "=" * SEPARATOR_WIDTH, ""]
                 lines.append("Modules:")
                 for module, files in arch.get("modules", {}).items():
                     lines.append(f"  📁 {module}/")
-                    for f in files[:5]:
+                    for f in files[:DEFAULT_MAX_ITEMS]:
                         lines.append(f"      - {f}")
                 return "\n".join(lines)
 
@@ -835,7 +975,7 @@ Example: research about AI, then I'll cite the sources."""
 
             elif "dependency" in text:
                 deps = analyzer.get_dependencies()
-                lines = ["[Dependencies]", "=" * 40, ""]
+                lines = ["[Dependencies]", "=" * SEPARATOR_WIDTH, ""]
                 for file, imports in list(deps.items())[:20]:
                     if imports:
                         lines.append(f"📄 {file}:")
@@ -885,12 +1025,13 @@ Example: research about AI, then I'll cite the sources."""
     async def _handle_voice_status(self, user_input: str) -> str:
         """Handle voice system status queries."""
         try:
-            from jarvis.voice.voice_runtime import get_voice_runtime, VoiceRuntime
+            from jarvis.voice.voice_runtime import get_voice_runtime
 
             runtime = get_voice_runtime()
             if runtime is None:
                 return "Voice system not initialized. Run: python setup_voice.sh (Linux) or setup_voice.ps1 (Windows)"
 
+            await runtime.initialize()
             return runtime.format_status()
 
         except ImportError:
@@ -909,21 +1050,33 @@ Example: research about AI, then I'll cite the sources."""
             if runtime is None:
                 return "Voice system not initialized."
             
+            await runtime.initialize()
+            
+            # Wake-word status
+            if "wakeword" in text or "wake word" in text:
+                return runtime.get_wake_word_status()
+            
+            # Voice restart
+            if "restart" in text:
+                await runtime.stop_wake_word_listening()
+                await runtime.start_wake_word_listening(agent=self)
+                return "Voice restarted. Listening for wake word..."
+            
             # Voice start / listen
             if any(x in text for x in ["start", "listen", "begin", "activate"]):
                 if runtime._running:
                     return "Voice is already listening."
-                runtime._running = True
-                return "Voice activated. I'm listening..."
+                await runtime.start_wake_word_listening(agent=self)
+                return "Voice activated. Say 'Hey Jarvis' to wake me."
             
             # Voice stop / pause
             if any(x in text for x in ["stop", "pause", "deactivate", "silence"]):
                 if not runtime._running:
                     return "Voice is already stopped."
-                runtime._running = False
+                await runtime.stop_wake_word_listening()
                 return "Voice deactivated."
             
-            return "Usage: voice start | voice stop"
+            return "Usage: voice start | voice stop | voice restart | voice wakeword status"
             
         except ImportError:
             return "Voice runtime not available."
@@ -958,28 +1111,116 @@ Example: research about AI, then I'll cite the sources."""
         except Exception as e:
             return f"Voice config error: {e}"
 
+    async def _handle_speak(self, user_input: str) -> str:
+        """Handle explicit speak/say commands."""
+        text = user_input.strip()
+        for pattern in SPEAK_PATTERNS:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                to_speak = match.group(1).strip()
+                if to_speak:
+                    self.speak(to_speak)
+                    return to_speak
+        return "Usage: say <text> | speak <text>"
+
+    def _get_cached_devices(self):
+        """Get cached sounddevice devices or re-query if stale."""
+        import time
+        now = time.time()
+        if self._device_cache and (now - self._device_cache_ts) < 2.0:
+            return self._device_cache
+        import sounddevice as sd
+        devices = sd.query_devices()
+        self._device_cache = devices
+        self._device_cache_ts = now
+        return devices
+
+    def _find_input_device(self) -> Optional[int]:
+        """Find a usable input device index, or None if none available."""
+        try:
+            devices = self._get_cached_devices()
+            for i, dev in enumerate(devices):
+                if dev["max_input_channels"] > 0:
+                    return i
+        except Exception:
+            pass
+        return None
+
+    def _list_input_devices(self) -> list:
+        """List available input devices."""
+        try:
+            devices = self._get_cached_devices()
+            return [
+                {"index": i, "name": d["name"], "channels": d["max_input_channels"]}
+                for i, d in enumerate(devices)
+                if d["max_input_channels"] > 0
+            ]
+        except Exception:
+            return []
+
+    def _list_output_devices(self) -> list:
+        """List available output devices."""
+        try:
+            devices = self._get_cached_devices()
+            return [
+                {"index": i, "name": d["name"], "channels": d["max_output_channels"]}
+                for i, d in enumerate(devices)
+                if d["max_output_channels"] > 0
+            ]
+        except Exception:
+            return []
+
     async def _list_audio_devices(self) -> str:
         """List available audio input and output devices."""
         try:
             import sounddevice as sd
+
             devices = sd.query_devices()
-            
-            lines = ["[Audio Devices]", "=" * 40]
-            lines.append(f"\nDefault Input: {sd.query_devices(kind='input')['name']}")
-            lines.append(f"Default Output: {sd.query_devices(kind='output')['name']}")
-            lines.append("\nAll Devices:")
-            
-            if isinstance(devices, dict):
-                devices = [devices]
-            
-            for i, dev in enumerate(devices):
-                dev_type = "Input" if dev['max_input_channels'] > 0 else "Output"
-                lines.append(f"\n  [{i}] {dev['name']}")
-                lines.append(f"      Type: {dev_type}, Channels: {dev['max_input_channels'] or dev['max_output_channels']}")
-                lines.append(f"      Sample Rate: {dev['default_samplerate']} Hz")
-            
+            input_devices = [
+                {"index": i, "name": d["name"], "channels": d["max_input_channels"]}
+                for i, d in enumerate(devices)
+                if d["max_input_channels"] > 0
+            ]
+            output_devices = [
+                {"index": i, "name": d["name"], "channels": d["max_output_channels"]}
+                for i, d in enumerate(devices)
+                if d["max_output_channels"] > 0
+            ]
+
+            lines = ["[Audio Devices]", "=" * SEPARATOR_WIDTH]
+
+            default_input = sd.default.device[0] if sd.default.device[0] is not None else None
+            default_output = sd.default.device[1] if sd.default.device[1] is not None else None
+            default_input_name = None
+            default_output_name = None
+
+            if default_input is not None:
+                try:
+                    default_input_name = sd.query_devices(default_input)["name"]
+                except Exception:
+                    pass
+            if default_output is not None:
+                try:
+                    default_output_name = sd.query_devices(default_output)["name"]
+                except Exception:
+                    pass
+
+            lines.append(
+                f"\nDefault Input: {default_input_name or 'None'}"
+            )
+            lines.append(
+                f"\nDefault Output: {default_output_name or 'None'}"
+            )
+            lines.append(f"\nInput Devices ({len(input_devices)}):")
+            for d in input_devices:
+                lines.append(f"  [{d['index']}] {d['name']} ({d['channels']} ch)")
+
+            lines.append(f"\nOutput Devices ({len(output_devices)}):")
+            for d in output_devices[:10]:
+                lines.append(f"  [{d['index']}] {d['name']} ({d['channels']} ch)")
+
             return "\n".join(lines)
-            
+
         except ImportError:
             return "sounddevice not installed. Install with: pip install sounddevice"
         except Exception as e:
@@ -990,29 +1231,60 @@ Example: research about AI, then I'll cite the sources."""
         try:
             import sounddevice as sd
             import numpy as np
-            
+
+            devices = sd.query_devices()
+            input_devices = [
+                {"index": i, "name": d["name"], "channels": d["max_input_channels"]}
+                for i, d in enumerate(devices)
+                if d["max_input_channels"] > 0
+            ]
+            device_index = next((d["index"] for d in input_devices), None)
+
+            lines = ["[Microphone Test]", "=" * SEPARATOR_WIDTH]
+            lines.append("\nInput devices found: " + str(len(input_devices)))
+            for d in input_devices:
+                lines.append(f"  [{d['index']}] {d['name']}")
+
+            if not input_devices:
+                lines.append("\nNo input devices detected.")
+                lines.append("  Check Windows audio settings and ensure a microphone is enabled.")
+                return "\n".join(lines)
+
+            if device_index is None:
+                lines.append("\nNo accessible input device available.")
+                lines.append("  This system's audio driver/PortAudio configuration may not support input capture.")
+                return "\n".join(lines)
+
+            lines.append(f"\nListening for {AUDIO_TEST_DURATION} seconds on device {device_index}...")
+            lines.append("Speak into your microphone now.\n")
+
             def audio_callback(indata, frames, time_info, status):
                 if status:
                     logger.warning(f"Audio status: {status}")
                 audio_data = indata.flatten()
                 rms = np.sqrt(np.mean(audio_data.astype(np.float32) ** 2))
                 level = min(100, int(rms / 100))
-                
-            lines = ["[Microphone Test]", "=" * 40]
-            lines.append("\nListening for 3 seconds...")
-            lines.append("Speak into your microphone now.\n")
-            
+
             try:
-                stream = sd.InputStream(callback=audio_callback, channels=1, samplerate=16000)
+                stream = sd.InputStream(
+                    device=device_index,
+                    callback=audio_callback,
+                    channels=1,
+                    samplerate=16000
+                )
                 with stream:
-                    sd.sleep(3000)
-                lines.append("✓ Microphone is working!")
+                    sd.sleep(MICROPHONE_TEST_SLEEP_MS)
+                lines.append("[OK] Microphone is working!")
                 lines.append("Audio levels detected successfully.")
             except Exception as e:
-                lines.append(f"✗ Microphone test failed: {e}")
-            
+                lines.append(f"[FAIL] Microphone test failed: {e}")
+                lines.append(
+                    "  This system's audio driver/PortAudio configuration may not support input capture. "
+                    "Try installing PyAudio or checking Windows audio settings."
+                )
+
             return "\n".join(lines)
-            
+
         except ImportError:
             return "sounddevice not installed."
         except Exception as e:
@@ -1023,14 +1295,14 @@ Example: research about AI, then I'll cite the sources."""
         try:
             import sounddevice as sd
             
-            lines = ["[Speaker Test]", "=" * 40]
+            lines = ["[Speaker Test]", "=" * SEPARATOR_WIDTH]
             lines.append("\nPlaying test tone...")
             
             try:
                 # Generate a simple sine wave tone
                 import numpy as np
-                frequency = 440  # Hz (A4 note)
-                duration = 0.5   # seconds
+                frequency = DEFAULT_TONE_FREQUENCY  # Hz (A4 note)
+                duration = DEFAULT_TONE_DURATION   # seconds
                 sample_rate = 44100
                 
                 t = np.linspace(0, duration, int(sample_rate * duration))
@@ -1057,28 +1329,52 @@ Example: research about AI, then I'll cite the sources."""
         try:
             import sounddevice as sd
             import numpy as np
-            
-            lines = ["[Voice Calibration]", "=" * 40]
-            lines.append("\nCalibrating microphone...")
+
+            device_index = self._find_input_device()
+            input_devices = self._list_input_devices()
+
+            lines = ["[Voice Calibration]", "=" * SEPARATOR_WIDTH]
+            lines.append("\nInput devices found: " + str(len(input_devices)))
+            for d in input_devices:
+                lines.append(f"  [{d['index']}] {d['name']}")
+
+            if not input_devices:
+                lines.append("\n✗ No input devices detected for calibration.")
+                lines.append("  Check Windows audio settings and ensure a microphone is enabled.")
+                return "\n".join(lines)
+
+            if device_index is None:
+                lines.append("\n✗ No accessible input device available for calibration.")
+                lines.append(
+                    "  This system's audio driver/PortAudio configuration may not support input capture. "
+                    "Try installing PyAudio or checking Windows audio settings."
+                )
+                return "\n".join(lines)
+
+            lines.append(f"\nCalibrating microphone on device {device_index}...")
             lines.append("Please remain silent for 2 seconds, then speak.")
-            
+
             try:
                 audio_levels = []
-                
+
                 def callback(indata, frames, time_info, status):
                     audio_data = indata.flatten()
                     rms = np.sqrt(np.mean(audio_data.astype(np.float32) ** 2))
                     audio_levels.append(rms)
-                
-                # Listen for background noise
-                stream = sd.InputStream(callback=callback, channels=1, samplerate=16000)
+
+                stream = sd.InputStream(
+                    device=device_index,
+                    callback=callback,
+                    channels=1,
+                    samplerate=16000
+                )
                 with stream:
-                    sd.sleep(2000)
-                
+                    sd.sleep(CALIBRATION_SLEEP_MS)
+
                 if audio_levels:
                     avg_noise = np.mean(audio_levels)
                     suggested_threshold = int(avg_noise * 3)
-                    
+
                     lines.append("\n✓ Calibration complete!")
                     lines.append(f"Average noise level: {avg_noise:.1f}")
                     lines.append(f"Suggested threshold: {suggested_threshold}")
@@ -1086,12 +1382,16 @@ Example: research about AI, then I'll cite the sources."""
                     lines.append(f"  voice_config.json set energy_threshold={suggested_threshold}")
                 else:
                     lines.append("✗ Could not capture audio levels.")
-                    
+
             except Exception as e:
                 lines.append(f"✗ Calibration failed: {e}")
-            
+                lines.append(
+                    "  This system's audio driver/PortAudio configuration may not support input capture. "
+                    "Try installing PyAudio or checking Windows audio settings."
+                )
+
             return "\n".join(lines)
-            
+
         except ImportError:
             return "sounddevice not installed."
         except Exception as e:
@@ -1102,7 +1402,6 @@ Example: research about AI, then I'll cite the sources."""
         text = user_input.lower()
         
         try:
-            import aiohttp
             import subprocess
             
             # Ollama status
@@ -1206,7 +1505,7 @@ Set Groq model:
 
     async def _handle_provider_query(self, user_input: str) -> str:
         """Handle provider/model queries."""
-        from jarvis.api.providers import get_provider_manager, ProviderType
+        from jarvis.api.providers import get_provider_manager
 
         text = user_input.lower()
         manager = get_provider_manager()
@@ -1381,6 +1680,24 @@ Set Groq model:
             max_tokens=2048
         )
 
+        if isinstance(response, str) and response.startswith("Error:"):
+            if "401" in response or "Invalid API Key" in response or "invalid_api_key" in response:
+                error_response = (
+                    "I couldn't reach the AI service because the API key is invalid or missing. "
+                    "Please set a valid Groq API key and try again. "
+                    "You can get a free key at https://console.groq.com/keys"
+                )
+                if self.config.voice_enabled:
+                    self.speak(error_response)
+                return error_response
+            error_response = f"I encountered an error: {response}"
+            if self.config.voice_enabled:
+                self.speak(error_response)
+            return error_response
+
+        response = _sanitize_response(response)
+        if self.config.voice_enabled:
+            self.speak(response)
         return response
 
     async def execute_command(self, command: str, **kwargs) -> ToolResult:
@@ -1412,12 +1729,12 @@ Set Groq model:
     async def start(self):
         """Start the agent."""
         self._is_running = True
-        print("[Jarvis] Agent started")
+        logger.info("Agent started")
 
     async def stop(self):
         """Stop the agent."""
         self._is_running = False
-        print("[Jarvis] Agent stopped")
+        logger.info("Agent stopped")
 
     @property
     def is_running(self) -> bool:
@@ -1450,10 +1767,103 @@ def create_jarvis(
     # Create LLM client (default to Groq)
     llm = SimpleLLMClient(backend="groq", api_key=api_key)
 
+    # Warn if no API key is available
+    if not llm.is_available():
+        logger.warning("No valid Groq API key found. Chat and tool execution may not work.")
+        logger.warning("Set GROQ_API_KEY env var, use --api-key, or add key to ~/.jarvis/api_keys.json")
+
     # Create agent
     agent = JarvisAgent(
         config=config,
         llm_client=llm
     )
+
+    # Wire the provider manager so the premium orchestrator's streaming path
+    # has a real backend. Detect all available providers and models dynamically.
+    # Failover order: Ollama → Groq → OpenAI → Gemini → Anthropic
+    try:
+        from jarvis.api.providers import (
+            ProviderType,
+            LLMConfig,
+            OllamaProvider,
+            GroqProvider,
+            OpenAIProvider,
+            GoogleProvider,
+            AnthropicProvider,
+            get_provider_manager,
+        )
+
+        manager = get_provider_manager()
+
+        # Ollama: detect installed models automatically.
+        ollama_cfg = LLMConfig(
+            provider=ProviderType.OLLAMA,
+            model=config.get("ollama_model") if hasattr(config, "get") else None,
+            base_url="http://localhost:11434",
+            timeout=300.0,
+        )
+        manager.add_provider(OllamaProvider(ollama_cfg))
+
+        # Groq: use configured API key / model.
+        groq_key = api_key
+        if not groq_key and hasattr(llm, "_client") and getattr(llm._client, "api_key", None):
+            groq_key = llm._client.api_key
+        if not groq_key:
+            import os
+            groq_key = os.environ.get("GROQ_API_KEY")
+        if groq_key:
+            manager.add_provider(GroqProvider(LLMConfig(
+                provider=ProviderType.GROQ,
+                model=config.get("live_model") if hasattr(config, "get") else None,
+                api_key=groq_key,
+            )))
+
+        # OpenAI: use configured API key.
+        openai_key = None
+        if hasattr(config, "get_api_key"):
+            openai_key = config.get_api_key("openai")
+        if not openai_key:
+            import os
+            openai_key = os.environ.get("OPENAI_API_KEY")
+        if openai_key:
+            manager.add_provider(OpenAIProvider(LLMConfig(
+                provider=ProviderType.OPENAI,
+                model=config.get("openai_model") if hasattr(config, "get") else None,
+                api_key=openai_key,
+            )))
+
+        # Google Gemini: use configured API key.
+        google_key = None
+        if hasattr(config, "get_api_key"):
+            google_key = config.get_api_key("google")
+        if not google_key:
+            import os
+            google_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        if google_key:
+            manager.add_provider(GoogleProvider(LLMConfig(
+                provider=ProviderType.GOOGLE,
+                model=config.get("google_model") if hasattr(config, "get") else None,
+                api_key=google_key,
+            )))
+
+        # Anthropic: use configured API key.
+        anthropic_key = None
+        if hasattr(config, "get_api_key"):
+            anthropic_key = config.get_api_key("anthropic")
+        if not anthropic_key:
+            import os
+            anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+        if anthropic_key:
+            manager.add_provider(AnthropicProvider(LLMConfig(
+                provider=ProviderType.ANTHROPIC,
+                model=config.get("anthropic_model") if hasattr(config, "get") else None,
+                api_key=anthropic_key,
+            )))
+
+        # The manager is health-checked (and its primary provider selected) in
+        # JarvisApp.initialize(), which runs inside the running loop.
+        agent.provider_manager = manager
+    except Exception as e:  # pragma: no cover - defensive
+        logger.debug(f"Provider manager init skipped: {e}")
 
     return agent

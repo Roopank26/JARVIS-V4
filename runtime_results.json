@@ -1,0 +1,87 @@
+{
+  "1_application_starts": {
+    "pass": true,
+    "evidence": "Loaded http://127.0.0.1:8742/, sidebar + chat view present. Title='JARVIS — AI Operating System'",
+    "shot": "01_app_start.png"
+  },
+  "2_no_console_errors_initial": {
+    "pass": true,
+    "evidence": "No console errors at load",
+    "shot": null
+  },
+  "3_no_failed_requests_initial": {
+    "pass": true,
+    "evidence": "No failed network requests at load",
+    "shot": null
+  },
+  "4_websocket_connects": {
+    "pass": true,
+    "evidence": "WS status frame received; model='nurullahunlu/kimik2.5cloud:latest'->'nurullahunlu/kimik2.5cloud:latest', provider='ollama'->'ollama'",
+    "shot": "04_websocket.png"
+  },
+  "9_provider_panel_updates": {
+    "pass": true,
+    "evidence": "Provider pill now shows 'ollama' (updated from WS status frame)",
+    "shot": null
+  },
+  "10_memory_panel_updates": {
+    "pass": true,
+    "evidence": "Right-panel memory element 'session-memory' = '0 entries'",
+    "shot": null
+  },
+  "12_dashboard_loads": {
+    "pass": true,
+    "evidence": "Dashboard metric cards rendered: 6",
+    "shot": "12_dashboard.png"
+  },
+  "7_sidebar_navigation": {
+    "pass": true,
+    "evidence": "Navigated every view: tools=OK, tasks=OK, timeline=OK, activity=OK, chat=OK",
+    "shot": "07_navigation.png"
+  },
+  "11_tool_panel_loads": {
+    "pass": true,
+    "evidence": "Tools view rendered 15 tool cards",
+    "shot": "11_tools.png"
+  },
+  "13_command_palette": {
+    "pass": true,
+    "evidence": "Palette opened=True, results for 'help'=1",
+    "shot": "13_palette.png"
+  },
+  "14_theme_loads": {
+    "pass": true,
+    "evidence": "Initial theme='dark', after toggle='light'",
+    "shot": "14_theme.png"
+  },
+  "8_aicore_animation": {
+    "pass": true,
+    "evidence": "aiCoreCenter gained 'thinking' class during processing",
+    "shot": null
+  },
+  "6_streaming_responses": {
+    "pass": true,
+    "evidence": "Assistant present=True; real local answer=True; sample='JARVIS\nfour'",
+    "shot": "06_chat_stream.png"
+  },
+  "5_chat_sends": {
+    "pass": true,
+    "evidence": "User message bubble appeared in #messages",
+    "shot": null
+  },
+  "15_responsive_layout": {
+    "pass": true,
+    "evidence": "Mobile viewport innerWidth=390; horizontal overflow=False",
+    "shot": "15_responsive.png"
+  },
+  "2_no_console_errors_final": {
+    "pass": true,
+    "evidence": "None",
+    "shot": null
+  },
+  "3_no_failed_requests_final": {
+    "pass": true,
+    "evidence": "None",
+    "shot": null
+  }
+}

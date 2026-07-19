@@ -8,7 +8,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, TypeVar
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("jarvis.providers")
 
@@ -231,7 +231,7 @@ class OllamaProvider(BaseProvider):
         try:
             response = await self._client.get("/api/tags")
             return response.status_code == 200
-        except:
+        except Exception:
             return False
     
     async def pull_model(self, model: str) -> bool:
@@ -399,7 +399,7 @@ class GroqProvider(BaseProvider):
         try:
             response = await self._client.get("/models")
             return response.status_code == 200
-        except:
+        except Exception:
             return False
 
 

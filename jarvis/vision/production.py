@@ -3,16 +3,13 @@ JARVIS Vision Module
 Screenshot analysis, OCR, object detection, and GUI understanding.
 """
 
-import asyncio
 import base64
 import io
 import logging
 import os
 import platform
-import subprocess
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -174,7 +171,7 @@ class ScreenCapture:
             
             try:
                 await subprocess.run(cmd, capture_output=True, timeout=5)
-            except:
+            except (subprocess.SubprocessError, OSError):
                 cmd = ["scrot", "/tmp/jarvis_screenshot.png"]
                 await subprocess.run(cmd, capture_output=True)
             
@@ -208,7 +205,7 @@ class ScreenCapture:
     ) -> bytes:
         """Fallback capture using PIL."""
         try:
-            from PIL import Image, ImageGrab
+            from PIL import ImageGrab
             
             if region:
                 screenshot = ImageGrab.grab(bbox=(
@@ -259,7 +256,6 @@ class OCREngine:
                 # Fallback to Tesseract via pytesseract
                 try:
                     import pytesseract
-                    from PIL import Image
                     
                     # Check if tesseract is installed
                     try:
@@ -267,7 +263,7 @@ class OCREngine:
                         self._model = "tesseract"
                         logger.info("Tesseract OCR initialized")
                         return True
-                    except:
+                    except Exception:
                         logger.warning("Tesseract not installed")
                         return False
                         

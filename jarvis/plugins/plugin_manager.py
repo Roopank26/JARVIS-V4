@@ -4,20 +4,14 @@ JARVIS Plugin System
 Manages extensible plugins for adding capabilities to JARVIS.
 """
 
-import asyncio
-import hashlib
 import importlib
 import importlib.util
 import json
 import logging
-import os
-import re
-import subprocess
-import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Type
+from typing import Any, Dict, List, Optional, Set
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -51,8 +45,8 @@ class PluginInfo:
 
 
 @dataclass
-class Plugin:
-    """Loaded plugin instance."""
+class PluginRecord:
+    """Loaded plugin instance record."""
     info: PluginInfo
     state: PluginState = PluginState.DISCOVERED
     instance: Optional[Any] = None
@@ -209,7 +203,7 @@ class MemoryPlugin(PluginInterface):
         pass
 
 
-class PluginManager:
+class AdvancedPluginManager:
     """
     Manages plugin discovery, loading, and lifecycle.
     
@@ -228,7 +222,7 @@ class PluginManager:
             plugins_dir: Directory to load plugins from
         """
         self.plugins_dir = plugins_dir or Path(__file__).parent / "plugins"
-        self.plugins: Dict[str, Plugin] = {}
+        self.plugins: Dict[str, PluginRecord] = {}
         self._enabled_plugins: Set[str] = set()
         self._intent_plugins: List[IntentPlugin] = []
         self._tool_plugins: List[ToolPlugin] = []
@@ -311,7 +305,7 @@ class PluginManager:
         logger.info(f"Discovered {len(discovered)} plugins")
         return discovered
     
-    async def _load_plugin_from_dir(self, plugin_dir: Path) -> Optional[Plugin]:
+    async def _load_plugin_from_dir(self, plugin_dir: Path) -> Optional[PluginRecord]:
         """Load plugin from directory."""
         plugin_file = plugin_dir / "__init__.py"
         if not plugin_file.exists():
@@ -352,7 +346,7 @@ class PluginManager:
             instance = plugin_class()
             info = instance.get_info()
             
-            plugin = Plugin(
+            plugin = PluginRecord(
                 info=info,
                 state=PluginState.LOADED,
                 instance=instance,
@@ -366,7 +360,7 @@ class PluginManager:
             logger.error(f"Failed to load plugin from {plugin_dir}: {e}")
             return None
     
-    async def _load_plugin_from_file(self, plugin_file: Path) -> Optional[Plugin]:
+    async def _load_plugin_from_file(self, plugin_file: Path) -> Optional[PluginRecord]:
         """Load plugin from single file."""
         return await self._load_plugin_from_dir(plugin_file.parent / plugin_file.stem)
     
@@ -450,7 +444,7 @@ class PluginManager:
             logger.error(f"Failed to disable plugin {plugin_id}: {e}")
             return False
     
-    def _register_plugin_handlers(self, plugin: Plugin) -> None:
+    def _register_plugin_handlers(self, plugin: PluginRecord) -> None:
         """Register plugin handlers."""
         if isinstance(plugin.instance, IntentPlugin):
             self._intent_plugins.append(plugin.instance)
@@ -459,7 +453,7 @@ class PluginManager:
         if isinstance(plugin.instance, MemoryPlugin):
             self._memory_plugins.append(plugin.instance)
     
-    def _unregister_plugin_handlers(self, plugin: Plugin) -> None:
+    def _unregister_plugin_handlers(self, plugin: PluginRecord) -> None:
         """Unregister plugin handlers."""
         if isinstance(plugin.instance, IntentPlugin):
             self._intent_plugins = [p for p in self._intent_plugins if p is not plugin.instance]
@@ -540,12 +534,12 @@ class PluginManager:
 
 
 # Global plugin manager instance
-_plugin_manager: Optional[PluginManager] = None
+_plugin_manager: Optional[AdvancedPluginManager] = None
 
 
-def get_plugin_manager() -> PluginManager:
+def get_plugin_manager() -> AdvancedPluginManager:
     """Get global plugin manager instance."""
     global _plugin_manager
     if _plugin_manager is None:
-        _plugin_manager = PluginManager()
+        _plugin_manager = AdvancedPluginManager()
     return _plugin_manager

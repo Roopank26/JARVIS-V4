@@ -1,0 +1,48 @@
+/* Panels */
+.toolbar { display:flex; gap:10px; flex-wrap: wrap; margin-bottom: 14px; }
+.toolbar input, .toolbar select {
+  padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--card); color: var(--text); font-size: 13.5px; outline: none;
+}
+.chips { display:flex; gap:8px; flex-wrap: wrap; }
+.chip { font-size: 12px; padding: 5px 11px; border-radius: 999px; background: var(--card-2); border: 1px solid var(--border); cursor: pointer; color: var(--muted); }
+.chip.active { color:#fff; background: linear-gradient(90deg,var(--primary),var(--accent)); border-color: transparent; }
+.tool-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(250px,1fr)); gap: 12px; margin-top: 14px; }
+.tool-card { background: var(--card); border:1px solid var(--border); border-radius: 12px; padding: 14px; transition: transform .12s ease, border-color .15s; }
+.tool-card:hover { transform: translateY(-2px); border-color: var(--primary); }
+.tool-card .tname { font-weight: 700; font-size: 14px; display:flex; justify-content: space-between; align-items:center; }
+.tool-card .tdesc { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+.tool-card .tag { font-size: 10.5px; padding: 2px 8px; border-radius: 99px; background: var(--card-2); color: var(--muted); }
+.star { cursor: pointer; color: var(--muted); font-size: 16px; }
+.star.on { color: var(--warning); }
+.list { display:flex; flex-direction: column; gap: 8px; }
+.row { background: var(--card); border:1px solid var(--border); border-radius: 10px; padding: 12px 14px; display:flex; align-items:center; gap: 12px; }
+.row .meta { color: var(--muted); font-size: 12px; }
+.row .grow { flex:1; }
+.timeline { border-left: 2px solid var(--border); margin-left: 8px; padding-left: 18px; display: flex; flex-direction: column; gap: 14px; }
+.tl-item { position: relative; }
+.tl-item::before { content:''; position:absolute; left:-25px; top:4px; width:12px; height:12px; border-radius:50%; background: var(--primary); box-shadow: 0 0 0 4px var(--bg);}
+.tl-item.ok::before { background: var(--success); }
+.tl-item.err::before { background: var(--danger); }
+.overlay { position: fixed; inset: 0; background: rgba(7,11,20,.55); backdrop-filter: blur(3px); display: none; z-index: 50; }
+.overlay.show { display: block; }
+.palette { position: absolute; top: 12%; left: 50%; transform: translateX(-50%); width: min(640px, 92vw);
+           background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; animation: pop .15s ease; }
+.palette input { width: 100%; padding: 16px 18px; border: none; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); font-size: 16px; outline: none; }
+.palette .results { max-height: 50vh; overflow-y: auto; padding: 8px; }
+.pitem { padding: 11px 14px; border-radius: 10px; cursor: pointer; display:flex; flex-direction: column; gap: 2px; }
+.pitem:hover, .pitem.sel { background: var(--card-2); }
+.pitem .ptitle { font-weight: 600; font-size: 14px; }
+.pitem .pmeta { font-size: 12px; color: var(--muted); display:flex; gap:8px; }
+.pitem .pcat { text-transform: uppercase; font-size: 10px; letter-spacing: .5px; color: var(--primary); }
+.toasts { position: fixed; bottom: 18px; right: 18px; display:flex; flex-direction: column; gap: 10px; z-index: 60; }
+.toast { background: var(--card); border:1px solid var(--border); border-left: 3px solid var(--primary); border-radius: 10px; padding: 12px 16px; min-width: 260px; box-shadow: var(--shadow); animation: pop .2s ease; }
+.toast.err { border-left-color: var(--danger); }
+.toast.ok { border-left-color: var(--success); }
+.toast .tt { font-weight: 700; font-size: 13.5px; }
+.toast .td { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+.toast .tx { font-size: 12px; color: var(--primary); margin-top: 6px; cursor: pointer; }
+.sugg { background: linear-gradient(135deg, rgba(0,229,255,.12), rgba(110,231,255,.12)); border:1px solid var(--border); border-radius: 12px; padding: 12px 14px; display:flex; gap: 12px; align-items:center; }
+.sugg .grow { flex:1; }
+.sugg .stitle { font-weight: 700; font-size: 13.5px; }
+.sugg .sdetail { color: var(--muted); font-size: 12px; }

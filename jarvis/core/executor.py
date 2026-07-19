@@ -4,8 +4,11 @@ Adapted from Mark-XXXIX-OR's executor.py
 """
 
 import asyncio
+import logging
 from typing import Callable, List, Optional, TYPE_CHECKING
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 from jarvis.tools.base import ToolResult
 
@@ -56,7 +59,7 @@ class Executor:
             try:
                 self._speak_callback(message)
             except Exception as e:
-                print(f"[Executor] Speak error: {e}")
+                logger.error(f"Speak error: {e}")
 
     def cancel(self):
         """Cancel the current execution."""
@@ -115,12 +118,12 @@ class Executor:
 
                 if result.success:
                     completed_steps.append(execution_step)
-                    print(f"[Executor] ✅ Step {plan_step.step}: {plan_step.tool}")
+                    logger.info(f"[OK] Step {plan_step.step}: {plan_step.tool}")
                 else:
                     execution_step.error = result.error
                     failed_step = execution_step
                     success = False
-                    print(f"[Executor] ❌ Step {plan_step.step} failed: {result.error}")
+                    logger.error(f"[FAIL] Step {plan_step.step} failed: {result.error}")
                     break
 
             if success:
@@ -203,7 +206,7 @@ class Executor:
                 if result.success:
                     return execution, result
 
-                print(f"[Executor] ⚠️ Attempt {attempt} failed: {result.error}")
+                logger.warning(f"[WARN] Attempt {attempt} failed: {result.error}")
 
                 # Backoff on retry
                 if attempt < self.MAX_RETRIES:
@@ -211,7 +214,7 @@ class Executor:
 
             except Exception as e:
                 result.error = str(e)
-                print(f"[Executor] ⚠️ Attempt {attempt} exception: {e}")
+                logger.warning(f"[WARN] Attempt {attempt} exception: {e}")
 
                 if attempt < self.MAX_RETRIES:
                     await asyncio.sleep(1)

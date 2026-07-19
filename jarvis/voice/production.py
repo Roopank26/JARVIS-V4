@@ -6,13 +6,10 @@ Supports OpenWakeWord, Faster Whisper, Piper TTS, and streaming audio.
 import asyncio
 import io
 import logging
-import struct
-import threading
 import wave
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 
@@ -319,7 +316,7 @@ class FasterWhisperEngine(SpeechToTextEngine):
                 frames = wav.readframes(wav.getnframes())
                 audio = np.frombuffer(frames, dtype=np.int16)
                 return audio.astype(np.float32) / 32768.0
-        except:
+        except (wave.Error, ValueError):
             # Assume raw PCM
             audio = np.frombuffer(audio_bytes, dtype=np.int16)
             return audio.astype(np.float32) / 32768.0
@@ -506,7 +503,7 @@ class PiperTTSEngine(TextToSpeechEngine):
         try:
             import sounddevice as sd
             sd.stop()
-        except:
+        except Exception:
             pass
         
         logger.info("Piper TTS stopped")
@@ -850,7 +847,6 @@ def get_voice_diagnostics() -> Dict[str, Any]:
     """
     from jarvis.voice.audio import check_audio_availability
     import platform
-    import shutil
     
     diagnostics = {
         "system": {

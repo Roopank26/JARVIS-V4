@@ -185,7 +185,7 @@ class TestLLMConfig:
         """Test default config values."""
         config = LLMConfig()
         assert config.provider == ProviderType.GROQ
-        assert config.model == "llama-3.3-70b-versatile"
+        assert config.model is None
         assert config.max_tokens == 4096
         assert config.temperature == 0.7
 

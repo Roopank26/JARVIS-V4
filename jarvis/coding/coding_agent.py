@@ -468,7 +468,7 @@ class DependencyGraph:
                             deps.append(node.module.split('.')[0])
                 
                 dependencies[str(module_name)] = list(set(deps))
-            except:
+            except (SyntaxError, ValueError):
                 continue
         
         return dependencies
@@ -515,7 +515,7 @@ class CodeSearch:
                             "line": i,
                             "content": line.strip(),
                         })
-            except:
+            except (OSError, UnicodeDecodeError):
                 continue
         
         return results[:50]  # Limit results
@@ -565,7 +565,7 @@ def analyze_code_metrics(project_path: str) -> Dict[str, Any]:
             # Count functions and classes
             metrics["functions"] += len(re.findall(r'\ndef\s+\w+', content))
             metrics["classes"] += len(re.findall(r'\bclass\s+\w+', content))
-        except:
+        except (SyntaxError, ValueError, OSError):
             continue
     
     return metrics

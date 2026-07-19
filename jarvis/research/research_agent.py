@@ -3,10 +3,9 @@ JARVIS Research Agent - Autonomous Research System
 Provides web search, news monitoring, citation generation, and report creation.
 """
 
-import asyncio
 import logging
+import os
 import re
-import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any
 from dataclasses import dataclass, field

@@ -6,7 +6,7 @@ import pytest
 import tempfile
 from pathlib import Path
 from jarvis.memory.semantic import (
-    MemoryCategory,
+    SemanticMemoryCategory,
     MemoryEntry,
     MemoryQuery,
     SemanticMemory,
@@ -22,7 +22,7 @@ class TestMemoryEntry:
         entry = MemoryEntry(
             id="test123",
             content="Test memory",
-            category=MemoryCategory.FACT,
+            category=SemanticMemoryCategory.FACT,
         )
         
         data = entry.to_dict()
@@ -49,7 +49,7 @@ class TestMemoryEntry:
         entry = MemoryEntry.from_dict(data)
         
         assert entry.id == "test123"
-        assert entry.category == MemoryCategory.PERSON
+        assert entry.category == SemanticMemoryCategory.PERSON
         assert "test" in entry.tags
 
 
@@ -67,7 +67,7 @@ class TestSemanticMemory:
         """Test remembering information."""
         memory_id = await memory.remember(
             content="My name is John",
-            category=MemoryCategory.PERSON,
+            category=SemanticMemoryCategory.PERSON,
             tags={"name", "personal"},
         )
         
@@ -80,11 +80,11 @@ class TestSemanticMemory:
         # Remember some things
         await memory.remember(
             content="I prefer dark mode",
-            category=MemoryCategory.PREFERENCE,
+            category=SemanticMemoryCategory.PREFERENCE,
         )
         await memory.remember(
             content="My favorite language is Python",
-            category=MemoryCategory.PREFERENCE,
+            category=SemanticMemoryCategory.PREFERENCE,
         )
         
         # Recall
@@ -98,7 +98,7 @@ class TestSemanticMemory:
         """Test forgetting a memory."""
         memory_id = await memory.remember(
             content="Temporary information",
-            category=MemoryCategory.FACT,
+            category=SemanticMemoryCategory.FACT,
         )
         
         # Verify it exists
@@ -116,7 +116,7 @@ class TestSemanticMemory:
         """Test updating a memory."""
         memory_id = await memory.remember(
             content="Original content",
-            category=MemoryCategory.FACT,
+            category=SemanticMemoryCategory.FACT,
             importance=0.5,
         )
         
@@ -136,11 +136,11 @@ class TestSemanticMemory:
         """Test memory relationships."""
         id1 = await memory.remember(
             content="Project JARVIS",
-            category=MemoryCategory.PROJECT,
+            category=SemanticMemoryCategory.PROJECT,
         )
         id2 = await memory.remember(
             content="Python programming",
-            category=MemoryCategory.CODE,
+            category=SemanticMemoryCategory.CODE,
         )
         
         # Add relationship
@@ -156,11 +156,11 @@ class TestSemanticMemory:
         """Test getting memory statistics."""
         await memory.remember(
             content="Fact 1",
-            category=MemoryCategory.FACT,
+            category=SemanticMemoryCategory.FACT,
         )
         await memory.remember(
             content="Person 1",
-            category=MemoryCategory.PERSON,
+            category=SemanticMemoryCategory.PERSON,
         )
         
         stats = memory.get_stats()

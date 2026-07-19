@@ -4,7 +4,6 @@ Provides detailed Python code analysis using Abstract Syntax Trees.
 """
 
 import ast
-from pathlib import Path
 from typing import Dict, List, Optional, Any, Set
 from dataclasses import dataclass, field
 from collections import defaultdict

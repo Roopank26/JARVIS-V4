@@ -4,13 +4,15 @@ Example JARVIS Plugin
 This demonstrates how to create a plugin for JARVIS.
 """
 
+import logging
 from typing import Any, Dict, List, Optional
 from jarvis.plugins.plugin_manager import (
-    PluginInterface,
     IntentPlugin,
     ToolPlugin,
     MemoryPlugin,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class WeatherPlugin(IntentPlugin):
@@ -258,8 +260,3 @@ class NotesMemoryPlugin(MemoryPlugin):
                 results.append({"key": key, **note})
         
         return results
-
-
-# Logger for the plugin
-import logging
-logger = logging.getLogger(__name__)
