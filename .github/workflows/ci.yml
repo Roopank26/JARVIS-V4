@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, feature/rag-pdf ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, feature/rag-pdf ]
   workflow_dispatch:
 
 jobs:
