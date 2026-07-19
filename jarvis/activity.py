@@ -63,30 +63,50 @@ class ActivityCenter:
             return
         self._entries.append(entry)
         if len(self._entries) > self.limit:
-            self._entries = self._entries[-self.limit:]
+            self._entries = self._entries[-self.limit :]
 
     def _to_entry(self, cat: str, event: Any) -> ActivityEntry | None:
         d = event.data or {}
         if cat == "voice":
-            return ActivityEntry(str(event.id), "voice", "Voice command", str(d.get("text", ""))[:120])
+            return ActivityEntry(
+                str(event.id), "voice", "Voice command", str(d.get("text", ""))[:120]
+            )
         if cat == "chat":
             role = "You" if event.type == EventType.USER_MESSAGE else "JARVIS"
-            return ActivityEntry(str(event.id), "chat", f"{role} message", str(d.get("content", ""))[:120])
+            return ActivityEntry(
+                str(event.id), "chat", f"{role} message", str(d.get("content", ""))[:120]
+            )
         if cat == "tool":
             if d.get("phase") != "complete":
                 return None
-            return ActivityEntry(str(event.id), "tool", f"Tool: {d.get('tool')}", str(d.get("summary", ""))[:120])
+            return ActivityEntry(
+                str(event.id), "tool", f"Tool: {d.get('tool')}", str(d.get("summary", ""))[:120]
+            )
         if cat == "plan":
-            return ActivityEntry(str(event.id), "plan", "Autonomous plan", str(d.get("plan", {}).get("goal", ""))[:120])
+            return ActivityEntry(
+                str(event.id),
+                "plan",
+                "Autonomous plan",
+                str(d.get("plan", {}).get("goal", ""))[:120],
+            )
         if cat == "research":
-            return ActivityEntry(str(event.id), "research", "Research session", str(d.get("topic", ""))[:120])
+            return ActivityEntry(
+                str(event.id), "research", "Research session", str(d.get("topic", ""))[:120]
+            )
         if cat == "plugin":
             return ActivityEntry(str(event.id), "plugin", "Plugin", str(d)[:120])
         if cat == "task":
             state = d.get("state", "")
-            return ActivityEntry(str(event.id), "task", f"Task {state}: {d.get('name', '')}", str(d.get("result", ""))[:120])
+            return ActivityEntry(
+                str(event.id),
+                "task",
+                f"Task {state}: {d.get('name', '')}",
+                str(d.get("result", ""))[:120],
+            )
         if cat == "error":
-            return ActivityEntry(str(event.id), "error", d.get("title", "Error"), d.get("reason", "")[:120])
+            return ActivityEntry(
+                str(event.id), "error", d.get("title", "Error"), d.get("reason", "")[:120]
+            )
         return None
 
     def recent(self, category: str | None = None, limit: int = 50) -> list[dict[str, Any]]:

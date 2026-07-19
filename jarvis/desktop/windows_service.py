@@ -3,11 +3,16 @@ Windows-specific service support for JARVIS Desktop.
 Provides Windows Service integration for background operation.
 """
 
-import sys
-import os
+from __future__ import annotations
+
 import logging
+import os
+import sys
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from PIL.Image import Image as PILImage
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +39,7 @@ def get_local_app_data() -> Path:
 def get_temp_dir() -> Path:
     """Get platform-appropriate temp directory."""
     import tempfile
+
     if is_windows():
         return Path(tempfile.gettempdir()) / "JARVIS"
     return Path(tempfile.gettempdir()) / ".jarvis"
@@ -50,7 +56,7 @@ class WindowsServiceManager:
         self.display_name = "JARVIS Desktop Assistant"
         self.description = "Personal AI desktop assistant with voice control"
 
-    def install(self, python_path: Optional[str] = None) -> bool:
+    def install(self, python_path: str | None = None) -> bool:
         """Install JARVIS as a Windows Service."""
         if not is_windows():
             logger.error("Windows Service installation only supported on Windows")
@@ -59,11 +65,9 @@ class WindowsServiceManager:
         try:
             import win32service
             import win32serviceutil
-            import win32con
 
             # Get paths
             jarvis_path = Path(__file__).parent.parent.parent
-            python_exe = python_path or sys.executable
             service_script = jarvis_path / "jarvis" / "desktop" / "service.py"
 
             if not service_script.exists():
@@ -131,10 +135,10 @@ if __name__ == '__main__':
 
             # Install using pywin32
             win32serviceutil.InstallService(
-                f'{wrapper_path}:JARVISService',
+                f"{wrapper_path}:JARVISService",
                 self.service_name,
                 self.display_name,
-                startType=win32service.SERVICE_AUTO_START
+                startType=win32service.SERVICE_AUTO_START,
             )
 
             logger.info(f"Windows Service '{self.service_name}' installed")
@@ -154,6 +158,7 @@ if __name__ == '__main__':
 
         try:
             import win32serviceutil
+
             win32serviceutil.RemoveService(self.service_name)
             logger.info(f"Windows Service '{self.service_name}' uninstalled")
             return True
@@ -171,6 +176,7 @@ if __name__ == '__main__':
 
         try:
             import win32serviceutil
+
             win32serviceutil.StartService(self.service_name)
             logger.info(f"Windows Service '{self.service_name}' started")
             return True
@@ -185,6 +191,7 @@ if __name__ == '__main__':
 
         try:
             import win32serviceutil
+
             win32serviceutil.StopService(self.service_name)
             logger.info(f"Windows Service '{self.service_name}' stopped")
             return True
@@ -199,6 +206,7 @@ if __name__ == '__main__':
 
         try:
             import win32serviceutil
+
             status = win32serviceutil.QueryServiceStatus(self.service_name)
             return "Running" if status[1] == 4 else "Stopped"
         except Exception:
@@ -219,17 +227,20 @@ class WindowsAudioManager:
 
         try:
             import pyaudio
+
             p = pyaudio.PyAudio()
             devices = []
             for i in range(p.get_device_count()):
                 info = p.get_device_info_by_index(i)
                 if info["maxInputChannels"] > 0:
-                    devices.append({
-                        "index": i,
-                        "name": info["name"],
-                        "channels": info["maxInputChannels"],
-                        "sample_rate": int(info["defaultSampleRate"])
-                    })
+                    devices.append(
+                        {
+                            "index": i,
+                            "name": info["name"],
+                            "channels": info["maxInputChannels"],
+                            "sample_rate": int(info["defaultSampleRate"]),
+                        }
+                    )
             p.terminate()
             return devices
         except ImportError:
@@ -244,17 +255,20 @@ class WindowsAudioManager:
 
         try:
             import pyaudio
+
             p = pyaudio.PyAudio()
             devices = []
             for i in range(p.get_device_count()):
                 info = p.get_device_info_by_index(i)
                 if info["maxOutputChannels"] > 0:
-                    devices.append({
-                        "index": i,
-                        "name": info["name"],
-                        "channels": info["maxOutputChannels"],
-                        "sample_rate": int(info["defaultSampleRate"])
-                    })
+                    devices.append(
+                        {
+                            "index": i,
+                            "name": info["name"],
+                            "channels": info["maxOutputChannels"],
+                            "sample_rate": int(info["defaultSampleRate"]),
+                        }
+                    )
             p.terminate()
             return devices
         except ImportError:
@@ -269,6 +283,7 @@ class WindowsAudioManager:
 
         try:
             import pyaudio
+
             p = pyaudio.PyAudio()
             # Set as default by using default device
             p.terminate()
@@ -288,7 +303,7 @@ class WindowsAudioManager:
             "speakers": speakers,
             "has_microphone": len(mics) > 0,
             "has_speakers": len(speakers) > 0,
-            "platform": "windows"
+            "platform": "windows",
         }
 
 
@@ -299,9 +314,10 @@ class WindowsTrayIcon:
     """
 
     @staticmethod
-    def create_icon_from_ico(ico_path: Path) -> "Image":
+    def create_icon_from_ico(ico_path: Path) -> PILImage:
         """Load ICO file for tray icon."""
         from PIL import Image
+
         try:
             return Image.open(ico_path)
         except Exception:
@@ -309,16 +325,17 @@ class WindowsTrayIcon:
             return WindowsTrayIcon.create_default_icon()
 
     @staticmethod
-    def create_default_icon() -> "Image":
+    def create_default_icon() -> PILImage:
         """Create default JARVIS icon."""
-        from PIL import Image, ImageDraw
+        from PIL import Image, ImageDraw, ImageFont
+
         # Create 256x256 icon
-        img = Image.new('RGB', (256, 256), color=(30, 60, 90))
+        img = Image.new("RGB", (256, 256), color=(30, 60, 90))
         draw = ImageDraw.Draw(img)
         # Draw circle
         draw.ellipse([20, 20, 236, 236], fill=(70, 130, 180), outline=(100, 150, 200))
         # Draw J
-        draw.text((100, 80), "J", fill='white', font=ImageFont.load_default())
+        draw.text((100, 80), "J", fill="white", font=ImageFont.load_default())
         return img
 
     @staticmethod
@@ -327,17 +344,17 @@ class WindowsTrayIcon:
         from PIL import Image, ImageDraw
 
         # Create 256x256 image
-        img = Image.new('RGBA', (256, 256), color=(30, 60, 90, 255))
+        img = Image.new("RGBA", (256, 256), color=(30, 60, 90, 255))
         draw = ImageDraw.Draw(img)
 
         # Draw circle background
         draw.ellipse([16, 16, 240, 240], fill=(70, 130, 180, 255))
 
         # Draw "J" letter
-        draw.text((100, 70), "J", fill='white')
+        draw.text((100, 70), "J", fill="white")
 
         # Save as PNG (ICO can use PNG)
-        img.save(output_path, format='PNG')
+        img.save(output_path, format="PNG")
         return True
 
 
@@ -369,7 +386,10 @@ class WindowsVSCodeBridge:
             Path(os.environ.get("LOCALAPPDATA", "") + "\\Programs\\Microsoft VS Code\\Code.exe"),
             Path("C:\\Program Files\\Microsoft VS Code\\Code.exe"),
             Path("C:\\Program Files (x86)\\Microsoft VS Code\\Code.exe"),
-            Path(os.environ.get("USERPROFILE", "") + "\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"),
+            Path(
+                os.environ.get("USERPROFILE", "")
+                + "\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
+            ),
         ]
         return [p for p in paths if p.exists()]
 
@@ -390,11 +410,13 @@ def get_platform_info() -> dict:
     }
 
     if is_windows():
-        info.update({
-            "windows_version": platform.win32_ver()[0],
-            "windows_build": platform.win32_ver()[2],
-            "appdata": str(get_app_data_dir()),
-            "local_appdata": str(get_local_app_data()),
-        })
+        info.update(
+            {
+                "windows_version": platform.win32_ver()[0],
+                "windows_build": platform.win32_ver()[2],
+                "appdata": str(get_app_data_dir()),
+                "local_appdata": str(get_local_app_data()),
+            }
+        )
 
     return info

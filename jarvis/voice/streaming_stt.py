@@ -112,6 +112,7 @@ class StreamingSTT:
                 text = await self._backend.transcribe_bytes(wav_bytes)
             elif hasattr(self._backend, "transcribe"):
                 import tempfile
+
                 fd = None
                 path = None
                 try:

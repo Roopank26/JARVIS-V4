@@ -25,40 +25,40 @@ class EventType(Enum):
     """High-level event categories emitted by JARVIS."""
 
     # Reasoning / orchestration stages
-    STAGE = "stage"                      # A visible reasoning stage changed
-    PLAN = "plan"                       # An autonomous plan was generated
-    STEP = "step"                       # A plan step started/finished
-    TOOL = "tool"                       # A tool started/completed/errored
-    TOKEN = "token"                     # A streamed response token
-    RESPONSE = "response"               # Final response ready
+    STAGE = "stage"  # A visible reasoning stage changed
+    PLAN = "plan"  # An autonomous plan was generated
+    STEP = "step"  # A plan step started/finished
+    TOOL = "tool"  # A tool started/completed/errored
+    TOKEN = "token"  # A streamed response token
+    RESPONSE = "response"  # Final response ready
 
     # Conversation
     USER_MESSAGE = "user_message"
     ASSISTANT_MESSAGE = "assistant_message"
 
     # Voice
-    VOICE_STATE = "voice_state"         # listening/speaking/idle changes
+    VOICE_STATE = "voice_state"  # listening/speaking/idle changes
     VOICE_TRANSCRIPT = "voice_transcript"
     VOICE_INTERRUPT = "voice_interrupt"
 
     # System
-    STATUS = "status"                   # CPU/RAM/provider/voice/memory metrics
-    TASK = "task"                       # background task state change
-    SUGGESTION = "suggestion"           # proactive suggestion
-    ERROR = "error"                     # friendly error with fix
-    TOAST = "toast"                     # transient notification
-    PLUGIN = "plugin"                   # plugin discovered/enabled/disabled
+    STATUS = "status"  # CPU/RAM/provider/voice/memory metrics
+    TASK = "task"  # background task state change
+    SUGGESTION = "suggestion"  # proactive suggestion
+    ERROR = "error"  # friendly error with fix
+    TOAST = "toast"  # transient notification
+    PLUGIN = "plugin"  # plugin discovered/enabled/disabled
 
     # Activity center
-    RESEARCH = "research"               # research session events
-    ACTIVITY = "activity"               # any activity-center event
+    RESEARCH = "research"  # research session events
+    ACTIVITY = "activity"  # any activity-center event
 
     # Provider / model lifecycle
     PROVIDER_DISCOVERED = "provider_discovered"  # new provider detected at startup
-    PROVIDER_AVAILABLE = "provider_available"    # provider became available
+    PROVIDER_AVAILABLE = "provider_available"  # provider became available
     PROVIDER_UNAVAILABLE = "provider_unavailable"  # provider became unavailable
-    PROVIDER_SWITCHED = "provider_switched"      # active provider changed
-    MODEL_SWITCHED = "model_switched"            # active model changed
+    PROVIDER_SWITCHED = "provider_switched"  # active provider changed
+    MODEL_SWITCHED = "model_switched"  # active model changed
 
 
 @dataclass
@@ -164,7 +164,7 @@ class EventBus:
         event = JarvisEvent(type=event_type, data=data or {})
         self._history.append(event)
         if len(self._history) > self._history_limit:
-            self._history = self._history[-self._history_limit:]
+            self._history = self._history[-self._history_limit :]
 
         for handler in list(self._any_handlers):
             try:

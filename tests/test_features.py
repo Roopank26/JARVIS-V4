@@ -2,7 +2,6 @@
 Feature tests for JARVIS - Voice, Vision, Browser, Memory.
 """
 
-import asyncio
 import tempfile
 from pathlib import Path
 
@@ -14,7 +13,8 @@ class TestVoiceFeatures:
 
     def test_stt_import(self):
         """Test SpeechToText can be imported."""
-        from jarvis.voice import SpeechToText, TextToSpeech, VoiceAssistant, AudioConfig
+        from jarvis.voice import AudioConfig, SpeechToText, TextToSpeech, VoiceAssistant
+
         assert SpeechToText is not None
         assert TextToSpeech is not None
         assert VoiceAssistant is not None
@@ -23,12 +23,14 @@ class TestVoiceFeatures:
     def test_tts_import(self):
         """Test TextToSpeech can be imported."""
         from jarvis.voice import TextToSpeech
+
         tts = TextToSpeech()
         assert tts.engine == "gtts"
 
     def test_tts_engine_selection(self):
         """Test TTS engine selection."""
         from jarvis.voice import TextToSpeech
+
         tts = TextToSpeech()
         tts.engine = "pyttsx3"
         assert tts.engine == "pyttsx3"
@@ -39,14 +41,16 @@ class TestVoiceFeatures:
     async def test_tts_speak_simple(self):
         """Test TTS speak (simple output)."""
         from jarvis.voice import TextToSpeech
+
         tts = TextToSpeech()
         # This will just print since no audio in container
-        result = await tts.speak("Hello, this is a test", blocking=False)
+        await tts.speak("Hello, this is a test", blocking=False)
         # Should not crash
 
     def test_audio_config(self):
         """Test AudioConfig."""
         from jarvis.voice import AudioConfig
+
         config = AudioConfig(sample_rate=44100, channels=2)
         assert config.sample_rate == 44100
         assert config.channels == 2
@@ -57,7 +61,8 @@ class TestVisionFeatures:
 
     def test_screen_capture_import(self):
         """Test ScreenCapture can be imported."""
-        from jarvis.vision import ScreenCapture, ScreenAnalyzer, VisionCapture
+        from jarvis.vision import ScreenAnalyzer, ScreenCapture, VisionCapture
+
         assert ScreenCapture is not None
         assert ScreenAnalyzer is not None
         assert VisionCapture is not None
@@ -65,12 +70,14 @@ class TestVisionFeatures:
     def test_screen_capture_init(self):
         """Test ScreenCapture initialization."""
         from jarvis.vision import ScreenCapture
+
         capture = ScreenCapture()
         assert capture._monitor == 1
 
     def test_screen_dimensions(self):
         """Test getting screen dimensions."""
         from jarvis.vision import ScreenCapture
+
         capture = ScreenCapture()
         dims = capture.get_dimensions()
         assert isinstance(dims, tuple)
@@ -79,6 +86,7 @@ class TestVisionFeatures:
     def test_screen_region(self):
         """Test ScreenRegion dataclass."""
         from jarvis.vision.screen import ScreenRegion
+
         region = ScreenRegion(x=0, y=0, width=800, height=600)
         assert region.x == 0
         assert region.width == 800
@@ -86,12 +94,14 @@ class TestVisionFeatures:
     def test_screen_analyzer_init(self):
         """Test ScreenAnalyzer initialization."""
         from jarvis.vision import ScreenAnalyzer
-        analyzer = ScreenAnalyzer()
+
+        ScreenAnalyzer()
         # Should not crash, just set flags
 
     def test_vision_capture_init(self):
         """Test VisionCapture initialization."""
         from jarvis.vision import VisionCapture
+
         vision = VisionCapture()
         assert vision.screen is not None
         assert vision.screen_analyzer is not None
@@ -102,7 +112,8 @@ class TestBrowserFeatures:
 
     def test_browser_tool_import(self):
         """Test BrowserTool can be imported."""
-        from jarvis.tools import BrowserTool, SearchWebTool, ScrapeWebTool
+        from jarvis.tools import BrowserTool, ScrapeWebTool, SearchWebTool
+
         assert BrowserTool is not None
         assert SearchWebTool is not None
         assert ScrapeWebTool is not None
@@ -110,6 +121,7 @@ class TestBrowserFeatures:
     def test_browser_tool_init(self):
         """Test BrowserTool initialization."""
         from jarvis.tools import BrowserTool
+
         tool = BrowserTool()
         assert tool.name == "browser"
         assert tool.config.headless is True
@@ -117,12 +129,14 @@ class TestBrowserFeatures:
     def test_browser_tool_description(self):
         """Test BrowserTool has proper description."""
         from jarvis.tools import BrowserTool
+
         tool = BrowserTool()
         assert "browser" in tool.description.lower()
 
     def test_browser_tool_parameters(self):
         """Test BrowserTool has proper parameters."""
         from jarvis.tools import BrowserTool
+
         tool = BrowserTool()
         params = tool.parameters
         assert "action" in params["properties"]
@@ -135,11 +149,13 @@ class TestLongTermMemory:
     def test_memory_import(self):
         """Test LongTermMemory can be imported."""
         from jarvis.memory import LongTermMemory
+
         assert LongTermMemory is not None
 
     def test_memory_init(self):
         """Test LongTermMemory initialization."""
         from jarvis.memory import LongTermMemory
+
         with tempfile.TemporaryDirectory() as tmpdir:
             memory = LongTermMemory(Path(tmpdir) / "test_memory.json")
             assert memory is not None
@@ -147,6 +163,7 @@ class TestLongTermMemory:
     def test_memory_remember_recall(self):
         """Test memory remember and recall."""
         from jarvis.memory import LongTermMemory
+
         with tempfile.TemporaryDirectory() as tmpdir:
             memory = LongTermMemory(Path(tmpdir) / "test_memory.json")
 
@@ -161,6 +178,7 @@ class TestLongTermMemory:
     def test_memory_categories(self):
         """Test different memory categories."""
         from jarvis.memory import LongTermMemory
+
         with tempfile.TemporaryDirectory() as tmpdir:
             memory = LongTermMemory(Path(tmpdir) / "test_memory.json")
 
@@ -176,6 +194,7 @@ class TestLongTermMemory:
     def test_memory_forget(self):
         """Test memory forget."""
         from jarvis.memory import LongTermMemory
+
         with tempfile.TemporaryDirectory() as tmpdir:
             memory = LongTermMemory(Path(tmpdir) / "test_memory.json")
 
@@ -188,6 +207,7 @@ class TestLongTermMemory:
     def test_memory_search(self):
         """Test memory search."""
         from jarvis.memory import LongTermMemory
+
         with tempfile.TemporaryDirectory() as tmpdir:
             memory = LongTermMemory(Path(tmpdir) / "test_memory.json")
 
@@ -201,6 +221,7 @@ class TestLongTermMemory:
     def test_memory_semantic_search_fallback(self):
         """Test semantic search (falls back to keyword without embeddings)."""
         from jarvis.memory import LongTermMemory
+
         with tempfile.TemporaryDirectory() as tmpdir:
             memory = LongTermMemory(Path(tmpdir) / "test_memory.json")
 
@@ -214,6 +235,7 @@ class TestLongTermMemory:
     def test_memory_format_for_prompt(self):
         """Test memory formatting for prompts."""
         from jarvis.memory import LongTermMemory
+
         with tempfile.TemporaryDirectory() as tmpdir:
             memory = LongTermMemory(Path(tmpdir) / "test_memory.json")
 
@@ -227,6 +249,7 @@ class TestLongTermMemory:
     def test_memory_clear(self):
         """Test clearing memory."""
         from jarvis.memory import LongTermMemory
+
         with tempfile.TemporaryDirectory() as tmpdir:
             memory = LongTermMemory(Path(tmpdir) / "test_memory.json")
 
@@ -239,6 +262,7 @@ class TestLongTermMemory:
     def test_memory_stats(self):
         """Test memory statistics (categories method)."""
         from jarvis.memory import LongTermMemory
+
         with tempfile.TemporaryDirectory() as tmpdir:
             memory = LongTermMemory(Path(tmpdir) / "test_memory.json")
 
@@ -258,9 +282,11 @@ class TestFileManagement:
     def test_file_tools_import(self):
         """Test file tools can be imported."""
         from jarvis.tools.file_tools import (
-            ReadFileTool, WriteFileTool, ListDirectoryTool,
-            FindFilesTool, DeleteFileTool, DiskUsageTool
+            ListDirectoryTool,
+            ReadFileTool,
+            WriteFileTool,
         )
+
         assert ReadFileTool is not None
         assert WriteFileTool is not None
         assert ListDirectoryTool is not None
@@ -283,9 +309,7 @@ class TestFileManagement:
 
             # Read
             read_tool = ReadFileTool()
-            result = await read_tool.execute(
-                input_data={"path": str(test_file)}
-            )
+            result = await read_tool.execute(input_data={"path": str(test_file)})
             assert result.success
             assert content in result.output
 
@@ -307,6 +331,7 @@ class TestTerminalExecution:
     def test_terminal_tools_import(self):
         """Test terminal tools can be imported."""
         from jarvis.tools.terminal_tools import BashTool, RunScriptTool
+
         assert BashTool is not None
         assert RunScriptTool is not None
 
@@ -359,7 +384,7 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_voice_and_tts(self):
         """Test voice input and TTS output."""
-        from jarvis.voice import TextToSpeech, AudioConfig
+        from jarvis.voice import AudioConfig, TextToSpeech
 
         config = AudioConfig(sample_rate=16000, channels=1)
         tts = TextToSpeech(config)
@@ -369,8 +394,8 @@ class TestIntegration:
 
     def test_vision_and_memory(self):
         """Test vision with memory."""
-        from jarvis.vision import ScreenCapture
         from jarvis.memory import LongTermMemory
+        from jarvis.vision import ScreenCapture
 
         with tempfile.TemporaryDirectory() as tmpdir:
             capture = ScreenCapture()
@@ -378,11 +403,7 @@ class TestIntegration:
 
             # Store screen dimensions in memory
             dims = capture.get_dimensions()
-            memory.remember(
-                "screen_resolution",
-                f"{dims[0]}x{dims[1]}",
-                category="preferences"
-            )
+            memory.remember("screen_resolution", f"{dims[0]}x{dims[1]}", category="preferences")
 
             results = memory.recall("screen")
             assert len(results) >= 1

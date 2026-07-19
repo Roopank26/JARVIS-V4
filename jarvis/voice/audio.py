@@ -4,14 +4,15 @@ Provides voice command input and voice response output.
 """
 
 import asyncio
+import contextlib
 import io
 import logging
+import tempfile
 import threading
 import wave
-import tempfile
-from pathlib import Path
-from typing import Optional, Callable, Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +20,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AudioConfig:
     """Audio configuration."""
+
     sample_rate: int = 16000
     channels: int = 1
     chunk_size: int = 1024
-    input_device: Optional[int] = None
-    output_device: Optional[int] = None
+    input_device: int | None = None
+    output_device: int | None = None
     silence_threshold: float = 500.0
     silence_duration: float = 1.5
     # Provider settings
@@ -43,10 +45,11 @@ def check_audio_availability() -> dict:
         "can_listen": False,
         "can_speak": False,
     }
-    
+
     # Check sounddevice
     try:
         import sounddevice as sd
+
         status["sounddevice"] = True
         # Check if microphone is available
         try:
@@ -57,32 +60,44 @@ def check_audio_availability() -> dict:
             pass
     except ImportError:
         logger.debug("sounddevice not installed")
-    
+
     # Check Whisper
     try:
-        import whisper
-        status["whisper"] = True
-        status["can_listen"] = status["sounddevice"]
+        import importlib.util
+
+        if importlib.util.find_spec("whisper") is not None:
+            status["whisper"] = True
+            status["can_listen"] = status["sounddevice"]
+        else:
+            logger.debug("whisper not installed")
     except ImportError:
         logger.debug("whisper not installed")
-    
+
     # Check gTTS
     try:
-        from gtts import gTTS
-        status["gtts"] = True
-        status["can_speak"] = True
+        import importlib.util
+
+        if importlib.util.find_spec("gtts") is not None:
+            status["gtts"] = True
+            status["can_speak"] = True
+        else:
+            logger.debug("gTTS not installed")
     except ImportError:
         logger.debug("gTTS not installed")
-    
+
     # Check pyttsx3 (offline TTS)
     try:
-        import pyttsx3
-        status["pyttsx3"] = True
-        if not status["can_speak"]:
-            status["can_speak"] = True
+        import importlib.util
+
+        if importlib.util.find_spec("pyttsx3") is not None:
+            status["pyttsx3"] = True
+            if not status["can_speak"]:
+                status["can_speak"] = True
+        else:
+            logger.debug("pyttsx3 not installed")
     except ImportError:
         logger.debug("pyttsx3 not installed")
-    
+
     return status
 
 
@@ -92,7 +107,7 @@ class SpeechToText:
     and Whisper for transcription.
     """
 
-    def __init__(self, config: Optional[AudioConfig] = None):
+    def __init__(self, config: AudioConfig | None = None):
         self.config = config or AudioConfig()
         self._is_listening = False
         self._vad_enabled = True
@@ -101,7 +116,7 @@ class SpeechToText:
         self._speech_frames = 0
         self._whisper_model = None
         self._availability = check_audio_availability()
-        
+
         # Initialize Whisper if available
         if self._availability["whisper"]:
             self._init_whisper()
@@ -110,6 +125,7 @@ class SpeechToText:
         """Initialize Whisper model."""
         try:
             import whisper
+
             logger.info(f"Loading Whisper model: {self.config.whisper_model}")
             self._whisper_model = whisper.load_model(self.config.whisper_model)
             logger.info("Whisper model loaded")
@@ -117,14 +133,14 @@ class SpeechToText:
             logger.warning(f"Failed to load Whisper: {e}")
             self._whisper_model = None
 
-    async def listen(self, timeout: float = 10.0) -> Optional[str]:
+    async def listen(self, timeout: float = 10.0) -> str | None:
         """
         Listen for speech and return transcribed text.
         Uses WebRTC VAD for voice activity detection.
         """
         try:
-            import sounddevice as sd
             import numpy as np
+            import sounddevice as sd
 
             self._is_listening = True
             self._audio_buffer = []
@@ -148,7 +164,11 @@ class SpeechToText:
                         self._silence_frames += 1
                         self._audio_buffer.append(audio_data.tobytes())
                         # Check if silence duration exceeded
-                        if self._silence_frames > (self.config.silence_duration * self.config.sample_rate / self.config.chunk_size):
+                        if self._silence_frames > (
+                            self.config.silence_duration
+                            * self.config.sample_rate
+                            / self.config.chunk_size
+                        ):
                             self._is_listening = False
                     else:
                         self._audio_buffer = []
@@ -160,7 +180,7 @@ class SpeechToText:
                 dtype="int16",
                 blocksize=self.config.chunk_size,
                 device=self.config.input_device,
-                callback=audio_callback
+                callback=audio_callback,
             )
 
             with stream:
@@ -171,7 +191,7 @@ class SpeechToText:
                     await asyncio.sleep(0.05)
 
             if len(self._audio_buffer) > 10:
-                audio_bytes = b''.join(self._audio_buffer)
+                audio_bytes = b"".join(self._audio_buffer)
                 return await self._transcribe(audio_bytes)
 
         except ImportError:
@@ -184,27 +204,27 @@ class SpeechToText:
 
         return None
 
-    async def _transcribe(self, audio_data: bytes) -> Optional[str]:
+    async def _transcribe(self, audio_data: bytes) -> str | None:
         """Transcribe audio using Whisper or Google Speech Recognition."""
         # Try Whisper first (offline, local)
         if self._whisper_model:
             try:
                 import numpy as np
-                
+
                 # Convert bytes to numpy array
                 audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
-                
+
                 # Transcribe with Whisper
                 result = self._whisper_model.transcribe(audio_np, fp16=False)
                 text = result["text"].strip()
-                
+
                 if text:
                     logger.info(f"Whisper transcription: {text[:50]}...")
                     return text
-                    
+
             except Exception as e:
                 logger.warning(f"Whisper transcription failed: {e}")
-        
+
         # Fallback to Google Speech Recognition
         try:
             import speech_recognition as sr
@@ -212,7 +232,7 @@ class SpeechToText:
             recognizer = sr.Recognizer()
 
             # Convert raw audio to AudioData
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                 f.write(self._create_wav(audio_data))
                 wav_path = f.name
 
@@ -247,14 +267,14 @@ class SpeechToText:
     def _create_wav(self, audio_data: bytes) -> bytes:
         """Create WAV file from raw audio data."""
         buffer = io.BytesIO()
-        with wave.open(buffer, 'wb') as wf:
+        with wave.open(buffer, "wb") as wf:
             wf.setnchannels(self.config.channels)
             wf.setsampwidth(2)  # 16-bit
             wf.setframerate(self.config.sample_rate)
             wf.writeframes(audio_data)
         return buffer.getvalue()
 
-    async def transcribe_file(self, audio_path: str) -> Optional[str]:
+    async def transcribe_file(self, audio_path: str) -> str | None:
         """Transcribe an audio file."""
         try:
             import speech_recognition as sr
@@ -284,7 +304,7 @@ class TextToSpeech:
     Supports multiple TTS engines.
     """
 
-    def __init__(self, config: Optional[AudioConfig] = None):
+    def __init__(self, config: AudioConfig | None = None):
         self.config = config or AudioConfig()
         self._is_playing = False
         self._engine = "gtts"  # Default to Google TTS
@@ -305,7 +325,7 @@ class TextToSpeech:
             print(f"[TTS] Unknown engine '{value}', using 'gtts'")
             self._engine = "gtts"
 
-    async def speak(self, text: str, blocking: bool = True) -> Optional[bytes]:
+    async def speak(self, text: str, blocking: bool = True) -> bytes | None:
         """
         Convert text to speech and play it.
         Returns audio bytes if blocking=False.
@@ -326,18 +346,19 @@ class TextToSpeech:
 
         return None
 
-    async def _speak_gtts(self, text: str) -> Optional[bytes]:
+    async def _speak_gtts(self, text: str) -> bytes | None:
         """Google TTS implementation."""
         try:
             from gtts import gTTS
 
             mp3_buffer = io.BytesIO()
-            tts = gTTS(text=text, lang='en', slow=False)
+            tts = gTTS(text=text, lang="en", slow=False)
             tts.write_to_fp(mp3_buffer)
             mp3_buffer.seek(0)
 
             # Convert MP3 to WAV for playback
             from pydub import AudioSegment
+
             audio = AudioSegment.from_mp3(mp3_buffer)
             audio = audio.set_frame_rate(self.config.sample_rate)
             audio = audio.set_channels(self.config.channels)
@@ -358,24 +379,23 @@ class TextToSpeech:
 
         return None
 
-    async def _speak_pyttsx3(self, text: str) -> Optional[bytes]:
+    async def _speak_pyttsx3(self, text: str) -> bytes | None:
         """pyttsx3 offline TTS implementation."""
         try:
             import pyttsx3
 
             engine = pyttsx3.init()
-            engine.setProperty('rate', self._rate)
-            engine.setProperty('volume', self._volume)
+            engine.setProperty("rate", self._rate)
+            engine.setProperty("volume", self._volume)
 
             # Save to buffer
-            buffer = io.BytesIO()
-            engine.save_to_file(text, 'temp_audio.wav')
+            engine.save_to_file(text, "temp_audio.wav")
             engine.runAndWait()
 
-            with open('temp_audio.wav', 'rb') as f:
+            with open("temp_audio.wav", "rb") as f:
                 audio_data = f.read()
 
-            Path('temp_audio.wav').unlink(missing_ok=True)
+            Path("temp_audio.wav").unlink(missing_ok=True)
 
             await self._play_wav(audio_data)
             return audio_data
@@ -387,7 +407,7 @@ class TextToSpeech:
 
         return None
 
-    async def _speak_edge(self, text: str) -> Optional[bytes]:
+    async def _speak_edge(self, text: str) -> bytes | None:
         """Microsoft Edge TTS implementation."""
         try:
             from edge_tts import Communicate
@@ -399,6 +419,7 @@ class TextToSpeech:
 
             # Convert to WAV
             from pydub import AudioSegment
+
             audio = AudioSegment.from_mp3(mp3_buffer)
             audio = audio.set_frame_rate(self.config.sample_rate)
 
@@ -420,20 +441,21 @@ class TextToSpeech:
         """Simple TTS using OS default (no audio output in container)."""
         try:
             from gtts import gTTS
-            tts = gTTS(text=text, lang='en')
-            tts.save('/tmp/tts_output.mp3')
+
+            tts = gTTS(text=text, lang="en")
+            tts.save("/tmp/tts_output.mp3")
             print(f"[TTS] Saved to /tmp/tts_output.mp3: {text[:50]}...")
-        except Exception as e:
+        except Exception:
             print(f"[TTS] {text}")
 
     async def _play_wav(self, audio_data: bytes):
         """Play WAV audio data."""
         try:
-            import sounddevice as sd
             import numpy as np
+            import sounddevice as sd
 
             buffer = io.BytesIO(audio_data)
-            with wave.open(buffer, 'rb') as wf:
+            with wave.open(buffer, "rb") as wf:
                 frames = wf.readframes(wf.getnframes())
                 audio_array = np.frombuffer(frames, dtype=np.int16)
 
@@ -468,13 +490,13 @@ class VoiceAssistant:
     Handles wake word detection, speech recognition, and response synthesis.
     """
 
-    def __init__(self, config: Optional[AudioConfig] = None):
+    def __init__(self, config: AudioConfig | None = None):
         self.config = config or AudioConfig()
         self.stt = SpeechToText(config)
         self.tts = TextToSpeech(config)
         self._is_active = False
         self._wake_word = "jarvis"
-        self._callback: Optional[Callable[[str], Awaitable[str]]] = None
+        self._callback: Callable[[str], Awaitable[str]] | None = None
 
     async def start(self, callback: Callable[[str], Awaitable[str]]):
         """
@@ -497,12 +519,11 @@ class VoiceAssistant:
                     # Check for wake word
                     if self._wake_word.lower() in text.lower():
                         # Remove wake word from command
-                        command = text.lower().replace(self._wake_word.lower(), '').strip()
-                        if command:
+                        command = text.lower().replace(self._wake_word.lower(), "").strip()
+                        if command and self._callback:
                             # Process command
-                            if self._callback:
-                                response = await self._callback(command)
-                                await self.tts.speak(response)
+                            response = await self._callback(command)
+                            await self.tts.speak(response)
 
             except Exception as e:
                 print(f"[Voice] Error: {e}")
@@ -532,7 +553,7 @@ class AudioManager:
     Uses sounddevice for cross-platform audio.
     """
 
-    def __init__(self, config: Optional[AudioConfig] = None):
+    def __init__(self, config: AudioConfig | None = None):
         self.config = config or AudioConfig()
         self._input_stream = None
         self._output_stream = None
@@ -562,7 +583,7 @@ class AudioManager:
                 dtype="int16",
                 blocksize=self.config.chunk_size,
                 device=self.config.input_device,
-                callback=input_callback
+                callback=input_callback,
             )
 
             with self._audio_lock:
@@ -599,7 +620,7 @@ class AudioManager:
                 channels=self.config.channels,
                 dtype="int16",
                 blocksize=self.config.chunk_size,
-                device=self.config.output_device
+                device=self.config.output_device,
             )
 
             with self._audio_lock:
@@ -626,11 +647,11 @@ class AudioManager:
                 print(f"[Audio] Output stop error: {e}")
             self._output_stream = None
 
-    async def get_input_audio(self) -> Optional[bytes]:
+    async def get_input_audio(self) -> bytes | None:
         """Get audio data from the input queue."""
         try:
             return await asyncio.wait_for(self._input_queue.get(), timeout=0.1)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return None
 
     async def play_audio(self, audio_data: bytes):
@@ -645,10 +666,11 @@ class AudioManager:
         """Get available audio devices."""
         try:
             import sounddevice as sd
+
             devices = sd.query_devices()
             return {
                 "inputs": [d for d in devices if d["max_input_channels"] > 0],
-                "outputs": [d for d in devices if d["max_output_channels"] > 0]
+                "outputs": [d for d in devices if d["max_output_channels"] > 0],
             }
         except ImportError:
             return {"inputs": [], "outputs": []}
@@ -676,7 +698,7 @@ class AudioLoopback:
     def __init__(self, audio_manager: AudioManager):
         self.audio = audio_manager
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
 
     async def start(self):
         """Start the loopback."""
@@ -688,10 +710,8 @@ class AudioLoopback:
         self._running = False
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
 
     async def _loop(self):
         """Main loopback loop."""

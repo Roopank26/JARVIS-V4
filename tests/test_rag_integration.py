@@ -2,12 +2,12 @@
 Integration tests for RAG system with real documents.
 """
 
-import pytest
-import asyncio
 from pathlib import Path
 
-from jarvis.rag.rag_system import RAGSystem
+import pytest
+
 from jarvis.rag.document_processor import DocumentProcessor, StudyAssistant
+from jarvis.rag.rag_system import RAGSystem
 
 
 class TestRAGIntegration:
@@ -32,7 +32,7 @@ class TestRAGIntegration:
         await rag_system.initialize()
         result = await rag_system.ingest_document(test_doc_path)
 
-        assert result.get("success") == True
+        assert result.get("success") is True
         assert result.get("chunks_added", 0) > 0
         assert result.get("title") is not None
         print(f"  Ingested: {result.get('chunks_added')} chunks")
@@ -50,7 +50,9 @@ class TestRAGIntegration:
         results = await rag_system.search("neural networks", limit=3)
 
         assert len(results) > 0
-        assert "neural" in results[0]["content"].lower() or "network" in results[0]["content"].lower()
+        assert (
+            "neural" in results[0]["content"].lower() or "network" in results[0]["content"].lower()
+        )
         print(f"  Found {len(results)} results")
 
     @pytest.mark.asyncio
@@ -62,7 +64,7 @@ class TestRAGIntegration:
         from jarvis.rag.document_processor import StudyAssistant
 
         study = StudyAssistant(rag_system.processor)
-        
+
         # Test summary via study assistant
         summary = await study.summarize_document(test_doc_path)
         assert summary is not None
@@ -136,11 +138,12 @@ class TestRAGCommands:
     def test_rag_patterns_exist(self):
         """Test that RAG patterns are defined."""
         from jarvis.core.agent import RAG_QUERY_PATTERNS
+
         assert len(RAG_QUERY_PATTERNS) > 0
 
     def test_rag_query_recognized(self):
         """Test RAG queries are recognized."""
-        from jarvis.core.agent import classify_intent, Intent
+        from jarvis.core.agent import Intent, classify_intent
 
         # These should NOT go to CHAT
         result = classify_intent("ask the knowledge base about neural networks")
@@ -148,7 +151,7 @@ class TestRAGCommands:
 
     def test_classify_returns_valid_intent(self):
         """Test classify returns valid intent types."""
-        from jarvis.core.agent import classify_intent, Intent
+        from jarvis.core.agent import classify_intent
 
         inputs = [
             "search my documents for deep learning",
@@ -157,8 +160,16 @@ class TestRAGCommands:
         ]
 
         # Valid intent values (strings)
-        valid_intents = ["chat", "memory_recall", "memory_store", "profile_query",
-                        "rag_query", "provider_query", "tool_execution", "voice_status"]
+        valid_intents = [
+            "chat",
+            "memory_recall",
+            "memory_store",
+            "profile_query",
+            "rag_query",
+            "provider_query",
+            "tool_execution",
+            "voice_status",
+        ]
 
         for inp in inputs:
             intent = classify_intent(inp)

@@ -24,12 +24,12 @@ class TrayIcon:
         try:
             import pystray
             from PIL import Image, ImageDraw
-            
+
             def make_image():
                 """Create tray icon image."""
-                img = Image.new('RGB', (64, 64), color=(30, 60, 90))
+                img = Image.new("RGB", (64, 64), color=(30, 60, 90))
                 draw = ImageDraw.Draw(img)
-                draw.text((22, 20), "J", fill='white')
+                draw.text((22, 20), "J", fill="white")
                 return img
 
             def on_quit(icon, item):
@@ -52,17 +52,13 @@ class TrayIcon:
                 pystray.MenuItem("Quit", on_quit),
             )
 
-            self.icon = pystray.Icon(
-                "jarvis", 
-                make_image(), 
-                "JARVIS Desktop", 
-                menu
-            )
-            
+            self.icon = pystray.Icon("jarvis", make_image(), "JARVIS Desktop", menu)
+
             import threading
+
             self.thread = threading.Thread(target=self.icon.run, daemon=True)
             self.thread.start()
-            
+
             return True
 
         except ImportError as e:

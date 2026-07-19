@@ -2,7 +2,6 @@
 Tests for JARVIS Desktop Assistant features.
 """
 
-import asyncio
 import tempfile
 from pathlib import Path
 
@@ -17,10 +16,7 @@ class TestPluginSystem:
         from jarvis.plugins.base import PluginMetadata
 
         metadata = PluginMetadata(
-            name="test-plugin",
-            version="1.0.0",
-            author="Test",
-            description="A test plugin"
+            name="test-plugin", version="1.0.0", author="Test", description="A test plugin"
         )
 
         assert metadata.name == "test-plugin"
@@ -37,7 +33,7 @@ class TestPluginSystem:
             "author": "User",
             "description": "My plugin",
             "commands": ["cmd1", "cmd2"],
-            "events": ["on_start"]
+            "events": ["on_start"],
         }
 
         metadata = PluginMetadata.from_dict(data)
@@ -98,11 +94,7 @@ class TestWakeWord:
         """Test WakeWordConfig."""
         from jarvis.voice.wake_word import WakeWordConfig
 
-        config = WakeWordConfig(
-            word="jarvis",
-            sensitivity=0.8,
-            timeout=60.0
-        )
+        config = WakeWordConfig(word="jarvis", sensitivity=0.8, timeout=60.0)
 
         assert config.word == "jarvis"
         assert config.sensitivity == 0.8
@@ -171,7 +163,7 @@ class TestScheduler:
             name="test-task",
             schedule="0 9 * * *",
             task_type=TaskType.REMINDER,
-            command="echo hello"
+            command="echo hello",
         )
 
         assert task.name == "test-task"
@@ -180,23 +172,24 @@ class TestScheduler:
 
     def test_scheduled_task_is_due(self):
         """Test task due checking with past next_run."""
-        from jarvis.services.scheduler import ScheduledTask, TaskType
         from datetime import datetime, timedelta
+
+        from jarvis.services.scheduler import ScheduledTask, TaskType
 
         task = ScheduledTask(
             name="test-task",
             schedule="* * * * *",  # Every minute
             task_type=TaskType.COMMAND,
-            command="echo hello"
+            command="echo hello",
         )
-        
+
         # Set next_run to past to make task due
         task.next_run = datetime.now() - timedelta(minutes=5)
         task.last_run = datetime.now() - timedelta(minutes=6)
-        
+
         assert task.is_due()
         assert task.next_run is not None
-        
+
         # Test not due when disabled
         task.enabled = False
         assert not task.is_due()
@@ -216,12 +209,12 @@ class TestScheduler:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             scheduler = TaskScheduler(Path(tmpdir) / "scheduler.json")
-            
+
             task = scheduler.add_task(
                 name="morning-reminder",
                 schedule="0 9 * * *",
                 command="Good morning!",
-                task_type=TaskType.REMINDER
+                task_type=TaskType.REMINDER,
             )
 
             assert task.name == "morning-reminder"
@@ -233,12 +226,12 @@ class TestScheduler:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             scheduler = TaskScheduler(Path(tmpdir) / "scheduler.json")
-            
+
             scheduler.add_task(
                 name="test-task",
                 schedule="0 9 * * *",
                 command="echo test",
-                task_type=TaskType.COMMAND
+                task_type=TaskType.COMMAND,
             )
 
             assert scheduler.remove_task("test-task")
@@ -250,12 +243,12 @@ class TestScheduler:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             scheduler = TaskScheduler(Path(tmpdir) / "scheduler.json")
-            
+
             scheduler.add_task(
                 name="test-task",
                 schedule="0 9 * * *",
                 command="echo test",
-                task_type=TaskType.COMMAND
+                task_type=TaskType.COMMAND,
             )
 
             assert scheduler.disable_task("test-task")
@@ -266,8 +259,9 @@ class TestScheduler:
 
     def test_daily_summary(self):
         """Test DailySummary."""
-        from jarvis.services.scheduler import DailySummary
         from datetime import date
+
+        from jarvis.services.scheduler import DailySummary
 
         summary = DailySummary(date=date.today())
         summary.commands_executed = 10
@@ -296,11 +290,7 @@ class TestProjectMemory:
         """Test ProjectContext initialization."""
         from jarvis.memory.project import ProjectContext
 
-        project = ProjectContext(
-            path=Path("/test/project"),
-            name="test-project",
-            language="Python"
-        )
+        project = ProjectContext(path=Path("/test/project"), name="test-project", language="Python")
 
         assert project.name == "test-project"
         assert project.language == "Python"
@@ -310,10 +300,7 @@ class TestProjectMemory:
         """Test ProjectContext serialization."""
         from jarvis.memory.project import ProjectContext
 
-        project = ProjectContext(
-            path=Path("/test/project"),
-            name="test-project"
-        )
+        project = ProjectContext(path=Path("/test/project"), name="test-project")
 
         data = project.to_dict()
         assert data["name"] == "test-project"
@@ -442,11 +429,7 @@ class TestKnowledgeBase:
             kb = LocalKnowledgeBase(Path(tmpdir) / "knowledge")
             await kb.initialize()
 
-            entry_id = await kb.add(
-                content="This is a test entry",
-                source="test",
-                tags=["test"]
-            )
+            entry_id = await kb.add(content="This is a test entry", source="test", tags=["test"])
 
             assert entry_id is not None
             count = await kb.count()
@@ -488,14 +471,15 @@ class TestSelfImprovement:
 
     def test_interaction_log(self):
         """Test InteractionLog creation."""
-        from jarvis.memory.self_improve import InteractionLog, Outcome
         from datetime import datetime
+
+        from jarvis.memory.self_improve import InteractionLog, Outcome
 
         log = InteractionLog(
             timestamp=datetime.now(),
             input_text="test command",
             intent="test",
-            outcome=Outcome.SUCCESS
+            outcome=Outcome.SUCCESS,
         )
 
         assert log.input_text == "test command"
@@ -503,22 +487,18 @@ class TestSelfImprovement:
 
     def test_self_improvement_log_interaction(self):
         """Test logging interactions."""
-        from jarvis.memory.self_improve import SelfImprovementLogs, Outcome
+        from jarvis.memory.self_improve import Outcome, SelfImprovementLogs
 
         with tempfile.TemporaryDirectory() as tmpdir:
             logs = SelfImprovementLogs(Path(tmpdir) / "logs.json")
 
-            logs.log_interaction(
-                input_text="hello",
-                intent="greeting",
-                outcome=Outcome.SUCCESS
-            )
+            logs.log_interaction(input_text="hello", intent="greeting", outcome=Outcome.SUCCESS)
 
             assert len(logs.interactions) == 1
 
     def test_self_improvement_get_stats(self):
         """Test getting stats."""
-        from jarvis.memory.self_improve import SelfImprovementLogs, Outcome
+        from jarvis.memory.self_improve import Outcome, SelfImprovementLogs
 
         with tempfile.TemporaryDirectory() as tmpdir:
             logs = SelfImprovementLogs(Path(tmpdir) / "logs.json")
@@ -547,7 +527,7 @@ class TestDaemon:
         """Test JarvisDaemon initialization."""
         from jarvis.services.daemon import JarvisDaemon
 
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory() as _tmpdir:
             daemon = JarvisDaemon()
             assert daemon is not None
             assert not daemon.is_running
@@ -579,10 +559,7 @@ class TestListener:
         """Test ListenerConfig."""
         from jarvis.voice.listener import ListenerConfig
 
-        config = ListenerConfig(
-            wake_word="jarvis",
-            silence_threshold=5.0
-        )
+        config = ListenerConfig(wake_word="jarvis", silence_threshold=5.0)
         assert config.wake_word == "jarvis"
         assert config.silence_threshold == 5.0
 
@@ -590,11 +567,7 @@ class TestListener:
         """Test VoiceCommand."""
         from jarvis.voice.listener import VoiceCommand
 
-        cmd = VoiceCommand(
-            raw_text="hello",
-            intent="greeting",
-            entities={}
-        )
+        cmd = VoiceCommand(raw_text="hello", intent="greeting", entities={})
         assert cmd.raw_text == "hello"
         assert cmd.intent == "greeting"
 
@@ -626,21 +599,14 @@ class TestVSCodeBridge:
         """Test EditorContext."""
         from jarvis.integrations.vscode import EditorContext
 
-        ctx = EditorContext(
-            current_file="/test/file.py",
-            language="python"
-        )
+        ctx = EditorContext(current_file="/test/file.py", language="python")
         assert ctx.current_file == "/test/file.py"
         assert ctx.language == "python"
 
     def test_vscode_message(self):
         """Test VSCodeMessage."""
-        from jarvis.integrations.vscode import VSCodeMessage, MessageType
+        from jarvis.integrations.vscode import MessageType, VSCodeMessage
 
-        msg = VSCodeMessage(
-            id="123",
-            type=MessageType.REQUEST,
-            method="test"
-        )
+        msg = VSCodeMessage(id="123", type=MessageType.REQUEST, method="test")
         assert msg.id == "123"
         assert msg.type == MessageType.REQUEST

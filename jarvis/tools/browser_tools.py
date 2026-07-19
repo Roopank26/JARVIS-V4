@@ -4,8 +4,8 @@ Provides web browsing, form filling, and element interaction.
 """
 
 import asyncio
-from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
+from typing import Any
 
 from jarvis.tools.base import ReadOnlyTool, ToolResult
 
@@ -13,6 +13,7 @@ from jarvis.tools.base import ReadOnlyTool, ToolResult
 @dataclass
 class BrowserConfig:
     """Browser automation configuration."""
+
     headless: bool = True
     browser: str = "chrome"  # chrome, firefox, edge
     timeout: int = 30
@@ -24,7 +25,7 @@ class BrowserTool(ReadOnlyTool):
 
     CATEGORY = "browser"
 
-    def __init__(self, config: Optional[BrowserConfig] = None):
+    def __init__(self, config: BrowserConfig | None = None):
         self.config = config or BrowserConfig()
         self._driver = None
         self._implicit_wait = 10
@@ -38,22 +39,34 @@ class BrowserTool(ReadOnlyTool):
         return "Web browser automation - navigate, click, fill forms, extract content"
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["open", "navigate", "click", "fill", "submit", "get_text", 
-                             "get_html", "screenshot", "back", "forward", "refresh", "close"],
-                    "description": "Browser action to perform"
+                    "enum": [
+                        "open",
+                        "navigate",
+                        "click",
+                        "fill",
+                        "submit",
+                        "get_text",
+                        "get_html",
+                        "screenshot",
+                        "back",
+                        "forward",
+                        "refresh",
+                        "close",
+                    ],
+                    "description": "Browser action to perform",
                 },
                 "url": {"type": "string", "description": "URL for navigate/open actions"},
                 "selector": {"type": "string", "description": "CSS selector or XPath"},
                 "value": {"type": "string", "description": "Value for fill/submit actions"},
-                "timeout": {"type": "number", "description": "Action timeout in seconds"}
+                "timeout": {"type": "number", "description": "Action timeout in seconds"},
             },
-            "required": ["action"]
+            "required": ["action"],
         }
 
     def _get_driver(self):
@@ -75,22 +88,26 @@ class BrowserTool(ReadOnlyTool):
                 options.add_argument("--headless")
             options.add_argument("--no-sandbox")
             options.add_argument("--disable-dev-shm-usage")
-            options.add_argument(f"--window-size={self.config.window_size[0]},{self.config.window_size[1]}")
+            options.add_argument(
+                f"--window-size={self.config.window_size[0]},{self.config.window_size[1]}"
+            )
 
             service = ChromeService(ChromeDriverManager().install())
             self._driver = webdriver.Chrome(service=service, options=options)
             self._driver.implicitly_wait(self._implicit_wait)
 
-        except ImportError:
-            raise ImportError("Selenium not installed. Run: pip install selenium webdriver-manager")
+        except ImportError as err:
+            raise ImportError(
+                "Selenium not installed. Run: pip install selenium webdriver-manager"
+            ) from err
         except Exception as e:
-            raise RuntimeError(f"Failed to initialize browser: {e}")
+            raise RuntimeError(f"Failed to initialize browser: {e}") from e
 
     def _find_element(self, selector: str):
         """Find element by selector (CSS or XPath)."""
         from selenium.webdriver.common.by import By
-        from selenium.webdriver.support.ui import WebDriverWait
         from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.support.ui import WebDriverWait
 
         driver = self._get_driver()
         timeout = self.config.timeout
@@ -106,8 +123,14 @@ class BrowserTool(ReadOnlyTool):
                 EC.presence_of_element_located((By.CSS_SELECTOR, selector))
             )
 
-    async def execute(self, action: str, url: str = None, selector: str = None,
-                     value: str = None, timeout: int = None) -> ToolResult:
+    async def execute(
+        self,
+        action: str,
+        url: str = None,
+        selector: str = None,
+        value: str = None,
+        timeout: int = None,
+    ) -> ToolResult:
         """Execute browser action."""
         try:
             if timeout:
@@ -124,7 +147,7 @@ class BrowserTool(ReadOnlyTool):
                 if not url:
                     return ToolResult(success=False, output="URL required for 'navigate' action")
                 driver = self._get_driver()
-                driver.navigate_to(url) if hasattr(driver, 'navigate_to') else driver.get(url)
+                driver.navigate_to(url) if hasattr(driver, "navigate_to") else driver.get(url)
                 return ToolResult(success=True, output=f"Navigated to: {url}")
 
             elif action == "click":
@@ -136,7 +159,9 @@ class BrowserTool(ReadOnlyTool):
 
             elif action == "fill":
                 if not selector or value is None:
-                    return ToolResult(success=False, output="Selector and value required for 'fill' action")
+                    return ToolResult(
+                        success=False, output="Selector and value required for 'fill' action"
+                    )
                 element = self._find_element(selector)
                 element.clear()
                 element.send_keys(value)
@@ -151,13 +176,17 @@ class BrowserTool(ReadOnlyTool):
 
             elif action == "get_text":
                 if not selector:
-                    return ToolResult(success=False, output="Selector required for 'get_text' action")
+                    return ToolResult(
+                        success=False, output="Selector required for 'get_text' action"
+                    )
                 element = self._find_element(selector)
                 return ToolResult(success=True, output=element.text)
 
             elif action == "get_html":
                 if not selector:
-                    return ToolResult(success=False, output="Selector required for 'get_html' action")
+                    return ToolResult(
+                        success=False, output="Selector required for 'get_html' action"
+                    )
                 element = self._find_element(selector)
                 return ToolResult(success=True, output=element.get_attribute("innerHTML"))
 
@@ -168,7 +197,9 @@ class BrowserTool(ReadOnlyTool):
                     return ToolResult(success=True, output=f"Screenshot of {selector}")
                 else:
                     driver.save_screenshot("/tmp/browser_screenshot.png")
-                    return ToolResult(success=True, output="Screenshot saved to /tmp/browser_screenshot.png")
+                    return ToolResult(
+                        success=True, output="Screenshot saved to /tmp/browser_screenshot.png"
+                    )
 
             elif action == "back":
                 driver = self._get_driver()
@@ -195,7 +226,7 @@ class BrowserTool(ReadOnlyTool):
                 return ToolResult(success=False, output=f"Unknown action: {action}")
 
         except Exception as e:
-            return ToolResult(success=False, output=f"Browser error: {str(e)}", error=str(e))
+            return ToolResult(success=False, output=f"Browser error: {e!s}", error=str(e))
 
     def close(self):
         """Close the browser."""
@@ -218,14 +249,14 @@ class SearchWebTool(ReadOnlyTool):
         return "Search the web using Google"
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
                 "query": {"type": "string", "description": "Search query"},
-                "num_results": {"type": "number", "description": "Number of results (default: 5)"}
+                "num_results": {"type": "number", "description": "Number of results (default: 5)"},
             },
-            "required": ["query"]
+            "required": ["query"],
         }
 
     async def execute(self, query: str, num_results: int = 5) -> ToolResult:
@@ -242,8 +273,7 @@ class SearchWebTool(ReadOnlyTool):
             options.add_argument("--no-sandbox")
 
             driver = webdriver.Chrome(
-                service=Service(ChromeDriverManager().install()),
-                options=options
+                service=Service(ChromeDriverManager().install()), options=options
             )
 
             # Navigate to Google
@@ -270,7 +300,7 @@ class SearchWebTool(ReadOnlyTool):
                 return ToolResult(success=True, output="No results found")
 
         except Exception as e:
-            return ToolResult(success=False, output=f"Search error: {str(e)}")
+            return ToolResult(success=False, output=f"Search error: {e!s}")
 
 
 class ScrapeWebTool(ReadOnlyTool):
@@ -287,14 +317,14 @@ class ScrapeWebTool(ReadOnlyTool):
         return "Scrape content from a web page"
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
                 "url": {"type": "string", "description": "URL to scrape"},
-                "selector": {"type": "string", "description": "CSS selector for content"}
+                "selector": {"type": "string", "description": "CSS selector for content"},
             },
-            "required": ["url"]
+            "required": ["url"],
         }
 
     async def execute(self, url: str, selector: str = None) -> ToolResult:
@@ -311,8 +341,7 @@ class ScrapeWebTool(ReadOnlyTool):
             options.add_argument("--no-sandbox")
 
             driver = webdriver.Chrome(
-                service=Service(ChromeDriverManager().install()),
-                options=options
+                service=Service(ChromeDriverManager().install()), options=options
             )
 
             driver.get(url)
@@ -329,13 +358,9 @@ class ScrapeWebTool(ReadOnlyTool):
             return ToolResult(success=True, output=content)
 
         except Exception as e:
-            return ToolResult(success=False, output=f"Scraping error: {str(e)}")
+            return ToolResult(success=False, output=f"Scraping error: {e!s}")
 
 
-def get_browser_tools() -> List[BrowserTool]:
+def get_browser_tools() -> list[BrowserTool]:
     """Get all browser tools."""
-    return [
-        BrowserTool(),
-        SearchWebTool(),
-        ScrapeWebTool()
-    ]
+    return [BrowserTool(), SearchWebTool(), ScrapeWebTool()]

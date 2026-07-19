@@ -10,8 +10,9 @@ Usage:
     python -m jarvis.desktop diagnose # Run system diagnostics
 """
 
-import asyncio
 import argparse
+import asyncio
+import contextlib
 import logging
 from pathlib import Path
 
@@ -20,8 +21,7 @@ from jarvis.desktop.state import PersistentState, StartupManager
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -29,9 +29,22 @@ logger = logging.getLogger(__name__)
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="JARVIS Desktop Assistant")
-    parser.add_argument("command", nargs="?", default="run",
-                       choices=["run", "status", "stop", "restart", "install", 
-                              "uninstall", "test", "diagnose", "info"])
+    parser.add_argument(
+        "command",
+        nargs="?",
+        default="run",
+        choices=[
+            "run",
+            "status",
+            "stop",
+            "restart",
+            "install",
+            "uninstall",
+            "test",
+            "diagnose",
+            "info",
+        ],
+    )
     args = parser.parse_args()
 
     if args.command == "status":
@@ -57,13 +70,13 @@ def main():
 def show_status():
     """Show JARVIS status."""
     state_file = Path.home() / ".jarvis" / "state.json"
-    
+
     if not state_file.exists():
         print("JARVIS is not installed or has never run")
         return
-    
+
     state = PersistentState(state_file)
-    
+
     print("JARVIS Desktop Status")
     print("=" * 40)
     print(f"Version: {state.state.version}")
@@ -76,12 +89,13 @@ def show_status():
     print(f"Memory entries: {state.state.memory_entries}")
     print(f"Projects: {state.state.project_count}")
     print(f"Wake word: {state.state.wake_word}")
-    
+
     # Check if running
     pid_file = Path.home() / ".jarvis" / "jarvis.pid"
     if pid_file.exists():
         try:
             import os
+
             pid = int(pid_file.read_text().strip())
             os.kill(pid, 0)
             print("\nStatus: RUNNING")
@@ -94,20 +108,22 @@ def show_status():
 def stop_jarvis():
     """Stop running JARVIS instance."""
     pid_file = Path.home() / ".jarvis" / "jarvis.pid"
-    
+
     if not pid_file.exists():
         print("JARVIS is not running")
         return
-    
+
     try:
         import os
         import signal
+
         pid = int(pid_file.read_text().strip())
         os.kill(pid, signal.SIGTERM)
         print("Sent stop signal to JARVIS")
-        
+
         # Wait for shutdown
         import time
+
         for _ in range(10):
             try:
                 os.kill(pid, 0)
@@ -115,11 +131,11 @@ def stop_jarvis():
             except OSError:
                 print("JARVIS stopped")
                 return
-        
+
         print("JARVIS did not stop gracefully, forcing...")
         os.kill(pid, signal.SIGKILL)
         print("JARVIS killed")
-        
+
     except Exception as e:
         print(f"Error stopping JARVIS: {e}")
 
@@ -129,6 +145,7 @@ def restart_jarvis():
     print("Restarting JARVIS...")
     stop_jarvis()
     import time
+
     time.sleep(2)
     run_jarvis()
 
@@ -153,15 +170,16 @@ def uninstall_auto_start():
 
 def run_jarvis():
     """Run JARVIS desktop assistant."""
+
     async def main():
         # Initialize persistent state
         state_file = Path.home() / ".jarvis" / "state.json"
         state = PersistentState(state_file)
-        
+
         # Create assistant
         config = DesktopConfig.from_file(Path.home() / ".jarvis" / "config.json")
         assistant = DesktopAssistant(config)
-        
+
         # Set up state callbacks
         async def on_start():
             await state.on_start()
@@ -169,22 +187,22 @@ def run_jarvis():
                 plugins_loaded=assistant.plugins.plugin_count,
                 project_count=len(assistant.projects.projects),
                 memory_entries=len(assistant.memory.memories),
-                wake_word=assistant.config.wake_word
+                wake_word=assistant.config.wake_word,
             )
             await state.save()
-        
+
         async def on_stop():
             await state.on_stop()
-        
+
         # Register callbacks (simplified)
         try:
             await assistant.start()
             await on_start()
-            
+
             # Run until stopped
             while assistant.is_running:
                 await asyncio.sleep(1)
-                
+
         except KeyboardInterrupt:
             logger.info("Received interrupt signal")
         except Exception as e:
@@ -194,51 +212,48 @@ def run_jarvis():
             await on_stop()
             await assistant.stop()
             logger.info("JARVIS shutdown complete")
-    
-    try:
+
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
 
 
 def run_tests():
     """Run validation tests."""
     import subprocess
     import sys
-    
+
     print("Running JARVIS Desktop validation tests...")
     print("=" * 50)
-    
+
     # Run pytest
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", 
-         "tests/test_desktop.py",
-         "-v", "--tb=short"],
-        capture_output=False
+        [sys.executable, "-m", "pytest", "tests/test_desktop.py", "-v", "--tb=short"],
+        capture_output=False,
     )
-    
+
     if result.returncode == 0:
         print("\n" + "=" * 50)
         print("All validation tests passed!")
     else:
         print("\n" + "=" * 50)
         print("Some tests failed. See output above.")
-    
+
     return result.returncode
 
 
 def run_diagnostics():
     """Run system diagnostics."""
     from jarvis.desktop.diagnose import main as diagnose_main
+
     diagnose_main()
 
 
 def show_info():
     """Show system information."""
     from jarvis.desktop.platform import get_platform_info
-    
+
     info = get_platform_info()
-    
+
     print("=" * 50)
     print("JARVIS Desktop - System Information")
     print("=" * 50)

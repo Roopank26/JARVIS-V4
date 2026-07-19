@@ -3,11 +3,10 @@ LLM API client for JARVIS.
 Supports Groq (primary) with Gemini fallback.
 """
 
-import os
 import json
 import logging
+import os
 from pathlib import Path
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +20,11 @@ class GroqClient:
     Fast inference with llama models.
     """
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         self.api_key = api_key or self._load_api_key()
         self._client = None
 
-    def _load_api_key(self) -> Optional[str]:
+    def _load_api_key(self) -> str | None:
         """Load API key from config or environment."""
         # Check environment
         api_key = os.environ.get("GROQ_API_KEY")
@@ -38,7 +37,7 @@ class GroqClient:
 
         if config_path.exists():
             try:
-                with open(config_path, "r") as f:
+                with open(config_path) as f:
                     keys = json.load(f)
                     return keys.get("groq_api_key") or keys.get("groq")
             except Exception:
@@ -47,7 +46,7 @@ class GroqClient:
         # Legacy Gemini key check
         if config_path.exists():
             try:
-                with open(config_path, "r") as f:
+                with open(config_path) as f:
                     keys = json.load(f)
                     # Also accept gemini key as fallback
                     return keys.get("gemini_api_key")
@@ -61,6 +60,7 @@ class GroqClient:
         if self._client is None and self.api_key:
             try:
                 from groq import Groq
+
                 self._client = Groq(api_key=self.api_key)
                 logger.info("[Groq] Client initialized")
             except ImportError:
@@ -74,7 +74,7 @@ class GroqClient:
         prompt: str = "",
         temperature: float = 0.7,
         max_tokens: int = 2048,
-        model: str = DEFAULT_MODEL
+        model: str = DEFAULT_MODEL,
     ) -> str:
         """
         Generate a text response.
@@ -103,10 +103,7 @@ class GroqClient:
             messages.append({"role": "user", "content": prompt})
 
             response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens
+                model=model, messages=messages, temperature=temperature, max_tokens=max_tokens
             )
 
             return response.choices[0].message.content
@@ -120,11 +117,11 @@ class GroqClient:
 
     async def generate_with_history(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         system: str = "",
         temperature: float = 0.7,
         max_tokens: int = 2048,
-        model: str = DEFAULT_MODEL
+        model: str = DEFAULT_MODEL,
     ) -> str:
         """
         Generate response with conversation history.
@@ -159,10 +156,7 @@ class GroqClient:
                 chat_messages.append({"role": role, "content": msg["content"]})
 
             response = client.chat.completions.create(
-                model=model,
-                messages=chat_messages,
-                temperature=temperature,
-                max_tokens=max_tokens
+                model=model, messages=chat_messages, temperature=temperature, max_tokens=max_tokens
             )
 
             return response.choices[0].message.content
@@ -217,7 +211,10 @@ class SimpleLLMClient:
             gemini_key = os.environ.get("GEMINI_API_KEY")
             if gemini_key:
                 try:
-                    from google import genai
+                    import importlib.util
+
+                    if importlib.util.find_spec("google.genai") is None:
+                        raise ImportError
                     self._client = GeminiClient(api_key=gemini_key)
                 except ImportError:
                     self._client = None
@@ -232,7 +229,7 @@ class SimpleLLMClient:
         prompt: str = "",
         temperature: float = 0.7,
         max_tokens: int = 2048,
-        model: str = DEFAULT_MODEL
+        model: str = DEFAULT_MODEL,
     ) -> str:
         """Generate a response."""
         if hasattr(self._client, "generate"):
@@ -241,7 +238,7 @@ class SimpleLLMClient:
                 prompt=prompt,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                model=model
+                model=model,
             )
 
         # Fallback for testing
@@ -249,11 +246,11 @@ class SimpleLLMClient:
 
     async def generate_with_history(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         system: str = "",
         temperature: float = 0.7,
         max_tokens: int = 2048,
-        model: str = DEFAULT_MODEL
+        model: str = DEFAULT_MODEL,
     ) -> str:
         """Generate response with history."""
         if hasattr(self._client, "generate_with_history"):
@@ -262,7 +259,7 @@ class SimpleLLMClient:
                 system=system,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                model=model
+                model=model,
             )
 
         # Fallback

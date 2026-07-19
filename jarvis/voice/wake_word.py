@@ -4,10 +4,11 @@ Provides continuous listening for "Jarvis" wake word activation.
 """
 
 import asyncio
+import contextlib
 import io
-from typing import Callable, Optional
-from dataclasses import dataclass
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class WakeWordConfig:
     """Wake word detection configuration."""
+
     word: str = "jarvis"
     sensitivity: float = 0.7
     timeout: float = 30.0
@@ -28,11 +30,11 @@ class WakeWordEngine:
     Supports Porcupine, Snowboy, and fallback VAD-based detection.
     """
 
-    def __init__(self, config: Optional[WakeWordConfig] = None):
+    def __init__(self, config: WakeWordConfig | None = None):
         self.config = config or WakeWordConfig()
         self._listening = False
-        self._task: Optional[asyncio.Task] = None
-        self._callback: Optional[Callable[[str], None]] = None
+        self._task: asyncio.Task | None = None
+        self._callback: Callable[[str], None] | None = None
         self._silence_threshold = 500
         self._wake_phrases = ["jarvis", "hey jarvis", "hey computer"]
 
@@ -43,7 +45,7 @@ class WakeWordEngine:
     async def start(self, callback: Callable[[str], None]) -> None:
         """
         Start listening for wake word.
-        
+
         Args:
             callback: Function called when wake word is detected.
                       Receives the detected phrase as argument.
@@ -62,18 +64,16 @@ class WakeWordEngine:
         self._listening = False
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
             self._task = None
         logger.info("Wake word engine stopped")
 
     async def _listen_loop(self) -> None:
         """Main listening loop with voice activity detection."""
         try:
-            import sounddevice as sd
             import numpy as np
+            import sounddevice as sd
 
             audio_buffer = []
             silence_frames = 0
@@ -102,13 +102,13 @@ class WakeWordEngine:
                     if in_speech:
                         silence_frames += 1
                         audio_buffer.append(audio_data.tobytes())
-                        
+
                         # Check for end of speech
                         if silence_frames > 20:  # ~0.4 seconds of silence
                             in_speech = False
                             # Process the captured audio
                             if len(audio_buffer) > 10:
-                                asyncio.create_task(self._check_wake_word(b''.join(audio_buffer)))
+                                asyncio.create_task(self._check_wake_word(b"".join(audio_buffer)))
                             audio_buffer.clear()
                     speech_frames = 0
 
@@ -117,7 +117,7 @@ class WakeWordEngine:
                 channels=self.config.channels,
                 dtype="int16",
                 blocksize=1024,
-                callback=audio_callback
+                callback=audio_callback,
             )
 
             with stream:
@@ -151,7 +151,8 @@ class WakeWordEngine:
             # Convert to WAV
             with io.BytesIO() as buf:
                 import wave
-                with wave.open(buf, 'wb') as wf:
+
+                with wave.open(buf, "wb") as wf:
                     wf.setnchannels(self.config.channels)
                     wf.setsampwidth(2)
                     wf.setframerate(self.config.sample_rate)
@@ -224,9 +225,9 @@ class VoiceStateMachine:
         old_state = self.state
         self.state = new_state
         self._last_activity = 0.0
-        
+
         logger.info(f"State: {old_state} -> {new_state}")
-        
+
         if new_state in self._state_callbacks:
             for callback in self._state_callbacks[new_state]:
                 try:

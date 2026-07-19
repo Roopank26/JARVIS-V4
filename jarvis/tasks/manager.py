@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import builtins
+import contextlib
 import logging
 import time
 import uuid
@@ -93,10 +94,8 @@ class BackgroundTaskManager:
     async def stop(self) -> None:
         if self._worker_task:
             self._worker_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._worker_task
-            except asyncio.CancelledError:
-                pass
             self._worker_task = None
 
     def submit(
@@ -141,7 +140,11 @@ class BackgroundTaskManager:
         return [self._tasks[i] for i in self._order]
 
     def list_active(self) -> builtins.list[BackgroundTask]:
-        return [t for t in self.list() if t.state in (TaskState.QUEUED, TaskState.RUNNING, TaskState.PAUSED)]
+        return [
+            t
+            for t in self.list()
+            if t.state in (TaskState.QUEUED, TaskState.RUNNING, TaskState.PAUSED)
+        ]
 
     async def cancel(self, task_id: str) -> bool:
         task = self._tasks.get(task_id)
@@ -210,9 +213,7 @@ class BackgroundTaskManager:
     async def _scheduler(self) -> None:
         while True:
             queued = [
-                self._tasks[i]
-                for i in self._order
-                if self._tasks[i].state == TaskState.QUEUED
+                self._tasks[i] for i in self._order if self._tasks[i].state == TaskState.QUEUED
             ]
             while self._running < self.max_concurrent and queued:
                 task = queued.pop(0)

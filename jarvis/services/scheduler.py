@@ -4,19 +4,22 @@ Task scheduler for JARVIS - Cron-like scheduling for recurring tasks.
 
 import asyncio
 import json
-from pathlib import Path
-from typing import Dict, List, Optional, Callable, Any
-from dataclasses import dataclass, field
-from datetime import datetime, date
-from croniter import croniter
-from enum import Enum
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import date, datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+from croniter import croniter
 
 logger = logging.getLogger(__name__)
 
 
 class TaskType(Enum):
     """Types of scheduled tasks."""
+
     COMMAND = "command"
     REMINDER = "reminder"
     CHECK = "check"
@@ -26,25 +29,26 @@ class TaskType(Enum):
 @dataclass
 class ScheduledTask:
     """A scheduled task definition."""
+
     name: str
     schedule: str  # Cron expression
     task_type: TaskType
     command: str
     enabled: bool = True
     description: str = ""
-    last_run: Optional[datetime] = None
-    next_run: Optional[datetime] = None
+    last_run: datetime | None = None
+    next_run: datetime | None = None
     run_count: int = 0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def is_due(self, now: datetime = None) -> bool:
         """Check if task is due to run."""
         if not self.enabled or self.next_run is None:
             return False
-        
+
         if now is None:
             now = datetime.now()
-        
+
         return now >= self.next_run
 
     def calculate_next_run(self) -> datetime:
@@ -54,20 +58,21 @@ class ScheduledTask:
         return self.next_run
 
 
-@dataclass 
+@dataclass
 class DailySummary:
     """Daily activity summary."""
+
     date: date
     commands_executed: int = 0
-    tasks_completed: List[str] = field(default_factory=list)
-    files_modified: List[str] = field(default_factory=list)
+    tasks_completed: list[str] = field(default_factory=list)
+    files_modified: list[str] = field(default_factory=list)
     errors_encountered: int = 0
     knowledge_added: int = 0
-    top_interactions: List[str] = field(default_factory=list)
-    learned_facts: List[str] = field(default_factory=list)
-    project_progress: Dict[str, str] = field(default_factory=dict)
+    top_interactions: list[str] = field(default_factory=list)
+    learned_facts: list[str] = field(default_factory=list)
+    project_progress: dict[str, str] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "date": self.date.isoformat(),
             "commands_executed": self.commands_executed,
@@ -90,13 +95,13 @@ class TaskScheduler:
     def __init__(self, storage_path: Path = None):
         if storage_path is None:
             storage_path = Path.home() / ".jarvis" / "scheduler.json"
-        
+
         self.storage_path = storage_path
-        self.tasks: Dict[str, ScheduledTask] = {}
+        self.tasks: dict[str, ScheduledTask] = {}
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._jarvis = None
-        self._callbacks: Dict[str, Callable] = {}
+        self._callbacks: dict[str, Callable] = {}
         self._daily_summary = DailySummary(date=date.today())
         self._load_tasks()
 
@@ -108,9 +113,9 @@ class TaskScheduler:
         """Load tasks from storage."""
         if self.storage_path.exists():
             try:
-                with open(self.storage_path, "r") as f:
+                with open(self.storage_path) as f:
                     data = json.load(f)
-                    
+
                 for name, task_data in data.items():
                     task = ScheduledTask(
                         name=name,
@@ -119,11 +124,11 @@ class TaskScheduler:
                         command=task_data["command"],
                         enabled=task_data.get("enabled", True),
                         description=task_data.get("description", ""),
-                        metadata=task_data.get("metadata", {})
+                        metadata=task_data.get("metadata", {}),
                     )
                     task.calculate_next_run()
                     self.tasks[name] = task
-                    
+
                 logger.info(f"Loaded {len(self.tasks)} scheduled tasks")
             except Exception as e:
                 logger.error(f"Failed to load tasks: {e}")
@@ -131,7 +136,7 @@ class TaskScheduler:
     def _save_tasks(self) -> None:
         """Save tasks to storage."""
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         data = {}
         for name, task in self.tasks.items():
             data[name] = {
@@ -142,7 +147,7 @@ class TaskScheduler:
                 "description": task.description,
                 "metadata": task.metadata,
             }
-        
+
         with open(self.storage_path, "w") as f:
             json.dump(data, f, indent=2)
 
@@ -154,11 +159,11 @@ class TaskScheduler:
         task_type: TaskType = TaskType.COMMAND,
         description: str = "",
         enabled: bool = True,
-        **metadata
+        **metadata,
     ) -> ScheduledTask:
         """
         Add a new scheduled task.
-        
+
         Args:
             name: Unique task name
             schedule: Cron expression (e.g., "0 9 * * *" for daily at 9 AM)
@@ -166,7 +171,7 @@ class TaskScheduler:
             task_type: Type of task
             description: Human-readable description
             enabled: Whether task is enabled
-            
+
         Returns:
             Created ScheduledTask
         """
@@ -177,13 +182,13 @@ class TaskScheduler:
             command=command,
             description=description,
             enabled=enabled,
-            metadata=metadata
+            metadata=metadata,
         )
         task.calculate_next_run()
-        
+
         self.tasks[name] = task
         self._save_tasks()
-        
+
         logger.info(f"Added scheduled task: {name} ({schedule})")
         return task
 
@@ -213,15 +218,15 @@ class TaskScheduler:
             return True
         return False
 
-    def get_task(self, name: str) -> Optional[ScheduledTask]:
+    def get_task(self, name: str) -> ScheduledTask | None:
         """Get a task by name."""
         return self.tasks.get(name)
 
-    def list_tasks(self) -> List[ScheduledTask]:
+    def list_tasks(self) -> list[ScheduledTask]:
         """List all scheduled tasks."""
         return list(self.tasks.values())
 
-    def get_due_tasks(self) -> List[ScheduledTask]:
+    def get_due_tasks(self) -> list[ScheduledTask]:
         """Get all tasks that are due to run."""
         now = datetime.now()
         return [t for t in self.tasks.values() if t.is_due(now)]
@@ -230,28 +235,28 @@ class TaskScheduler:
         """Main scheduler loop."""
         self._running = True
         logger.info("Task scheduler started")
-        
+
         while self._running:
             try:
                 due_tasks = self.get_due_tasks()
-                
+
                 for task in due_tasks:
                     await self._execute_task(task)
-                    
+
             except Exception as e:
                 logger.error(f"Scheduler error: {e}")
-            
+
             await asyncio.sleep(60)  # Check every minute
 
     async def _execute_task(self, task: ScheduledTask) -> None:
         """Execute a scheduled task."""
         logger.info(f"Executing task: {task.name}")
-        
+
         task.last_run = datetime.now()
         task.run_count += 1
         task.calculate_next_run()
         self._save_tasks()
-        
+
         try:
             # Check for registered callback
             if task.name in self._callbacks:
@@ -261,10 +266,10 @@ class TaskScheduler:
                 # Execute via JARVIS
                 result = await self._jarvis.process_command(task.command)
                 logger.debug(f"Task result: {result}")
-                
+
                 # Track in daily summary
                 self._daily_summary.tasks_completed.append(task.name)
-                
+
         except Exception as e:
             logger.error(f"Task execution error: {task.name}: {e}")
             self._daily_summary.errors_encountered += 1
@@ -281,7 +286,7 @@ class TaskScheduler:
         logger.info("Task scheduler stopped")
 
     # Daily Summary Methods
-    
+
     def increment_commands(self) -> None:
         """Increment command counter."""
         self._daily_summary.commands_executed += 1
@@ -304,7 +309,7 @@ class TaskScheduler:
     async def generate_summary_report(self) -> str:
         """Generate formatted summary report."""
         summary = self._daily_summary
-        
+
         lines = [
             f"# Daily Summary - {summary.date}",
             "",
@@ -315,42 +320,42 @@ class TaskScheduler:
             f"- Files modified: {len(summary.files_modified)}",
             "",
         ]
-        
+
         if summary.tasks_completed:
             lines.append("### Tasks Completed")
             for task in summary.tasks_completed[-5:]:
                 lines.append(f"- {task}")
             lines.append("")
-        
+
         if summary.learned_facts:
             lines.append("### Learned")
             for fact in summary.learned_facts[-5:]:
                 lines.append(f"- {fact}")
             lines.append("")
-        
+
         if summary.project_progress:
             lines.append("### Project Progress")
             for project, status in summary.project_progress.items():
                 lines.append(f"- {project}: {status}")
-        
+
         return "\n".join(lines)
 
     def save_summary(self) -> Path:
         """Save daily summary to file."""
         summaries_dir = Path.home() / ".jarvis" / "summaries"
         summaries_dir.mkdir(parents=True, exist_ok=True)
-        
+
         filename = summaries_dir / f"{self._daily_summary.date}.json"
         with open(filename, "w") as f:
             json.dump(self._daily_summary.to_dict(), f, indent=2)
-        
+
         return filename
 
     def new_day(self) -> None:
         """Reset for new day."""
         # Save old summary
         self.save_summary()
-        
+
         # Create new summary
         self._daily_summary = DailySummary(date=date.today())
         logger.info("New day started, summary reset")

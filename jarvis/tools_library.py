@@ -26,7 +26,7 @@ class ToolEntry:
     description: str
     category: str
     permission: str = "ask_once"
-    source: str = "registry"      # "registry" or "plugin"
+    source: str = "registry"  # "registry" or "plugin"
     plugin_id: str | None = None
     read_only: bool = False
     dangerous: bool = False

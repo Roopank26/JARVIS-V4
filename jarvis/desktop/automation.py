@@ -7,9 +7,8 @@ import asyncio
 import logging
 import platform
 import subprocess
-from pathlib import Path
-from typing import List, Optional
 from dataclasses import dataclass
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class WindowInfo:
     """Window information."""
+
     title: str
     process: str
     x: int = 0
@@ -29,7 +29,7 @@ class WindowInfo:
 class DesktopAutomation:
     """
     Cross-platform desktop automation.
-    
+
     Supports:
     - Window management (list, focus, move, resize, minimize, maximize)
     - Application launching
@@ -57,36 +57,28 @@ class DesktopAutomation:
         """Check if running on Linux."""
         return self.system == "linux"
 
-    async def list_windows(self) -> List[WindowInfo]:
+    async def list_windows(self) -> list[WindowInfo]:
         """
         List all open windows.
-        
+
         Returns:
             List of WindowInfo objects
         """
         windows = []
-        
+
         try:
             if self.is_linux:
                 # Use wmctrl on Linux
-                result = subprocess.run(
-                    ["wmctrl", "-l"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
+                result = subprocess.run(["wmctrl", "-l"], capture_output=True, text=True, timeout=5)
                 if result.returncode == 0:
                     for line in result.stdout.splitlines():
                         parts = line.split(None, 3)
                         if len(parts) >= 4:
-                            windows.append(WindowInfo(
-                                title=parts[3],
-                                process=""
-                            ))
-                            
+                            windows.append(WindowInfo(title=parts[3], process=""))
+
             elif self.is_macos:
                 # Use osascript on macOS
-                script = '''
+                script = """
                 tell application "System Events"
                     set windowList to every window of every process
                     set output to ""
@@ -97,22 +89,19 @@ class DesktopAutomation:
                     end repeat
                     return output
                 end tell
-                '''
+                """
                 result = subprocess.run(
-                    ["osascript", "-e", script],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
+                    ["osascript", "-e", script], capture_output=True, text=True, timeout=5
                 )
                 if result.returncode == 0:
                     for line in result.stdout.strip().split("\n"):
                         if "|" in line:
                             title, app = line.rsplit("|", 1)
                             windows.append(WindowInfo(title=title, process=app))
-                            
+
             elif self.is_windows:
                 # Use PowerShell on Windows
-                script = '''
+                script = """
                 Add-Type @"
                 using System;
                 using System.Runtime.InteropServices;
@@ -137,63 +126,52 @@ class DesktopAutomation:
                 }
                 [void][Win32]::EnumWindows($callback, [IntPtr]::Zero)
                 $windows | Where-Object { $_ } | ForEach-Object { $_ }
-                '''
+                """
                 result = subprocess.run(
-                    ["powershell", "-Command", script],
-                    capture_output=True,
-                    text=True,
-                    timeout=10
+                    ["powershell", "-Command", script], capture_output=True, text=True, timeout=10
                 )
                 if result.returncode == 0:
                     for title in result.stdout.strip().split("\n"):
                         if title.strip():
                             windows.append(WindowInfo(title=title.strip(), process=""))
-                            
+
         except FileNotFoundError:
             logger.warning("Window listing tool not found")
         except Exception as e:
             logger.error(f"Error listing windows: {e}")
-        
+
         return windows
 
     async def focus_window(self, title: str) -> bool:
         """
         Focus a window by title.
-        
+
         Args:
             title: Window title or partial title to match
-            
+
         Returns:
             True if successful
         """
         try:
             if self.is_linux:
-                result = subprocess.run(
-                    ["wmctrl", "-a", title],
-                    capture_output=True,
-                    timeout=5
-                )
+                result = subprocess.run(["wmctrl", "-a", title], capture_output=True, timeout=5)
                 return result.returncode == 0
-                
+
             elif self.is_macos:
-                script = f'''
+                script = f"""
                 tell application "System Events"
                     set winList to every window whose name contains "{title}"
                     if (count of winList) > 0 then
                         perform action "AXRaise" of winList[1]
                     end if
                 end tell
-                '''
-                result = subprocess.run(
-                    ["osascript", "-e", script],
-                    capture_output=True,
-                    timeout=5
-                )
+                """
+                result = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=5)
                 return result.returncode == 0
-                
+
             elif self.is_windows:
                 # Use PowerShell to find and focus window
-                script = f'''
+                script = f"""
                 Add-Type @" 
                 using System;
                 using System.Runtime.InteropServices;
@@ -209,18 +187,16 @@ class DesktopAutomation:
                     [void][Win32]::SetForegroundWindow($hwnd)
                     $true
                 }}
-                '''
+                """
                 result = subprocess.run(
-                    ["powershell", "-Command", script],
-                    capture_output=True,
-                    timeout=5
+                    ["powershell", "-Command", script], capture_output=True, timeout=5
                 )
                 return "$true" in result.stdout.lower()
-                
+
         except Exception as e:
             logger.error(f"Error focusing window: {e}")
             return False
-        
+
         return False
 
     async def minimize_window(self, title: str) -> bool:
@@ -230,7 +206,7 @@ class DesktopAutomation:
                 result = subprocess.run(
                     ["xdotool", "search", "--name", title, "minimize"],
                     capture_output=True,
-                    timeout=5
+                    timeout=5,
                 )
                 return result.returncode == 0
             # Similar for other platforms...
@@ -241,10 +217,10 @@ class DesktopAutomation:
     async def close_window(self, title: str) -> bool:
         """
         Close a window by title.
-        
+
         Args:
             title: Window title to close
-            
+
         Returns:
             True if successful
         """
@@ -254,49 +230,49 @@ class DesktopAutomation:
                 result = subprocess.run(
                     ["xdotool", "search", "--name", title, "windowclose"],
                     capture_output=True,
-                    timeout=5
+                    timeout=5,
                 )
                 return result.returncode == 0
-                
+
             elif self.is_macos:
-                script = f'''
+                script = f"""
                 tell application "System Events"
                     set winList to every window whose name contains "{title}"
                     if (count of winList) > 0 then
                         click button 1 of winList[1]
                     end if
                 end tell
-                '''
-                result = subprocess.run(
-                    ["osascript", "-e", script],
-                    capture_output=True,
-                    timeout=5
-                )
+                """
+                result = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=5)
                 return result.returncode == 0
-                
+
             elif self.is_windows:
                 # Use PowerShell to send Alt+F4
                 await self.focus_window(title)
                 await asyncio.sleep(0.2)
                 subprocess.run(
-                    ["powershell", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('%{F4}')"],
+                    [
+                        "powershell",
+                        "-Command",
+                        "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('%{F4}')",
+                    ],
                     capture_output=True,
-                    timeout=2
+                    timeout=2,
                 )
                 return True
-                
+
         except Exception as e:
             logger.error(f"Error closing window: {e}")
-        
+
         return False
 
     async def launch_app(self, app_name: str) -> bool:
         """
         Launch an application.
-        
+
         Args:
             app_name: Name of the application to launch
-            
+
         Returns:
             True if successful
         """
@@ -314,32 +290,24 @@ class DesktopAutomation:
                         return True
                     except FileNotFoundError:
                         continue
-                        
+
             elif self.is_macos:
-                result = subprocess.run(
-                    ["open", "-a", app_name],
-                    capture_output=True,
-                    timeout=10
-                )
+                result = subprocess.run(["open", "-a", app_name], capture_output=True, timeout=10)
                 return result.returncode == 0
-                
+
             elif self.is_windows:
-                subprocess.Popen(
-                    ["start", "", app_name],
-                    shell=True,
-                    stdout=subprocess.DEVNULL
-                )
+                subprocess.Popen(["start", "", app_name], shell=True, stdout=subprocess.DEVNULL)
                 return True
-                
+
         except Exception as e:
             logger.error(f"Error launching app: {e}")
-        
+
         return False
 
     async def get_clipboard(self) -> str:
         """
         Get clipboard content.
-        
+
         Returns:
             Clipboard text content
         """
@@ -349,97 +317,88 @@ class DesktopAutomation:
                     ["xclip", "-selection", "clipboard", "-o"],
                     capture_output=True,
                     text=True,
-                    timeout=2
+                    timeout=2,
                 )
                 if result.returncode == 0:
                     return result.stdout
-                    
+
             elif self.is_macos:
-                result = subprocess.run(
-                    ["pbpaste"],
-                    capture_output=True,
-                    text=True,
-                    timeout=2
-                )
+                result = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=2)
                 if result.returncode == 0:
                     return result.stdout
-                    
+
             elif self.is_windows:
                 result = subprocess.run(
                     ["powershell", "-Command", "Get-Clipboard"],
                     capture_output=True,
                     text=True,
-                    timeout=2
+                    timeout=2,
                 )
                 if result.returncode == 0:
                     return result.stdout
-                    
+
         except Exception as e:
             logger.error(f"Error getting clipboard: {e}")
-        
+
         return ""
 
     async def set_clipboard(self, text: str) -> bool:
         """
         Set clipboard content.
-        
+
         Args:
             text: Text to copy to clipboard
-            
+
         Returns:
             True if successful
         """
         try:
             if self.is_linux:
                 subprocess.run(
-                    ["xclip", "-selection", "clipboard", "-i"],
-                    input=text,
-                    text=True,
-                    timeout=2
+                    ["xclip", "-selection", "clipboard", "-i"], input=text, text=True, timeout=2
                 )
                 return True
-                
+
             elif self.is_macos:
-                subprocess.run(
-                    ["pbcopy"],
-                    input=text,
-                    text=True,
-                    timeout=2
-                )
+                subprocess.run(["pbcopy"], input=text, text=True, timeout=2)
                 return True
-                
+
             elif self.is_windows:
                 # Use base64 encoding to avoid PowerShell injection
                 import base64
+
                 encoded = base64.b64encode(text.encode("utf-16-le")).decode("ascii")
                 subprocess.run(
-                    ["powershell", "-Command",
-                     f"$decoded = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('{encoded}')); Set-Clipboard -Value $decoded"],
+                    [
+                        "powershell",
+                        "-Command",
+                        f"$decoded = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('{encoded}')); Set-Clipboard -Value $decoded",
+                    ],
                     capture_output=True,
-                    timeout=2
+                    timeout=2,
                 )
                 return True
-                
+
         except Exception as e:
             logger.error(f"Error setting clipboard: {e}")
-        
+
         return False
 
-    async def take_screenshot(self, path: Optional[Path] = None) -> Optional[str]:
+    async def take_screenshot(self, path: Path | None = None) -> str | None:
         """
         Take a screenshot.
-        
+
         Args:
             path: Optional output path (defaults to ~/Pictures/screenshot.png)
-            
+
         Returns:
             Path to screenshot file or None on failure
         """
         if path is None:
             path = Path.home() / "Pictures" / "screenshot.png"
-        
+
         path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         try:
             if self.is_linux:
                 # Try gnome-screenshot, scrot, or import
@@ -451,20 +410,18 @@ class DesktopAutomation:
                     result = subprocess.run(cmd, capture_output=True, timeout=5)
                     if result.returncode == 0 and path.exists():
                         return str(path)
-                        
+
             elif self.is_macos:
                 result = subprocess.run(
-                    ["screencapture", str(path)],
-                    capture_output=True,
-                    timeout=5
+                    ["screencapture", str(path)], capture_output=True, timeout=5
                 )
                 if result.returncode == 0 and path.exists():
                     return str(path)
-                    
+
             elif self.is_windows:
                 # Use PowerShell with escaped path
                 escaped_path = str(path).replace("'", "''")
-                script = f'''
+                script = f"""
                 Add-Type -AssemblyName System.Windows.Forms
                 Add-Type -AssemblyName System.Drawing
                 $screen = [System.Windows.Forms.Screen]::PrimaryScreen
@@ -474,66 +431,77 @@ class DesktopAutomation:
                 $bitmap.Save('{escaped_path}')
                 $bitmap.Dispose()
                 $graphics.Dispose()
-                '''
+                """
                 result = subprocess.run(
-                    ["powershell", "-Command", script],
-                    capture_output=True,
-                    timeout=10
+                    ["powershell", "-Command", script], capture_output=True, timeout=10
                 )
                 if result.returncode == 0 and path.exists():
                     return str(path)
-                    
+
         except Exception as e:
             logger.error(f"Error taking screenshot: {e}")
-        
+
         return None
 
-    async def execute_hotkey(self, keys: List[str]) -> bool:
+    async def execute_hotkey(self, keys: list[str]) -> bool:
         """
         Execute a hotkey combination.
-        
+
         Args:
             keys: List of keys (e.g., ["ctrl", "c"] for Ctrl+C)
-            
+
         Returns:
             True if successful
         """
         try:
             # Normalize keys
             key_str = "+".join(keys)
-            
+
             if self.is_linux:
-                subprocess.run(
-                    ["xdotool", "key", key_str],
-                    capture_output=True,
-                    timeout=2
-                )
+                subprocess.run(["xdotool", "key", key_str], capture_output=True, timeout=2)
                 return True
-                
+
             elif self.is_macos:
-                script = f'''
+                script = f"""
                 tell application "System Events"
                     keystroke "{keys[-1]}" using {{{"+".join(["command down" if k == "ctrl" else k for k in keys]).replace("ctrl", "command")} down}}
                 end tell
-                '''
-                subprocess.run(
-                    ["osascript", "-e", script],
-                    capture_output=True,
-                    timeout=2
-                )
+                """
+                subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
                 return True
-                
+
             elif self.is_windows:
                 # Convert key combinations to SendKeys format
                 sendkeys_map = {
-                    "ctrl": "^", "alt": "%", "shift": "+",
-                    "win": "^({ESC})", "tab": "{TAB}", "enter": "{ENTER}",
-                    "escape": "{ESC}", "delete": "{DELETE}", "backspace": "{BACKSPACE}",
-                    "up": "{UP}", "down": "{DOWN}", "left": "{LEFT}", "right": "{RIGHT}",
-                    "home": "{HOME}", "end": "{END}", "pageup": "{PGUP}", "pagedown": "{PGDN}",
-                    "f1": "{F1}", "f2": "{F2}", "f3": "{F3}", "f4": "{F4}", "f5": "{F5}",
-                    "f6": "{F6}", "f7": "{F7}", "f8": "{F8}", "f9": "{F9}", "f10": "{F10}",
-                    "f11": "{F11}", "f12": "{F12}",
+                    "ctrl": "^",
+                    "alt": "%",
+                    "shift": "+",
+                    "win": "^({ESC})",
+                    "tab": "{TAB}",
+                    "enter": "{ENTER}",
+                    "escape": "{ESC}",
+                    "delete": "{DELETE}",
+                    "backspace": "{BACKSPACE}",
+                    "up": "{UP}",
+                    "down": "{DOWN}",
+                    "left": "{LEFT}",
+                    "right": "{RIGHT}",
+                    "home": "{HOME}",
+                    "end": "{END}",
+                    "pageup": "{PGUP}",
+                    "pagedown": "{PGDN}",
+                    "f1": "{F1}",
+                    "f2": "{F2}",
+                    "f3": "{F3}",
+                    "f4": "{F4}",
+                    "f5": "{F5}",
+                    "f6": "{F6}",
+                    "f7": "{F7}",
+                    "f8": "{F8}",
+                    "f9": "{F9}",
+                    "f10": "{F10}",
+                    "f11": "{F11}",
+                    "f12": "{F12}",
                 }
                 keys = key_str.lower().split("+")
                 sendkeys_str = ""
@@ -546,24 +514,28 @@ class DesktopAutomation:
                 # Escape braces for PowerShell
                 escaped = sendkeys_str.replace("{", "`{").replace("}", "`}")
                 subprocess.run(
-                    ["powershell", "-Command", f"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{escaped}')"],
+                    [
+                        "powershell",
+                        "-Command",
+                        f"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{escaped}')",
+                    ],
                     capture_output=True,
-                    timeout=2
+                    timeout=2,
                 )
                 return True
-                
+
         except Exception as e:
             logger.error(f"Error executing hotkey: {e}")
-        
+
         return False
 
     async def type_text(self, text: str) -> bool:
         """
         Type text at the current cursor position.
-        
+
         Args:
             text: Text to type
-            
+
         Returns:
             True if successful
         """
@@ -574,23 +546,22 @@ class DesktopAutomation:
                 subprocess.run(
                     ["xdotool", "type", "--delay", "50", escaped],
                     capture_output=True,
-                    timeout=len(text) * 0.1
+                    timeout=len(text) * 0.1,
                 )
                 return True
-                
+
             elif self.is_macos:
-                script = f'''
+                escaped_text = text.replace('"', '\\"')
+                script = f"""
                 tell application "System Events"
-                    keystroke "{text.replace('"', '\\"')}"
+                    keystroke "{escaped_text}"
                 end tell
-                '''
+                """
                 subprocess.run(
-                    ["osascript", "-e", script],
-                    capture_output=True,
-                    timeout=len(text) * 0.1
+                    ["osascript", "-e", script], capture_output=True, timeout=len(text) * 0.1
                 )
                 return True
-                
+
             elif self.is_windows:
                 # Escape special SendKeys characters
                 sendkeys_special = set("+=^%~(){}[]")
@@ -603,34 +574,37 @@ class DesktopAutomation:
                     else:
                         escaped_text += ch
                 subprocess.run(
-                    ["powershell", "-Command",
-                     f"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{escaped_text.replace(chr(39), chr(39)+chr(39))}')"],
+                    [
+                        "powershell",
+                        "-Command",
+                        f"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{escaped_text.replace(chr(39), chr(39) + chr(39))}')",
+                    ],
                     capture_output=True,
-                    timeout=max(len(text) * 0.1, 2)
+                    timeout=max(len(text) * 0.1, 2),
                 )
                 return True
-                
+
         except Exception as e:
             logger.error(f"Error typing text: {e}")
-        
+
         return False
 
-    def format_windows_list(self, windows: List[WindowInfo]) -> str:
+    def format_windows_list(self, windows: list[WindowInfo]) -> str:
         """Format window list for display."""
         if not windows:
             return "No windows found."
-        
+
         lines = ["[Open Windows]", "=" * 40, ""]
         for i, win in enumerate(windows, 1):
             lines.append(f"{i}. {win.title}")
             if win.process:
                 lines.append(f"   App: {win.process}")
-        
+
         return "\n".join(lines)
 
 
 # Global instance
-_desktop_automation: Optional[DesktopAutomation] = None
+_desktop_automation: DesktopAutomation | None = None
 
 
 def get_desktop_automation() -> DesktopAutomation:

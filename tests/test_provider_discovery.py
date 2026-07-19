@@ -2,20 +2,20 @@
 Tests for dynamic provider discovery, model auto-detection, and failover.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch
 
 from jarvis.api.providers import (
-    ProviderManager,
-    OllamaProvider,
-    GroqProvider,
-    OpenAIProvider,
     AnthropicProvider,
     GoogleProvider,
-    ProviderType,
+    GroqProvider,
     LLMConfig,
     LLMResponse,
+    OllamaProvider,
+    OpenAIProvider,
+    ProviderManager,
+    ProviderType,
 )
 
 
@@ -30,7 +30,9 @@ def _make_ollama(models=None, available=True):
 
 
 def _make_groq(models=None, available=True, api_key="test"):
-    cfg = LLMConfig(provider=ProviderType.GROQ, api_key=api_key, model=models[0] if models else None)
+    cfg = LLMConfig(
+        provider=ProviderType.GROQ, api_key=api_key, model=models[0] if models else None
+    )
     p = GroqProvider(cfg)
     p._available = available
     p._available_models = models or []
@@ -40,7 +42,9 @@ def _make_groq(models=None, available=True, api_key="test"):
 
 
 def _make_openai(models=None, available=True, api_key="test"):
-    cfg = LLMConfig(provider=ProviderType.OPENAI, api_key=api_key, model=models[0] if models else None)
+    cfg = LLMConfig(
+        provider=ProviderType.OPENAI, api_key=api_key, model=models[0] if models else None
+    )
     p = OpenAIProvider(cfg)
     p._available = available
     p._available_models = models or []
@@ -50,7 +54,9 @@ def _make_openai(models=None, available=True, api_key="test"):
 
 
 def _make_google(models=None, available=True, api_key="test"):
-    cfg = LLMConfig(provider=ProviderType.GOOGLE, api_key=api_key, model=models[0] if models else None)
+    cfg = LLMConfig(
+        provider=ProviderType.GOOGLE, api_key=api_key, model=models[0] if models else None
+    )
     p = GoogleProvider(cfg)
     p._available = available
     p._available_models = models or []
@@ -60,7 +66,9 @@ def _make_google(models=None, available=True, api_key="test"):
 
 
 def _make_anthropic(models=None, available=True, api_key="test"):
-    cfg = LLMConfig(provider=ProviderType.ANTHROPIC, api_key=api_key, model=models[0] if models else None)
+    cfg = LLMConfig(
+        provider=ProviderType.ANTHROPIC, api_key=api_key, model=models[0] if models else None
+    )
     p = AnthropicProvider(cfg)
     p._available = available
     p._available_models = models or []
@@ -83,7 +91,9 @@ class TestProviderDiscovery:
         assert ProviderManager.PROVIDER_FALLBACK_ORDER[ProviderType.OLLAMA] == ProviderType.GROQ
         assert ProviderManager.PROVIDER_FALLBACK_ORDER[ProviderType.GROQ] == ProviderType.OPENAI
         assert ProviderManager.PROVIDER_FALLBACK_ORDER[ProviderType.OPENAI] == ProviderType.GOOGLE
-        assert ProviderManager.PROVIDER_FALLBACK_ORDER[ProviderType.GOOGLE] == ProviderType.ANTHROPIC
+        assert (
+            ProviderManager.PROVIDER_FALLBACK_ORDER[ProviderType.GOOGLE] == ProviderType.ANTHROPIC
+        )
         assert ProviderManager.PROVIDER_FALLBACK_ORDER[ProviderType.ANTHROPIC] is None
 
     def test_add_all_provider_types(self):
@@ -151,10 +161,16 @@ class TestAutomaticFailover:
         manager.primary_provider = ProviderType.OLLAMA
 
         async def fake_groq_generate(*args, **kwargs):
-            return LLMResponse(content="hi", provider=ProviderType.GROQ, model="llama-3.3-70b-versatile")
+            return LLMResponse(
+                content="hi", provider=ProviderType.GROQ, model="llama-3.3-70b-versatile"
+            )
 
-        with patch.object(ollama, "generate", new_callable=AsyncMock, side_effect=Exception("Ollama down")):
-            with patch.object(groq, "generate", new_callable=AsyncMock, side_effect=fake_groq_generate):
+        with patch.object(
+            ollama, "generate", new_callable=AsyncMock, side_effect=Exception("Ollama down")
+        ):
+            with patch.object(
+                groq, "generate", new_callable=AsyncMock, side_effect=fake_groq_generate
+            ):
                 response = await manager.generate("Hello")
         assert response.provider == ProviderType.GROQ
         assert manager.primary_provider == ProviderType.GROQ
@@ -172,9 +188,15 @@ class TestAutomaticFailover:
         async def fake_openai_generate(*args, **kwargs):
             return LLMResponse(content="hi", provider=ProviderType.OPENAI, model="gpt-4o")
 
-        with patch.object(ollama, "generate", new_callable=AsyncMock, side_effect=Exception("down")):
-            with patch.object(groq, "generate", new_callable=AsyncMock, side_effect=Exception("down")):
-                with patch.object(openai, "generate", new_callable=AsyncMock, side_effect=fake_openai_generate):
+        with patch.object(
+            ollama, "generate", new_callable=AsyncMock, side_effect=Exception("down")
+        ):
+            with patch.object(
+                groq, "generate", new_callable=AsyncMock, side_effect=Exception("down")
+            ):
+                with patch.object(
+                    openai, "generate", new_callable=AsyncMock, side_effect=fake_openai_generate
+                ):
                     response = await manager.generate("Hello")
         assert response.provider == ProviderType.OPENAI
         assert manager.primary_provider == ProviderType.OPENAI
@@ -220,8 +242,12 @@ class TestAutomaticFailover:
         manager.add_provider(ollama)
         manager.add_provider(groq)
 
-        with patch.object(ollama, "generate", new_callable=AsyncMock, side_effect=Exception("down")):
-            with patch.object(groq, "generate", new_callable=AsyncMock, side_effect=Exception("down")):
+        with patch.object(
+            ollama, "generate", new_callable=AsyncMock, side_effect=Exception("down")
+        ):
+            with patch.object(
+                groq, "generate", new_callable=AsyncMock, side_effect=Exception("down")
+            ):
                 with pytest.raises(Exception, match="All providers failed"):
                     await manager.generate("Hello")
 

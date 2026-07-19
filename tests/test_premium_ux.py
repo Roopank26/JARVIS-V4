@@ -8,25 +8,24 @@ live providers, voice, or network.
 """
 
 import asyncio
+
 import pytest
 
+from jarvis.errors import FriendlyError, handle_error
 from jarvis.events import (
     EventBus,
     EventType,
-    Stage,
     get_event_bus,
     reset_event_bus,
 )
-from jarvis.errors import handle_error, FriendlyError
-from jarvis.tools_library import ToolLibrary, reset_tool_library
 from jarvis.palette import CommandPalette, reset_command_palette
+from jarvis.suggestions import SuggestionEngine, reset_suggestion_engine
 from jarvis.tasks import (
     BackgroundTaskManager,
     TaskState,
-    get_task_manager,
     reset_task_manager,
 )
-from jarvis.suggestions import SuggestionEngine, reset_suggestion_engine
+from jarvis.tools_library import ToolLibrary, reset_tool_library
 
 
 @pytest.fixture
@@ -94,11 +93,22 @@ async def test_tool_library_favorite_and_recent(bus):
     lib.refresh()
     # Favorite toggle should not raise even with no tools
     assert lib.toggle_favorite("nonexistent") is False
-    lib._cache["demo"] = type("T", (), {
-        "name": "demo", "description": "d", "category": "x",
-        "permission": "ask_once", "source": "registry", "plugin_id": None,
-        "read_only": True, "dangerous": False, "used_at": 0.0, "favorite": False,
-    })()
+    lib._cache["demo"] = type(
+        "T",
+        (),
+        {
+            "name": "demo",
+            "description": "d",
+            "category": "x",
+            "permission": "ask_once",
+            "source": "registry",
+            "plugin_id": None,
+            "read_only": True,
+            "dangerous": False,
+            "used_at": 0.0,
+            "favorite": False,
+        },
+    )()
     assert lib.toggle_favorite("demo") is True
     assert "demo" in [t.name for t in lib.favorites()]
     lib.mark_used("demo")
@@ -130,12 +140,12 @@ async def test_task_manager_lifecycle(bus):
     mgr = BackgroundTaskManager(bus=bus, max_concurrent=2)
     await mgr.start()
     try:
-        done = asyncio.Event()
 
         def factory():
             async def _run():
                 await asyncio.sleep(0.05)
                 return "ok"
+
             return _run()
 
         tid = mgr.submit("test task", factory, category="test")
@@ -157,10 +167,12 @@ async def test_task_manager_cancel(bus):
     mgr = BackgroundTaskManager(bus=bus, max_concurrent=1)
     await mgr.start()
     try:
+
         def factory():
             async def _run():
                 await asyncio.sleep(5)
                 return "late"
+
             return _run()
 
         tid = mgr.submit("long task", factory, category="test")
@@ -184,9 +196,14 @@ async def test_task_manager_retry_then_fail(bus):
             async def _run():
                 counter["n"] += 1
                 raise RuntimeError("boom")
+
             return _run()
 
-        tid = mgr.submit("failing", factory, category="test", )
+        tid = mgr.submit(
+            "failing",
+            factory,
+            category="test",
+        )
         mgr.get(tid).max_retries = 1
         for _ in range(60):
             t = mgr.get(tid)

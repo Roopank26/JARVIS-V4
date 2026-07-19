@@ -2,19 +2,20 @@
 Session memory for JARVIS - in-memory conversation history.
 """
 
-from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 
 @dataclass
 class Message:
     """Represents a single message in the conversation."""
+
     role: str  # "user", "assistant", "system", "tool"
     content: str
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
-    tool_name: Optional[str] = None
-    tool_result: Optional[str] = None
+    tool_name: str | None = None
+    tool_result: str | None = None
 
 
 class SessionMemory:
@@ -27,7 +28,7 @@ class SessionMemory:
     MAX_TOKEN_ESTIMATE = 8000
 
     def __init__(self):
-        self.messages: List[Message] = []
+        self.messages: list[Message] = []
         self._message_count = 0
 
     def add_user_message(self, content: str) -> None:
@@ -42,19 +43,21 @@ class SessionMemory:
 
     def add_tool_message(self, tool_name: str, tool_result: str) -> None:
         """Add a tool result message to the session."""
-        self.messages.append(Message(
-            role="tool",
-            content=f"[{tool_name}] {tool_result}",
-            tool_name=tool_name,
-            tool_result=tool_result
-        ))
+        self.messages.append(
+            Message(
+                role="tool",
+                content=f"[{tool_name}] {tool_result}",
+                tool_name=tool_name,
+                tool_result=tool_result,
+            )
+        )
         self._trim_if_needed()
 
-    def get_recent_messages(self, count: int = 10) -> List[Message]:
+    def get_recent_messages(self, count: int = 10) -> list[Message]:
         """Get the N most recent messages."""
         return self.messages[-count:] if self.messages else []
 
-    def get_all_messages(self) -> List[Message]:
+    def get_all_messages(self) -> list[Message]:
         """Get all messages in the session."""
         return self.messages.copy()
 
@@ -100,7 +103,7 @@ class SessionMemory:
         self.messages.clear()
         self._message_count = 0
 
-    def get_history_summary(self) -> Dict[str, Any]:
+    def get_history_summary(self) -> dict[str, Any]:
         """Get a summary of the session history."""
         return {
             "total_messages": len(self.messages),

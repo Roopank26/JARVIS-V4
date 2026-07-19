@@ -3,8 +3,8 @@ Memory base classes for JARVIS.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
 from datetime import datetime
+from typing import Any
 
 
 class MemoryBase(ABC):
@@ -39,19 +39,16 @@ class MemoryBase(ABC):
 class MemoryEntry:
     """Represents a single memory entry."""
 
-    def __init__(self, key: str, value: Any, category: str = "general",
-                 timestamp: Optional[str] = None):
+    def __init__(
+        self, key: str, value: Any, category: str = "general", timestamp: str | None = None
+    ):
         self.key = key
         self.value = value
         self.category = category
         self.timestamp = timestamp or datetime.now().isoformat()
 
     def to_dict(self) -> dict:
-        return {
-            "value": str(self.value),
-            "category": self.category,
-            "updated": self.timestamp
-        }
+        return {"value": str(self.value), "category": self.category, "updated": self.timestamp}
 
     @classmethod
     def from_dict(cls, key: str, data: dict) -> "MemoryEntry":
@@ -59,7 +56,7 @@ class MemoryEntry:
             key=key,
             value=data.get("value", ""),
             category=data.get("category", "general"),
-            timestamp=data.get("updated")
+            timestamp=data.get("updated"),
         )
 
 

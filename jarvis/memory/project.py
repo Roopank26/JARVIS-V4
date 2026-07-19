@@ -4,12 +4,12 @@ Maintains context for each project the user works on.
 """
 
 import json
-import subprocess
-from pathlib import Path
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field, asdict
-from datetime import datetime
 import logging
+import subprocess
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -17,21 +17,22 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ProjectContext:
     """Context for a single project."""
+
     path: Path
     name: str
     language: str = ""
-    frameworks: List[str] = field(default_factory=list)
-    recent_files: List[str] = field(default_factory=list)
+    frameworks: list[str] = field(default_factory=list)
+    recent_files: list[str] = field(default_factory=list)
     git_branch: str = ""
     git_status: str = ""
-    todos: List[str] = field(default_factory=list)
-    dependencies: Dict[str, str] = field(default_factory=dict)
+    todos: list[str] = field(default_factory=list)
+    dependencies: dict[str, str] = field(default_factory=dict)
     notes: str = ""
     last_active: datetime = field(default_factory=datetime.now)
     created_at: datetime = field(default_factory=datetime.now)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for serialization."""
         data = asdict(self)
         data["path"] = self.path.as_posix()  # Use POSIX format for cross-platform compatibility
@@ -40,11 +41,15 @@ class ProjectContext:
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "ProjectContext":
+    def from_dict(cls, data: dict) -> "ProjectContext":
         """Create from dictionary."""
         data["path"] = Path(data["path"])
-        data["last_active"] = datetime.fromisoformat(data.get("last_active", datetime.now().isoformat()))
-        data["created_at"] = datetime.fromisoformat(data.get("created_at", datetime.now().isoformat()))
+        data["last_active"] = datetime.fromisoformat(
+            data.get("last_active", datetime.now().isoformat())
+        )
+        data["created_at"] = datetime.fromisoformat(
+            data.get("created_at", datetime.now().isoformat())
+        )
         return cls(**data)
 
 
@@ -57,25 +62,24 @@ class ProjectMemory:
     def __init__(self, storage_path: Path = None):
         if storage_path is None:
             storage_path = Path.home() / ".jarvis" / "projects.json"
-        
+
         self.storage_path = storage_path
-        self.projects: Dict[str, ProjectContext] = {}
-        self.active_project: Optional[str] = None
+        self.projects: dict[str, ProjectContext] = {}
+        self.active_project: str | None = None
         self._load()
 
     def _load(self) -> None:
         """Load projects from storage."""
         if self.storage_path.exists():
             try:
-                with open(self.storage_path, "r") as f:
+                with open(self.storage_path) as f:
                     data = json.load(f)
-                
+
                 self.projects = {
-                    name: ProjectContext.from_dict(pdata)
-                    for name, pdata in data.items()
+                    name: ProjectContext.from_dict(pdata) for name, pdata in data.items()
                 }
                 self.active_project = data.get("_active_project")
-                
+
                 logger.info(f"Loaded {len(self.projects)} projects")
             except Exception as e:
                 logger.error(f"Failed to load projects: {e}")
@@ -83,28 +87,25 @@ class ProjectMemory:
     def _save(self) -> None:
         """Save projects to storage."""
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        data = {
-            name: p.to_dict()
-            for name, p in self.projects.items()
-        }
+
+        data = {name: p.to_dict() for name, p in self.projects.items()}
         if self.active_project:
             data["_active_project"] = self.active_project
-        
+
         with open(self.storage_path, "w") as f:
             json.dump(data, f, indent=2)
 
     def add_project(self, path: Path, name: str = None) -> ProjectContext:
         """
         Add a project or update existing.
-        
+
         Args:
             path: Project directory path
             name: Optional project name (defaults to directory name)
         """
         path = path.resolve()
         name = name or path.name
-        
+
         # Check if already exists
         if name in self.projects:
             project = self.projects[name]
@@ -116,7 +117,7 @@ class ProjectMemory:
 
         # Auto-detect project info
         self._detect_project_info(project)
-        
+
         self._save()
         return project
 
@@ -131,11 +132,11 @@ class ProjectMemory:
             return True
         return False
 
-    def get_project(self, name: str) -> Optional[ProjectContext]:
+    def get_project(self, name: str) -> ProjectContext | None:
         """Get project by name."""
         return self.projects.get(name)
 
-    def get_active_project(self) -> Optional[ProjectContext]:
+    def get_active_project(self) -> ProjectContext | None:
         """Get currently active project."""
         if self.active_project:
             return self.projects.get(self.active_project)
@@ -151,7 +152,7 @@ class ProjectMemory:
             return True
         return False
 
-    def list_projects(self) -> List[Dict]:
+    def list_projects(self) -> list[dict]:
         """List all projects with summary info."""
         return [
             {
@@ -168,7 +169,7 @@ class ProjectMemory:
     def _detect_project_info(self, project: ProjectContext) -> None:
         """Auto-detect project information."""
         path = project.path
-        
+
         # Git detection
         if (path / ".git").exists():
             try:
@@ -177,21 +178,22 @@ class ProjectMemory:
                     ["git", "rev-parse", "--abbrev-ref", "HEAD"],
                     cwd=path,
                     capture_output=True,
-                    text=True
+                    text=True,
                 )
                 if result.returncode == 0:
                     project.git_branch = result.stdout.strip()
-                
+
                 # Git status
                 result = subprocess.run(
-                    ["git", "status", "--porcelain"],
-                    cwd=path,
-                    capture_output=True,
-                    text=True
+                    ["git", "status", "--porcelain"], cwd=path, capture_output=True, text=True
                 )
                 if result.returncode == 0:
-                    untracked = len([l for l in result.stdout.splitlines() if l.startswith("??")])
-                    modified = len([l for l in result.stdout.splitlines() if not l.startswith("??")])
+                    untracked = len(
+                        [line for line in result.stdout.splitlines() if line.startswith("??")]
+                    )
+                    modified = len(
+                        [line for line in result.stdout.splitlines() if not line.startswith("??")]
+                    )
                     project.git_status = f"{modified} modified, {untracked} untracked"
             except Exception as e:
                 logger.debug(f"Git detection failed: {e}")
@@ -211,13 +213,13 @@ class ProjectMemory:
             ".swift": "Swift",
             ".kt": "Kotlin",
         }
-        
+
         extensions = {}
-        for ext, lang in language_map.items():
+        for ext, _ in language_map.items():
             count = len(list(path.rglob(f"*{ext}")))
             if count > 0:
                 extensions[ext] = count
-        
+
         if extensions:
             project.language = max(extensions, key=extensions.get).lstrip(".")
             if project.language == "js":
@@ -237,7 +239,7 @@ class ProjectMemory:
         if (path / "pom.xml").exists() or (path / "build.gradle").exists():
             project.frameworks.append("Java build")
 
-    def update_todos(self, project_name: str, todos: List[str]) -> bool:
+    def update_todos(self, project_name: str, todos: list[str]) -> bool:
         """Update TODO list for project."""
         project = self.projects.get(project_name)
         if project:
@@ -258,10 +260,10 @@ class ProjectMemory:
             return True
         return False
 
-    async def auto_detect_projects(self, search_paths: List[Path] = None) -> List[str]:
+    async def auto_detect_projects(self, search_paths: list[Path] = None) -> list[str]:
         """
         Auto-detect projects from git repositories.
-        
+
         Args:
             search_paths: Directories to search (defaults to home)
         """
@@ -276,7 +278,7 @@ class ProjectMemory:
             for git_dir in search_path.rglob(".git"):
                 project_path = git_dir.parent
                 name = project_path.name
-                
+
                 if name not in self.projects:
                     self.add_project(project_path, name)
                     detected.append(name)

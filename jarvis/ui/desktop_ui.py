@@ -14,6 +14,7 @@ logger = logging.getLogger("jarvis.ui.desktop")
 @dataclass
 class UITheme:
     """UI theme configuration."""
+
     name: str = "dark"
     background: str = "#1a1a2e"
     surface: str = "#16213e"
@@ -29,6 +30,7 @@ class UITheme:
 @dataclass
 class ConversationMessage:
     """A conversation message."""
+
     role: str  # user, assistant, system
     content: str
     timestamp: str | None = None
@@ -38,7 +40,7 @@ class ConversationMessage:
 class DesktopUI:
     """
     Modern desktop UI for JARVIS.
-    
+
     Features:
     - Dark theme with JARVIS styling
     - Live conversation display
@@ -49,13 +51,13 @@ class DesktopUI:
     - System monitor
     - Notification center
     """
-    
+
     def __init__(self, theme: UITheme | None = None):
         self.theme = theme or UITheme()
         self._running = False
         self._messages: list[ConversationMessage] = []
         self._listeners: dict[str, list[Callable]] = {}
-        
+
         # UI State
         self._current_model = "qwen3"
         self._current_provider = "ollama"
@@ -65,21 +67,22 @@ class DesktopUI:
         self._conversation_active = False
         self._cpu_usage = 0.0
         self._memory_usage = 0.0
-    
+
     async def start(self) -> bool:
         """Start the UI."""
         logger.info("Starting desktop UI...")
         self._running = True
         return True
-    
+
     async def stop(self) -> None:
         """Stop the UI."""
         logger.info("Stopping desktop UI...")
         self._running = False
-    
+
     def add_message(self, role: str, content: str, metadata: dict | None = None) -> None:
         """Add a message to the conversation."""
         from datetime import datetime
+
         message = ConversationMessage(
             role=role,
             content=content,
@@ -88,48 +91,48 @@ class DesktopUI:
         )
         self._messages.append(message)
         self._emit("message", message)
-    
+
     def get_conversation(self) -> list[ConversationMessage]:
         """Get the current conversation."""
         return self._messages.copy()
-    
+
     def clear_conversation(self) -> None:
         """Clear the conversation history."""
         self._messages.clear()
         self._emit("clear", None)
-    
+
     def set_model(self, model: str) -> None:
         """Set the current model."""
         self._current_model = model
         self._emit("model_change", model)
-    
+
     def set_provider(self, provider: str) -> None:
         """Set the current provider."""
         self._current_provider = provider
         self._emit("provider_change", provider)
-    
+
     def set_speaking(self, speaking: bool) -> None:
         """Set speaking state."""
         self._is_speaking = speaking
         self._emit("speaking", speaking)
-    
+
     def set_listening(self, listening: bool) -> None:
         """Set listening state."""
         self._is_listening = listening
         self._emit("listening", listening)
-    
+
     def update_stats(self, cpu: float, memory: float) -> None:
         """Update system statistics."""
         self._cpu_usage = cpu
         self._memory_usage = memory
         self._emit("stats", {"cpu": cpu, "memory": memory})
-    
+
     def on(self, event: str, callback: Callable) -> None:
         """Register an event listener."""
         if event not in self._listeners:
             self._listeners[event] = []
         self._listeners[event].append(callback)
-    
+
     def _emit(self, event: str, data: Any) -> None:
         """Emit an event."""
         for callback in self._listeners.get(event, []):
@@ -137,7 +140,7 @@ class DesktopUI:
                 callback(data)
             except Exception as e:
                 logger.error(f"Event callback error: {e}")
-    
+
     def get_html(self) -> str:
         """Get the UI as HTML (for web-based rendering)."""
         messages_html = ""
@@ -146,10 +149,10 @@ class DesktopUI:
             messages_html += f"""
                 <div class="message {role_class}">
                     <div class="message-content">{self._escape_html(msg.content)}</div>
-                    <div class="message-time">{msg.timestamp or ''}</div>
+                    <div class="message-time">{msg.timestamp or ""}</div>
                 </div>
             """
-        
+
         return f"""
 <!DOCTYPE html>
 <html>
@@ -282,8 +285,8 @@ class DesktopUI:
     <div class="header">
         <div class="logo">JARVIS</div>
         <div class="status">
-            <div class="indicator {'listening' if self._is_listening else ''}"></div>
-            <span>{'Listening' if self._is_listening else 'Idle'}</span>
+            <div class="indicator {"listening" if self._is_listening else ""}"></div>
+            <span>{"Listening" if self._is_listening else "Idle"}</span>
         </div>
         <div class="status">
             <span>Model: {self._current_model}</span>
@@ -323,7 +326,7 @@ class DesktopUI:
 </body>
 </html>
         """
-    
+
     def _escape_html(self, text: str) -> str:
         """Escape HTML special characters."""
         return (
@@ -333,7 +336,7 @@ class DesktopUI:
             .replace('"', "&quot;")
             .replace("'", "&#39;")
         )
-    
+
     @property
     def is_speaking(self) -> bool:
         return self._is_speaking
@@ -344,11 +347,11 @@ class DesktopUI:
 
     @property
     def is_interrupted(self) -> bool:
-        return getattr(self, '_is_interrupted', False)
+        return getattr(self, "_is_interrupted", False)
 
     @property
     def conversation_active(self) -> bool:
-        return getattr(self, '_conversation_active', False)
+        return getattr(self, "_conversation_active", False)
 
     def set_interrupted(self, interrupted: bool) -> None:
         """Set interrupted state."""
@@ -365,19 +368,19 @@ class DesktopUI:
         return {
             "is_speaking": self._is_speaking,
             "is_listening": self._is_listening,
-            "is_interrupted": getattr(self, '_is_interrupted', False),
-            "conversation_active": getattr(self, '_conversation_active', False),
+            "is_interrupted": getattr(self, "_is_interrupted", False),
+            "conversation_active": getattr(self, "_conversation_active", False),
             "state": self._get_voice_state_label(),
         }
 
     def _get_voice_state_label(self) -> str:
-        if getattr(self, '_is_interrupted', False):
+        if getattr(self, "_is_interrupted", False):
             return "Interrupted"
         if self._is_speaking:
             return "Speaking"
         if self._is_listening:
             return "Listening"
-        if getattr(self, '_conversation_active', False):
+        if getattr(self, "_conversation_active", False):
             return "Conversation Active"
         return "Idle"
 
@@ -399,24 +402,24 @@ class DesktopUI:
 # Console UI fallback
 class ConsoleUI:
     """Simple console-based UI."""
-    
+
     def __init__(self):
         self._running = False
-    
+
     async def start(self) -> bool:
         self._running = True
         print("=" * 50)
         print("  JARVIS - Just A Rather Very Intelligent System")
         print("=" * 50)
         return True
-    
+
     async def stop(self) -> None:
         self._running = False
-    
+
     def add_message(self, role: str, content: str) -> None:
         prefix = "You" if role == "user" else "JARVIS"
         print(f"\n[{prefix}]")
         print(content)
-    
+
     def get_status(self) -> dict[str, Any]:
         return {"running": self._running, "type": "console"}

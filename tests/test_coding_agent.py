@@ -2,17 +2,18 @@
 Tests for Coding Agent - Repository Intelligence System.
 """
 
-import pytest
-import tempfile
 import asyncio
+import tempfile
 from pathlib import Path
 
+import pytest
+
 from jarvis.coding.coding_agent import (
-    RepositoryIndexer,
     CodeAnalyzer,
-    GitIntegration,
     CodeFile,
+    GitIntegration,
     ProjectMap,
+    RepositoryIndexer,
 )
 
 
@@ -24,7 +25,9 @@ class TestRepositoryIndexer:
         """Create a temporary repository structure."""
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            (root / "main.py").write_text("class Main:\n    def run(self): pass\ndef main(): Main().run()")
+            (root / "main.py").write_text(
+                "class Main:\n    def run(self): pass\ndef main(): Main().run()"
+            )
             (root / "utils.py").write_text("def helper(): pass\ndef process(): pass")
             js_dir = root / "src"
             js_dir.mkdir()
@@ -37,7 +40,7 @@ class TestRepositoryIndexer:
         """Test indexing a Python repository."""
         indexer = RepositoryIndexer(temp_repo)
         project_map = await indexer.index()
-        
+
         assert project_map.file_count >= 3
         assert "python" in project_map.language_stats
         assert project_map.language_stats["python"] >= 2
@@ -47,7 +50,7 @@ class TestRepositoryIndexer:
         """Test extracting from indexed project."""
         indexer = RepositoryIndexer(temp_repo)
         project_map = await indexer.index()
-        
+
         main_file = project_map.files.get("main.py")
         assert main_file is not None
         assert main_file.language == "python"
@@ -60,7 +63,7 @@ class TestRepositoryIndexer:
         project_map = await indexer.index()
         analyzer = CodeAnalyzer(project_map)
         analysis = analyzer.analyze_file("main.py")
-        
+
         assert "path" in analysis
         assert analysis["language"] == "python"
         assert analysis["lines"] > 0
@@ -72,7 +75,7 @@ class TestRepositoryIndexer:
         project_map = await indexer.index()
         analyzer = CodeAnalyzer(project_map)
         analysis = analyzer.analyze_file("nonexistent.py")
-        
+
         assert "error" in analysis
 
     def test_format_summary(self, temp_repo):
@@ -80,7 +83,7 @@ class TestRepositoryIndexer:
         indexer = RepositoryIndexer(temp_repo)
         asyncio.run(indexer.index())
         summary = indexer.format_summary()
-        
+
         assert "Project" in summary
         assert "Files" in summary
         assert "Languages" in summary

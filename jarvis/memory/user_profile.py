@@ -5,16 +5,16 @@ Provides structured personal information storage with natural language extractio
 
 import json
 import re
-from pathlib import Path
-from typing import Any, Dict, Optional
 from datetime import datetime
+from pathlib import Path
 from threading import Lock
+from typing import Any
 
 
 class UserProfile:
     """
     Structured user profile with categories for personal information.
-    
+
     Categories:
     - identity: Name, age, birthday, location, occupation
     - education: School, university, field of study, skills
@@ -26,12 +26,12 @@ class UserProfile:
 
     DEFAULT_CATEGORIES = [
         "identity",
-        "education", 
+        "education",
         "preferences",
         "relationships",
         "goals",
         "work",
-        "interests"
+        "interests",
     ]
 
     # Key mappings for natural language to structured fields
@@ -43,33 +43,29 @@ class UserProfile:
         "city": ["city", "i live in", "living in", "from"],
         "country": ["country", "from", "country of"],
         "occupation": ["occupation", "job", "profession", "work as", "employed as"],
-        
         # Education
         "school": ["school", "studying at", "attended", "high school"],
         "university": ["university", "college", "institute"],
         "field": ["field", "studying", "major", "degree in", "pursuing"],
         "skills": ["skill", "know", "proficient", "experience with"],
         "programming_languages": ["programming", "python", "java", "javascript", "coding"],
-        
         # Preferences
         "favorite_color": ["favorite color", "fav color", "color i like"],
         "favorite_food": ["favorite food", "fav food", "food i like", "like to eat"],
         "favorite_movie": ["favorite movie", "fav movie"],
         "favorite_music": ["favorite music", "music genre", "i listen to"],
         "hobbies": ["hobby", "hobbies", "i enjoy", "i like to", "passion"],
-        
         # Relationships
         "family": ["family", "father", "mother", "sister", "brother", "parent"],
         "friends": ["friend", "friends"],
         "colleagues": ["colleague", "coworker", "teammate"],
-        
         # Goals
         "career_goal": ["career goal", "career objective", "want to become"],
         "learning_goal": ["learning", "study", "learn about", "master"],
         "current_project": ["project", "working on", "currently doing"],
     }
 
-    def __init__(self, profile_path: Optional[Path] = None):
+    def __init__(self, profile_path: Path | None = None):
         if profile_path is None:
             base_dir = self._get_base_dir()
             profile_dir = base_dir / "memory"
@@ -77,16 +73,16 @@ class UserProfile:
             self.profile_path = profile_dir / "user_profile.json"
         else:
             self.profile_path = profile_path
-        
+
         self._lock = Lock()
-        self._profile: Dict[str, Dict[str, Any]] = {}
+        self._profile: dict[str, dict[str, Any]] = {}
         self._load_or_initialize()
 
     def _get_base_dir(self) -> Path:
         """Get the base directory for JARVIS config."""
         return Path.home() / ".jarvis"
 
-    def _empty_profile(self) -> Dict[str, Dict[str, Any]]:
+    def _empty_profile(self) -> dict[str, dict[str, Any]]:
         """Return the empty profile structure."""
         return {
             "identity": {},
@@ -98,8 +94,8 @@ class UserProfile:
             "interests": {},
             "_meta": {
                 "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat()
-            }
+                "updated_at": datetime.now().isoformat(),
+            },
         }
 
     def _load_or_initialize(self) -> None:
@@ -111,7 +107,7 @@ class UserProfile:
 
         with self._lock:
             try:
-                with open(self.profile_path, "r", encoding="utf-8") as f:
+                with open(self.profile_path, encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, dict):
                     self._profile = data
@@ -124,30 +120,26 @@ class UserProfile:
         """Save profile to disk."""
         self.profile_path.parent.mkdir(parents=True, exist_ok=True)
         self._profile["_meta"]["updated_at"] = datetime.now().isoformat()
-        
-        with self._lock:
-            with open(self.profile_path, "w", encoding="utf-8") as f:
-                json.dump(self._profile, f, indent=2, ensure_ascii=False)
+
+        with self._lock, open(self.profile_path, "w", encoding="utf-8") as f:
+            json.dump(self._profile, f, indent=2, ensure_ascii=False)
 
     def set(self, key: str, value: Any, category: str = "identity") -> None:
         """Set a profile field."""
         if category not in self._profile:
             self._profile[category] = {}
-        
-        self._profile[category][key] = {
-            "value": str(value),
-            "updated": datetime.now().isoformat()
-        }
+
+        self._profile[category][key] = {"value": str(value), "updated": datetime.now().isoformat()}
         self._save()
 
-    def get(self, key: str, category: str = "identity") -> Optional[str]:
+    def get(self, key: str, category: str = "identity") -> str | None:
         """Get a profile field."""
         entry = self._profile.get(category, {}).get(key)
         if entry and isinstance(entry, dict):
             return entry.get("value")
         return entry if entry else None
 
-    def get_all(self, category: Optional[str] = None) -> Dict[str, Any]:
+    def get_all(self, category: str | None = None) -> dict[str, Any]:
         """Get all fields in a category or all categories."""
         if category:
             return self._profile.get(category, {}).copy()
@@ -161,14 +153,13 @@ class UserProfile:
             return True
         return False
 
-    def extract_from_text(self, text: str) -> Dict[str, Dict[str, str]]:
+    def extract_from_text(self, text: str) -> dict[str, dict[str, str]]:
         """
         Extract profile information from natural language text.
-        
+
         Returns:
             Dict mapping (category, key) -> extracted value
         """
-        text_lower = text.lower()
         extracted = {}
 
         # Name patterns
@@ -209,7 +200,10 @@ class UserProfile:
             if match:
                 value = match.group(1).strip()
                 # Determine category based on content
-                if any(prog in value.lower() for prog in ["python", "java", "javascript", "coding", "programming"]):
+                if any(
+                    prog in value.lower()
+                    for prog in ["python", "java", "javascript", "coding", "programming"]
+                ):
                     extracted[("education", "skills")] = value
                 else:
                     extracted[("interests", "topics")] = value
@@ -221,26 +215,36 @@ class UserProfile:
             extracted[("preferences", "favorite_color")] = color_match.group(1).strip()
 
         # Age pattern
-        age_match = re.search(r"(?:i am|age\s+is|aged?)\s+(\d+)\s*(?:years?\s+old)?", text, re.IGNORECASE)
+        age_match = re.search(
+            r"(?:i am|age\s+is|aged?)\s+(\d+)\s*(?:years?\s+old)?", text, re.IGNORECASE
+        )
         if age_match:
             extracted[("identity", "age")] = age_match.group(1).strip()
 
         # City/Location pattern
-        city_match = re.search(r"(?:i live in|living in|from|city\s+is)\s+([A-Za-z\s]+?)(?:\.|$|,)", text, re.IGNORECASE)
+        city_match = re.search(
+            r"(?:i live in|living in|from|city\s+is)\s+([A-Za-z\s]+?)(?:\.|$|,)",
+            text,
+            re.IGNORECASE,
+        )
         if city_match:
             extracted[("identity", "city")] = city_match.group(1).strip()
 
         # Hobby pattern
-        hobby_match = re.search(r"(?:my hobbies?|i enjoy|i like to do)\s+(?:are\s+)?([A-Za-z\s,]+?)(?:\.|$|,)", text, re.IGNORECASE)
+        hobby_match = re.search(
+            r"(?:my hobbies?|i enjoy|i like to do)\s+(?:are\s+)?([A-Za-z\s,]+?)(?:\.|$|,)",
+            text,
+            re.IGNORECASE,
+        )
         if hobby_match:
             extracted[("preferences", "hobbies")] = hobby_match.group(1).strip()
 
         return extracted
 
-    def update_from_extraction(self, extractions: Dict[tuple, str]) -> int:
+    def update_from_extraction(self, extractions: dict[tuple, str]) -> int:
         """
         Update profile from extractions.
-        
+
         Returns:
             Number of fields updated
         """
@@ -253,7 +257,7 @@ class UserProfile:
     def format_summary(self) -> str:
         """
         Format the profile as a human-readable summary.
-        
+
         Returns:
             Formatted profile string
         """
@@ -345,7 +349,7 @@ class UserProfile:
 
 
 # Global profile instance
-_profile: Optional[UserProfile] = None
+_profile: UserProfile | None = None
 
 
 def get_user_profile() -> UserProfile:
@@ -356,7 +360,7 @@ def get_user_profile() -> UserProfile:
     return _profile
 
 
-def init_user_profile(profile_path: Optional[Path] = None) -> UserProfile:
+def init_user_profile(profile_path: Path | None = None) -> UserProfile:
     """Initialize the global user profile."""
     global _profile
     _profile = UserProfile(profile_path)

@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AudioChunk:
     """A single audio chunk for playback."""
+
     data: bytes
     sample_rate: int = 16000
     channels: int = 1
@@ -160,7 +161,9 @@ class AudioQueue:
                     event.set()
                     raise sd.CallbackStop()
                 to_write = min(frames, remaining)
-                outdata[:to_write] = audio_array[self._played_frames:self._played_frames + to_write].reshape(-1, 1)
+                outdata[:to_write] = audio_array[
+                    self._played_frames : self._played_frames + to_write
+                ].reshape(-1, 1)
                 if to_write < frames:
                     outdata[to_write:] = 0
                     event.set()

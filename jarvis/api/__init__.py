@@ -4,9 +4,9 @@ Supports Groq (primary) and Gemini (legacy fallback).
 """
 
 from jarvis.api.gemini import (
-    GroqClient,
     GeminiClient,  # Alias for backward compatibility
-    SimpleLLMClient
+    GroqClient,
+    SimpleLLMClient,
 )
 
-__all__ = ["GroqClient", "GeminiClient", "SimpleLLMClient"]
+__all__ = ["GeminiClient", "GroqClient", "SimpleLLMClient"]

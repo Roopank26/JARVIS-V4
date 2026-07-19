@@ -3,7 +3,7 @@ Camera capture for JARVIS.
 Adapted from Mark-XXXIX-OR's screen_processor.py
 """
 
-from typing import List
+import contextlib
 
 
 class CameraCapture:
@@ -19,11 +19,12 @@ class CameraCapture:
         """Initialize the camera."""
         try:
             import cv2
+
             self._capture = cv2.VideoCapture(self.device_index)
             if not self._capture.isOpened():
                 raise RuntimeError(f"Camera {self.device_index} not available")
-        except ImportError:
-            raise RuntimeError("Camera capture not available (opencv not installed)")
+        except ImportError as err:
+            raise RuntimeError("Camera capture not available (opencv not installed)") from err
 
     def capture(self) -> bytes:
         """
@@ -46,20 +47,21 @@ class CameraCapture:
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
             # Convert to JPEG
-            from PIL import Image
             import io
+
+            from PIL import Image
 
             img = Image.fromarray(rgb_frame)
             buf = io.BytesIO()
             img.save(buf, format="JPEG")
             return buf.getvalue()
 
-        except ImportError:
-            raise RuntimeError("PIL not available for image encoding")
+        except ImportError as err:
+            raise RuntimeError("PIL not available for image encoding") from err
         except Exception as e:
-            raise RuntimeError(f"Camera capture failed: {e}")
+            raise RuntimeError(f"Camera capture failed: {e}") from e
 
-    def list_devices(self) -> List[dict]:
+    def list_devices(self) -> list[dict]:
         """
         List available camera devices.
 
@@ -75,12 +77,14 @@ class CameraCapture:
             for i in range(6):
                 cap = cv2.VideoCapture(i)
                 if cap.isOpened():
-                    devices.append({
-                        "index": i,
-                        "available": True,
-                        "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                        "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    })
+                    devices.append(
+                        {
+                            "index": i,
+                            "available": True,
+                            "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                            "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+                        }
+                    )
                     cap.release()
 
         except ImportError:
@@ -91,10 +95,8 @@ class CameraCapture:
     def release(self):
         """Release the camera."""
         if self._capture:
-            try:
+            with contextlib.suppress(Exception):
                 self._capture.release()
-            except Exception:
-                pass
             self._capture = None
 
     def __del__(self):

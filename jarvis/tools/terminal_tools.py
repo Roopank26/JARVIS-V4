@@ -8,9 +8,9 @@ import shlex
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from jarvis.tools.base import WriteTool, ToolResult, PermissionLevel
+from jarvis.tools.base import PermissionLevel, ToolResult, WriteTool
 
 
 class BashTool(WriteTool):
@@ -19,8 +19,8 @@ class BashTool(WriteTool):
     def __init__(self):
         super().__init__()
         self.permission_level = PermissionLevel.ASK_ALWAYS
-        self._allowed_commands: List[str] = []
-        self._denied_commands: List[str] = ["rm -rf /", "dd if=", ":(){:|:&};:"]
+        self._allowed_commands: list[str] = []
+        self._denied_commands: list[str] = ["rm -rf /", "dd if=", ":(){:|:&};:"]
 
     @property
     def name(self) -> str:
@@ -35,27 +35,18 @@ class BashTool(WriteTool):
         return self.CATEGORY_TERMINAL
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "command": {
-                    "type": "string",
-                    "description": "Shell command to execute"
-                },
-                "timeout": {
-                    "type": "integer",
-                    "description": "Timeout in seconds (default: 30)"
-                },
-                "cwd": {
-                    "type": "string",
-                    "description": "Working directory for command"
-                }
+                "command": {"type": "string", "description": "Shell command to execute"},
+                "timeout": {"type": "integer", "description": "Timeout in seconds (default: 30)"},
+                "cwd": {"type": "string", "description": "Working directory for command"},
             },
-            "required": ["command"]
+            "required": ["command"],
         }
 
-    def check_permission(self, input_data: Dict[str, Any]) -> PermissionLevel:
+    def check_permission(self, input_data: dict[str, Any]) -> PermissionLevel:
         """Check if the command is allowed."""
         command = input_data.get("command", "")
 
@@ -73,7 +64,9 @@ class BashTool(WriteTool):
 
         return PermissionLevel.ASK_ALWAYS
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             command = input_data["command"]
             timeout = input_data.get("timeout", 30)
@@ -93,7 +86,7 @@ class BashTool(WriteTool):
                     capture_output=True,
                     text=True,
                     timeout=timeout,
-                    cwd=cwd or str(Path.cwd())
+                    cwd=cwd or str(Path.cwd()),
                 )
             else:
                 # Simple command parsing
@@ -103,7 +96,7 @@ class BashTool(WriteTool):
                     capture_output=True,
                     text=True,
                     timeout=timeout,
-                    cwd=cwd or str(Path.cwd())
+                    cwd=cwd or str(Path.cwd()),
                 )
 
             output = []
@@ -115,12 +108,16 @@ class BashTool(WriteTool):
             if result.returncode == 0:
                 return ToolResult(
                     success=True,
-                    output="\n".join(output) if output else "Command completed successfully"
+                    output="\n".join(output) if output else "Command completed successfully",
                 )
             else:
                 return ToolResult(
                     success=True,  # Still success, just with non-zero exit
-                    output="\n".join(output) if output else f"Command exited with code {result.returncode}"
+                    output=(
+                        "\n".join(output)
+                        if output
+                        else f"Command exited with code {result.returncode}"
+                    ),
                 )
 
         except subprocess.TimeoutExpired:
@@ -145,27 +142,20 @@ class RunScriptTool(WriteTool):
         return self.CATEGORY_TERMINAL
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Path to the script file"
-                },
-                "args": {
-                    "type": "string",
-                    "description": "Arguments to pass to the script"
-                },
-                "timeout": {
-                    "type": "integer",
-                    "description": "Timeout in seconds"
-                }
+                "path": {"type": "string", "description": "Path to the script file"},
+                "args": {"type": "string", "description": "Arguments to pass to the script"},
+                "timeout": {"type": "integer", "description": "Timeout in seconds"},
             },
-            "required": ["path"]
+            "required": ["path"],
         }
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             path = Path(input_data["path"]).expanduser()
 
@@ -187,12 +177,7 @@ class RunScriptTool(WriteTool):
 
             timeout = input_data.get("timeout", 60)
 
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
             output = []
             if result.stdout:
@@ -202,7 +187,9 @@ class RunScriptTool(WriteTool):
 
             return ToolResult(
                 success=result.returncode == 0,
-                output="\n".join(output) if output else f"Script exited with code {result.returncode}"
+                output=(
+                    "\n".join(output) if output else f"Script exited with code {result.returncode}"
+                ),
             )
 
         except Exception as e:
@@ -225,37 +212,33 @@ class CreateTempFileTool(WriteTool):
         return self.CATEGORY_FILE
 
     @property
-    def parameters(self) -> Dict[str, Any]:
+    def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "content": {
-                    "type": "string",
-                    "description": "Content for the temporary file"
-                },
+                "content": {"type": "string", "description": "Content for the temporary file"},
                 "suffix": {
                     "type": "string",
-                    "description": "File suffix/extension (e.g., .py, .txt)"
+                    "description": "File suffix/extension (e.g., .py, .txt)",
                 },
                 "delete_on_exit": {
                     "type": "boolean",
-                    "description": "Delete file when script exits"
-                }
+                    "description": "Delete file when script exits",
+                },
             },
-            "required": ["content"]
+            "required": ["content"],
         }
 
-    async def execute(self, input_data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ToolResult:
+    async def execute(
+        self, input_data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> ToolResult:
         try:
             content = input_data["content"]
             suffix = input_data.get("suffix", ".tmp")
             delete_on_exit = input_data.get("delete_on_exit", True)
 
             with tempfile.NamedTemporaryFile(
-                mode="w",
-                suffix=suffix,
-                delete=delete_on_exit,
-                encoding="utf-8"
+                mode="w", suffix=suffix, delete=delete_on_exit, encoding="utf-8"
             ) as f:
                 f.write(content)
                 temp_path = f.name

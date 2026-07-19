@@ -4,7 +4,6 @@ JARVIS Configuration Management
 
 import json
 from pathlib import Path
-from typing import Optional
 
 
 class Config:
@@ -14,7 +13,7 @@ class Config:
     DEFAULT_CONFIG_FILE = "config.json"
     DEFAULT_API_KEYS_FILE = "api_keys.json"
 
-    def __init__(self, config_dir: Optional[Path] = None):
+    def __init__(self, config_dir: Path | None = None):
         self.config_dir = config_dir or self.DEFAULT_CONFIG_DIR
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
@@ -28,13 +27,13 @@ class Config:
         # Load main config
         config_path = self.config_dir / self.DEFAULT_CONFIG_FILE
         if config_path.exists():
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 self._config = json.load(f)
 
         # Load API keys
         api_keys_path = self.config_dir / self.DEFAULT_API_KEYS_FILE
         if api_keys_path.exists():
-            with open(api_keys_path, "r", encoding="utf-8") as f:
+            with open(api_keys_path, encoding="utf-8") as f:
                 self._api_keys = json.load(f)
 
         # Set defaults for missing values
@@ -68,7 +67,7 @@ class Config:
         self._config[key] = value
         self._save_config()
 
-    def get_api_key(self, provider: str = "gemini") -> Optional[str]:
+    def get_api_key(self, provider: str = "gemini") -> str | None:
         """Get an API key for a provider."""
         return self._api_keys.get(f"{provider}_api_key")
 
@@ -111,7 +110,7 @@ class Config:
 
 
 # Global config instance
-_config: Optional[Config] = None
+_config: Config | None = None
 
 
 def get_config() -> Config:
@@ -122,7 +121,7 @@ def get_config() -> Config:
     return _config
 
 
-def init_config(config_dir: Optional[Path] = None) -> Config:
+def init_config(config_dir: Path | None = None) -> Config:
     """Initialize the global configuration."""
     global _config
     _config = Config(config_dir)

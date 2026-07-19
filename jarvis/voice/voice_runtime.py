@@ -17,6 +17,7 @@ APIs remain unchanged.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import io
 import json
 import logging
@@ -54,8 +55,10 @@ logger = logging.getLogger(__name__)
 # Legacy types (preserved for backward compatibility)
 # ---------------------------------------------------------------------------
 
+
 class VoiceComponentStatus(Enum):
     """Status of voice components."""
+
     NOT_INITIALIZED = "not_initialized"
     INITIALIZING = "initializing"
     READY = "ready"
@@ -66,23 +69,29 @@ class VoiceComponentStatus(Enum):
 @dataclass
 class ComponentInitResult:
     """Result of component initialization."""
+
     success: bool
     status: VoiceComponentStatus
     message: str = ""
     error: str | None = None
 
     @classmethod
-    def ok(cls, status: VoiceComponentStatus = VoiceComponentStatus.READY, message: str = "") -> ComponentInitResult:
+    def ok(
+        cls, status: VoiceComponentStatus = VoiceComponentStatus.READY, message: str = ""
+    ) -> ComponentInitResult:
         return cls(success=True, status=status, message=message)
 
     @classmethod
-    def fail(cls, error: str, status: VoiceComponentStatus = VoiceComponentStatus.ERROR) -> ComponentInitResult:
+    def fail(
+        cls, error: str, status: VoiceComponentStatus = VoiceComponentStatus.ERROR
+    ) -> ComponentInitResult:
         return cls(success=False, status=status, message="", error=error)
 
 
 @dataclass
 class VoiceInitResult:
     """Result of voice runtime initialization."""
+
     wake_word: ComponentInitResult
     stt: ComponentInitResult
     tts: ComponentInitResult
@@ -91,25 +100,50 @@ class VoiceInitResult:
     @classmethod
     def from_components(cls, wake_word, stt, tts) -> VoiceInitResult:
         results = cls(
-            wake_word=ComponentInitResult.ok() if (wake_word and wake_word.status == VoiceComponentStatus.READY) else ComponentInitResult.fail("Not initialized"),
-            stt=ComponentInitResult.ok() if (stt and stt.status == VoiceComponentStatus.READY) else ComponentInitResult.fail("Not initialized"),
-            tts=ComponentInitResult.ok() if (tts and tts.status == VoiceComponentStatus.READY) else ComponentInitResult.fail("Not initialized"),
+            wake_word=(
+                ComponentInitResult.ok()
+                if (wake_word and wake_word.status == VoiceComponentStatus.READY)
+                else ComponentInitResult.fail("Not initialized")
+            ),
+            stt=(
+                ComponentInitResult.ok()
+                if (stt and stt.status == VoiceComponentStatus.READY)
+                else ComponentInitResult.fail("Not initialized")
+            ),
+            tts=(
+                ComponentInitResult.ok()
+                if (tts and tts.status == VoiceComponentStatus.READY)
+                else ComponentInitResult.fail("Not initialized")
+            ),
         )
         results.ready = all([results.wake_word.success, results.stt.success, results.tts.success])
         return results
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "wake_word": {"status": self.wake_word.status.value, "success": self.wake_word.success, "error": self.wake_word.error},
-            "stt": {"status": self.stt.status.value, "success": self.stt.success, "error": self.stt.error},
-            "tts": {"status": self.tts.status.value, "success": self.tts.success, "error": self.tts.error},
-            "ready": self.ready
+            "wake_word": {
+                "status": self.wake_word.status.value,
+                "success": self.wake_word.success,
+                "error": self.wake_word.error,
+            },
+            "stt": {
+                "status": self.stt.status.value,
+                "success": self.stt.success,
+                "error": self.stt.error,
+            },
+            "tts": {
+                "status": self.tts.status.value,
+                "success": self.tts.success,
+                "error": self.tts.error,
+            },
+            "ready": self.ready,
         }
 
 
 @dataclass
 class VoiceConfig:
     """Voice configuration (extended with new options)."""
+
     # STT settings
     stt_model: str = "base"
     stt_language: str = "en"
@@ -180,6 +214,7 @@ class VoiceComponent:
 # Backend components (preserved from legacy implementation)
 # ---------------------------------------------------------------------------
 
+
 class FasterWhisperSTT(VoiceComponent):
     """Speech-to-Text using faster-whisper."""
 
@@ -193,25 +228,24 @@ class FasterWhisperSTT(VoiceComponent):
         self.status = VoiceComponentStatus.INITIALIZING
         try:
             from faster_whisper import WhisperModel
+
             compute_type = "int8"
             if self.config.stt_device == "cuda":
                 try:
                     import torch
+
                     if torch.cuda.is_available():
                         compute_type = "float16"
                 except ImportError:
                     pass
             logger.info("Loading faster-whisper %s...", self.config.stt_model)
             self._model = WhisperModel(
-                self.config.stt_model,
-                device=self.config.stt_device,
-                compute_type=compute_type
+                self.config.stt_model, device=self.config.stt_device, compute_type=compute_type
             )
             self.status = VoiceComponentStatus.READY
             logger.info("STT initialized successfully")
             return ComponentInitResult.ok(
-                status=VoiceComponentStatus.READY,
-                message=f"Model '{self.config.stt_model}' loaded"
+                status=VoiceComponentStatus.READY, message=f"Model '{self.config.stt_model}' loaded"
             )
         except ImportError as e:
             self.status = VoiceComponentStatus.DISABLED
@@ -232,7 +266,7 @@ class FasterWhisperSTT(VoiceComponent):
                 audio_path,
                 language=self.config.stt_language,
                 vad_filter=True,
-                vad_parameters=dict(min_silence_duration_ms=500)
+                vad_parameters=dict(min_silence_duration_ms=500),
             )
             text = " ".join([seg.text for seg in segments])
             return text.strip() if text else None
@@ -242,19 +276,20 @@ class FasterWhisperSTT(VoiceComponent):
 
     async def transcribe_bytes(self, audio_data: bytes) -> str | None:
         import tempfile
+
         fd = None
         path = None
         try:
             wav_buffer = io.BytesIO()
-            with wave.open(wav_buffer, 'wb') as wf:
+            with wave.open(wav_buffer, "wb") as wf:
                 wf.setnchannels(self.config.channels)
                 wf.setsampwidth(2)
                 wf.setframerate(self.config.sample_rate)
                 wf.writeframes(audio_data)
             wav_buffer.seek(0)
             wav_bytes = wav_buffer.read()
-            fd, path = tempfile.mkstemp(suffix='.wav')
-            with os.fdopen(fd, 'wb') as f:
+            fd, path = tempfile.mkstemp(suffix=".wav")
+            with os.fdopen(fd, "wb") as f:
                 f.write(wav_bytes)
                 f.flush()
                 fd = -1
@@ -266,15 +301,11 @@ class FasterWhisperSTT(VoiceComponent):
             return None
         finally:
             if fd is not None and fd >= 0:
-                try:
+                with contextlib.suppress(Exception):
                     os.close(fd)
-                except Exception:
-                    pass
             if path:
-                try:
+                with contextlib.suppress(Exception):
                     Path(path).unlink(missing_ok=True)
-                except Exception:
-                    pass
 
 
 class SpeechRecognitionSTT(VoiceComponent):
@@ -288,9 +319,12 @@ class SpeechRecognitionSTT(VoiceComponent):
         self.status = VoiceComponentStatus.INITIALIZING
         try:
             import speech_recognition as sr
+
             self._recognizer = sr.Recognizer()
             self.status = VoiceComponentStatus.READY
-            return ComponentInitResult.ok(status=VoiceComponentStatus.READY, message="SpeechRecognition fallback ready")
+            return ComponentInitResult.ok(
+                status=VoiceComponentStatus.READY, message="SpeechRecognition fallback ready"
+            )
         except ImportError as e:
             self.status = VoiceComponentStatus.DISABLED
             return ComponentInitResult.fail(str(e), status=VoiceComponentStatus.DISABLED)
@@ -304,6 +338,7 @@ class SpeechRecognitionSTT(VoiceComponent):
         try:
             import pyaudio
             import speech_recognition as sr
+
             audio = pyaudio.PyAudio()
             stream = audio.open(
                 format=pyaudio.paInt16,
@@ -349,6 +384,7 @@ class SpeechRecognitionSTT(VoiceComponent):
     async def transcribe(self, audio_path: str) -> str | None:
         try:
             import speech_recognition as sr
+
             with sr.AudioFile(audio_path) as source:
                 audio = self._recognizer.record(source)
             return self._recognizer.recognize_google(audio)
@@ -372,22 +408,24 @@ class PiperTTS(VoiceComponent):
             import grpc
             import piper_pb2
             import piper_pb2_grpc
+
             server = os.environ.get("PIPPER_SERVER", "localhost:50000")
             self._channel = grpc.aio.insecure_channel(server)
             self._session = piper_pb2_grpc.PiperSessionStub(self._channel)
-            await asyncio.wait_for(
-                self._session.IsReady(piper_pb2.Void()),
-                timeout=5.0
-            )
+            await asyncio.wait_for(self._session.IsReady(piper_pb2.Void()), timeout=5.0)
             self._available = True
             self.status = VoiceComponentStatus.READY
             logger.info("TTS initialized successfully")
-            return ComponentInitResult.ok(status=VoiceComponentStatus.READY, message="Connected to Piper TTS server")
+            return ComponentInitResult.ok(
+                status=VoiceComponentStatus.READY, message="Connected to Piper TTS server"
+            )
         except ImportError:
             self._available = False
             self.status = VoiceComponentStatus.ERROR
             logger.debug("Piper not installed, will use fallback TTS")
-            return ComponentInitResult.fail("piper not installed", status=VoiceComponentStatus.ERROR)
+            return ComponentInitResult.fail(
+                "piper not installed", status=VoiceComponentStatus.ERROR
+            )
         except Exception as e:
             self._available = False
             self.status = VoiceComponentStatus.ERROR
@@ -401,15 +439,13 @@ class PiperTTS(VoiceComponent):
             if self._command_mode:
                 return await self._speak_command(text)
             import piper_pb2
-            request = piper_pb2.SynthesisRequest(
-                text=text,
-                speaker_id=self.config.tts_speaker
-            )
+
+            request = piper_pb2.SynthesisRequest(text=text, speaker_id=self.config.tts_speaker)
             audio_chunks = []
             async for resp in self._session.Synthesize(request):
-                if resp.audio.HasField('audio'):
+                if resp.audio.HasField("audio"):
                     audio_chunks.append(resp.audio.audio)
-            return b''.join(audio_chunks) if audio_chunks else None
+            return b"".join(audio_chunks) if audio_chunks else None
         except Exception as e:
             logger.debug("Piper TTS error: %s", e)
             return None
@@ -420,7 +456,7 @@ class PiperTTS(VoiceComponent):
                 ["piper", "--model", self.config.tts_model, "--output-raw"],
                 input=text.encode(),
                 capture_output=True,
-                timeout=30
+                timeout=30,
             )
             if result.returncode == 0:
                 return result.stdout
@@ -431,13 +467,13 @@ class PiperTTS(VoiceComponent):
     async def speak_to_file(self, text: str, output_path: str) -> bool:
         audio = await self.speak(text)
         if audio:
-            with open(output_path, 'wb') as f:
+            with open(output_path, "wb") as f:
                 f.write(audio)
             return True
         return False
 
     async def shutdown(self) -> None:
-        if hasattr(self, '_channel'):
+        if hasattr(self, "_channel"):
             await self._channel.close()
         await super().shutdown()
 
@@ -456,13 +492,16 @@ class OpenWakeWord(VoiceComponent):
         try:
             try:
                 from openwakeword import WakeWordClassifier
+
                 self._framework = "openwakeword"
                 logger.info("Using OpenWakeWord framework")
             except ImportError:
                 self._framework = "vad"
                 logger.info("Using VAD-based wake word detection")
                 self.status = VoiceComponentStatus.READY
-                return ComponentInitResult.ok(status=VoiceComponentStatus.READY, message="Using VAD-based wake word detection")
+                return ComponentInitResult.ok(
+                    status=VoiceComponentStatus.READY, message="Using VAD-based wake word detection"
+                )
             self._predictor = WakeWordClassifier(verbose=False, inference_framework="onnx")
             model_path = Path("models") / f"{self.config.wake_word_model}.onnx"
             if model_path.exists():
@@ -471,12 +510,17 @@ class OpenWakeWord(VoiceComponent):
                 self._predictor.add_model("jarvis")
             self.status = VoiceComponentStatus.READY
             logger.info("Wake word detection initialized")
-            return ComponentInitResult.ok(status=VoiceComponentStatus.READY, message=f"Wake word '{self.config.wake_word}' ready")
+            return ComponentInitResult.ok(
+                status=VoiceComponentStatus.READY,
+                message=f"Wake word '{self.config.wake_word}' ready",
+            )
         except ImportError:
             self.status = VoiceComponentStatus.DISABLED
             self.error_message = "openwakeword not installed"
             logger.warning("Wake word disabled (use 'pip install openwakeword')")
-            return ComponentInitResult.fail("openwakeword not installed", status=VoiceComponentStatus.DISABLED)
+            return ComponentInitResult.fail(
+                "openwakeword not installed", status=VoiceComponentStatus.DISABLED
+            )
         except Exception as e:
             self.status = VoiceComponentStatus.ERROR
             self.error_message = str(e)
@@ -490,6 +534,7 @@ class OpenWakeWord(VoiceComponent):
             return await self._detect_vad(audio_chunk)
         try:
             import numpy as np
+
             audio = np.frombuffer(audio_chunk, dtype=np.int16)
             predictions = self._predictor.predict(audio)
             for model_name, score in predictions.items():
@@ -503,6 +548,7 @@ class OpenWakeWord(VoiceComponent):
 
     async def _detect_vad(self, audio_chunk: bytes) -> bool:
         import numpy as np
+
         audio = np.frombuffer(audio_chunk, dtype=np.int16)
         energy = np.sqrt(np.mean(audio.astype(float) ** 2))
         return energy > 1000
@@ -515,6 +561,7 @@ class OpenWakeWord(VoiceComponent):
 # ---------------------------------------------------------------------------
 # Enhanced VoiceRuntime
 # ---------------------------------------------------------------------------
+
 
 class VoiceRuntime:
     """
@@ -599,19 +646,23 @@ class VoiceRuntime:
             self._tts_backups = []
             try:
                 import pyttsx3
+
                 tts = pyttsx3.init()
-                tts.setProperty('rate', 150)
-                tts.setProperty('volume', 1.0)
+                tts.setProperty("rate", 150)
+                tts.setProperty("volume", 1.0)
                 self._tts_backups.append(("pyttsx3", tts))
                 logger.info("TTS fallback: pyttsx3 available")
             except Exception:
                 pass
             try:
                 from jarvis.voice.audio import AudioConfig, TextToSpeech
-                gtts = TextToSpeech(AudioConfig(
-                    sample_rate=self.config.sample_rate,
-                    channels=self.config.channels,
-                ))
+
+                gtts = TextToSpeech(
+                    AudioConfig(
+                        sample_rate=self.config.sample_rate,
+                        channels=self.config.channels,
+                    )
+                )
                 self._tts_backups.append(("gtts", gtts))
                 logger.info("TTS fallback: gTTS available")
             except Exception:
@@ -619,7 +670,7 @@ class VoiceRuntime:
             if self._tts_backups:
                 tts_result = ComponentInitResult.ok(
                     status=VoiceComponentStatus.READY,
-                    message=f"Using fallback TTS ({self._tts_backups[0][0]})"
+                    message=f"Using fallback TTS ({self._tts_backups[0][0]})",
                 )
                 self.tts.status = VoiceComponentStatus.READY
                 logger.info("TTS initialized with fallback backend: %s", self._tts_backups[0][0])
@@ -628,7 +679,9 @@ class VoiceRuntime:
 
         # Initialize enhanced components
         self._streaming_stt = StreamingSTT(self.stt, self.config.sample_rate, self.config.channels)
-        self._streaming_tts = StreamingTTS(self.tts if self.tts.status == VoiceComponentStatus.READY else None)
+        self._streaming_tts = StreamingTTS(
+            self.tts if self.tts.status == VoiceComponentStatus.READY else None
+        )
 
         # Start audio queue if loop is available
         try:
@@ -641,7 +694,7 @@ class VoiceRuntime:
             wake_word=wake_result,
             stt=stt_result,
             tts=tts_result,
-            ready=wake_result.success and stt_result.success and tts_result.success
+            ready=wake_result.success and stt_result.success and tts_result.success,
         )
         return result
 
@@ -654,10 +707,8 @@ class VoiceRuntime:
 
         if self._listen_task:
             self._listen_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._listen_task
-            except asyncio.CancelledError:
-                pass
             self._listen_task = None
 
         if self.wake_word:
@@ -697,6 +748,7 @@ class VoiceRuntime:
 
     def _select_input_device(self) -> int | None:
         import sounddevice as sd
+
         if self._input_device is not None:
             try:
                 dev = sd.query_devices(self._input_device)
@@ -777,13 +829,10 @@ class VoiceRuntime:
                 channels=self.config.channels,
                 dtype="int16",
                 blocksize=1024,
-                callback=callback
+                callback=callback,
             )
             with stream:
-                await asyncio.wait_for(
-                    asyncio.to_thread(stop_event.wait),
-                    timeout=timeout
-                )
+                await asyncio.wait_for(asyncio.to_thread(stop_event.wait), timeout=timeout)
             logger.info("Recording finished")
 
         except TimeoutError:
@@ -800,7 +849,7 @@ class VoiceRuntime:
         self._state_machine.transition(SpeechState.TRANSCRIBING)
 
         if audio_data:
-            audio_bytes = b''.join(audio_data)
+            audio_bytes = b"".join(audio_data)
             logger.debug("Starting transcription (%s bytes)", len(audio_bytes))
             text = await self.stt.transcribe_bytes(audio_bytes)
             logger.debug("Transcription finished: %s", text)
@@ -860,10 +909,11 @@ class VoiceRuntime:
                         if audio:
                             import numpy as np
                             import sounddevice as sd
+
                             buffer = io.BytesIO(audio)
-                            with wave.open(buffer, 'rb') as wf:
+                            with wave.open(buffer, "rb") as wf:
                                 frames = wf.readframes(wf.getnframes())
-                                audio_array = np.frombuffer(frames, dtype='int16')
+                                audio_array = np.frombuffer(frames, dtype="int16")
                             sd.play(audio_array, self.config.sample_rate)
                             sd.wait()
                             played = True
@@ -906,10 +956,8 @@ class VoiceRuntime:
         self._conversation_manager.stop()
         if self._listen_task:
             self._listen_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._listen_task
-            except asyncio.CancelledError:
-                pass
             self._listen_task = None
         self._state_machine.transition(SpeechState.IDLE)
         logger.info("Wake-word listening stopped")
@@ -993,13 +1041,10 @@ class VoiceRuntime:
                 channels=self.config.channels,
                 dtype="int16",
                 blocksize=1024,
-                callback=callback
+                callback=callback,
             )
             with stream:
-                await asyncio.wait_for(
-                    asyncio.to_thread(stop_event.wait),
-                    timeout=timeout
-                )
+                await asyncio.wait_for(asyncio.to_thread(stop_event.wait), timeout=timeout)
         except TimeoutError:
             pass
         except Exception as e:
@@ -1007,7 +1052,7 @@ class VoiceRuntime:
             return None
 
         if audio_data:
-            audio_bytes = b''.join(audio_data)
+            audio_bytes = b"".join(audio_data)
             text = await self.stt.transcribe_bytes(audio_bytes)
             if text:
                 text_lower = text.lower().strip()
@@ -1034,10 +1079,8 @@ class VoiceRuntime:
         self._push_to_talk_active = False
         if self._keyboard_listener_task is not None:
             self._keyboard_listener_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._keyboard_listener_task
-            except asyncio.CancelledError:
-                pass
             self._keyboard_listener_task = None
         self._state_machine.transition(SpeechState.IDLE)
         logger.info("Push-to-talk disabled")
@@ -1075,6 +1118,7 @@ class VoiceRuntime:
         try:
             import numpy as np
             import sounddevice as sd
+
             sample_rate = 16000
             duration = 0.15
             frequency = 880
@@ -1100,26 +1144,28 @@ class VoiceRuntime:
         return {
             "wake_word": {
                 "status": self.wake_word.status.value if self.wake_word else "not_initialized",
-                "error": self.wake_word.error_message if self.wake_word else None
+                "error": self.wake_word.error_message if self.wake_word else None,
             },
             "stt": {
                 "status": self.stt.status.value if self.stt else "not_initialized",
                 "model": self.config.stt_model,
-                "error": self.stt.error_message if self.stt else None
+                "error": self.stt.error_message if self.stt else None,
             },
             "tts": {
                 "status": self.tts.status.value if self.tts else "not_initialized",
                 "model": self.config.tts_model,
-                "error": self.tts.error_message if self.tts else None
+                "error": self.tts.error_message if self.tts else None,
             },
             "speech_state": self._state_machine.state.value,
             "conversation_active": self._conversation_manager.active,
             "push_to_talk": self.config.push_to_talk,
-            "ready": all([
-                self.wake_word.status == VoiceComponentStatus.READY if self.wake_word else True,
-                self.stt.status == VoiceComponentStatus.READY if self.stt else True,
-                self.tts.status == VoiceComponentStatus.READY if self.tts else True,
-            ])
+            "ready": all(
+                [
+                    self.wake_word.status == VoiceComponentStatus.READY if self.wake_word else True,
+                    self.stt.status == VoiceComponentStatus.READY if self.stt else True,
+                    self.tts.status == VoiceComponentStatus.READY if self.tts else True,
+                ]
+            ),
         }
 
     def format_status(self) -> str:
@@ -1128,19 +1174,25 @@ class VoiceRuntime:
         for component in ["wake_word", "stt", "tts"]:
             info = status[component]
             name = component.replace("_", " ").title()
-            icon = "✓" if "ready" in info.get("status", "") else "✗" if "error" in info.get("status", "") else "○"
+            icon = (
+                "✓"
+                if "ready" in info.get("status", "")
+                else "✗" if "error" in info.get("status", "") else "○"
+            )
             lines.append(f"{icon} {name}: {info.get('status', 'unknown')}")
             if info.get("model"):
                 lines.append(f"   Model: {info['model']}")
         lines.append(f"   State: {status.get('speech_state', 'unknown')}")
-        lines.append(f"   Conversation: {'active' if status.get('conversation_active') else 'inactive'}")
+        lines.append(
+            f"   Conversation: {'active' if status.get('conversation_active') else 'inactive'}"
+        )
         return "\n".join(lines)
 
     def get_wake_word_status(self) -> str:
         if not self.wake_word:
             return "Wake word: not initialized"
         status = self.wake_word.status.value
-        framework = getattr(self.wake_word, '_framework', 'unknown')
+        framework = getattr(self.wake_word, "_framework", "unknown")
         return f"Wake word: {status} ({framework})"
 
 

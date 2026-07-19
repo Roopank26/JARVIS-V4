@@ -3,20 +3,26 @@ Cross-platform compatibility utilities for JARVIS Desktop.
 Handles platform-specific implementations transparently.
 """
 
-import sys
+from __future__ import annotations
+
+import logging
 import os
 import platform
-import logging
-from pathlib import Path
-from typing import Optional, Dict, Any, List
+import sys
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from PIL.Image import Image as PILImage
 
 logger = logging.getLogger(__name__)
 
 
 class Platform(Enum):
     """Supported platforms."""
+
     WINDOWS = "windows"
     LINUX = "linux"
     MACOS = "macos"
@@ -26,6 +32,7 @@ class Platform(Enum):
 @dataclass
 class PlatformInfo:
     """Platform information."""
+
     platform: Platform
     name: str
     version: str
@@ -51,7 +58,7 @@ def get_platform() -> Platform:
 def get_platform_info() -> PlatformInfo:
     """Get comprehensive platform information."""
     plat = get_platform()
-    
+
     # Determine directories
     if plat == Platform.WINDOWS:
         data_dir = Path(os.environ.get("APPDATA", "")) / "JARVIS"
@@ -62,12 +69,12 @@ def get_platform_info() -> PlatformInfo:
     else:  # Linux
         data_dir = Path.home() / ".jarvis"
         temp_dir = Path("/tmp") / "JARVIS"
-    
+
     # Check feature availability
     audio_available = True  # Assume available, check at runtime
     tray_available = plat in (Platform.WINDOWS, Platform.LINUX, Platform.MACOS)
     service_available = plat in (Platform.WINDOWS, Platform.LINUX)
-    
+
     return PlatformInfo(
         platform=plat,
         name=platform.system(),
@@ -92,20 +99,23 @@ class CrossPlatformAudio:
     """Cross-platform audio management."""
 
     @staticmethod
-    def get_microphones() -> List[Dict[str, Any]]:
+    def get_microphones() -> list[dict[str, Any]]:
         """Get available microphones."""
         try:
             import pyaudio
+
             p = pyaudio.PyAudio()
             devices = []
             for i in range(p.get_device_count()):
                 info = p.get_device_info_by_index(i)
                 if info["maxInputChannels"] > 0:
-                    devices.append({
-                        "index": i,
-                        "name": info["name"],
-                        "channels": info["maxInputChannels"],
-                    })
+                    devices.append(
+                        {
+                            "index": i,
+                            "name": info["name"],
+                            "channels": info["maxInputChannels"],
+                        }
+                    )
             p.terminate()
             return devices
         except ImportError:
@@ -116,20 +126,23 @@ class CrossPlatformAudio:
             return []
 
     @staticmethod
-    def get_speakers() -> List[Dict[str, Any]]:
+    def get_speakers() -> list[dict[str, Any]]:
         """Get available speakers."""
         try:
             import pyaudio
+
             p = pyaudio.PyAudio()
             devices = []
             for i in range(p.get_device_count()):
                 info = p.get_device_info_by_index(i)
                 if info["maxOutputChannels"] > 0:
-                    devices.append({
-                        "index": i,
-                        "name": info["name"],
-                        "channels": info["maxOutputChannels"],
-                    })
+                    devices.append(
+                        {
+                            "index": i,
+                            "name": info["name"],
+                            "channels": info["maxOutputChannels"],
+                        }
+                    )
             p.terminate()
             return devices
         except ImportError:
@@ -139,12 +152,12 @@ class CrossPlatformAudio:
             return []
 
     @staticmethod
-    def test_audio() -> Dict[str, Any]:
+    def test_audio() -> dict[str, Any]:
         """Test audio system."""
         plat = get_platform()
         mics = CrossPlatformAudio.get_microphones()
         speakers = CrossPlatformAudio.get_speakers()
-        
+
         return {
             "platform": plat.value,
             "microphones": mics,
@@ -164,32 +177,24 @@ class CrossPlatformTray:
         return get_platform() != Platform.UNKNOWN
 
     @staticmethod
-    def create_icon() -> Optional["Image"]:
+    def create_icon() -> PILImage | None:
         """Create tray icon."""
         try:
             from PIL import Image, ImageDraw
-            
+
             plat = get_platform()
             size = 256 if plat == Platform.WINDOWS else 64
-            
-            img = Image.new('RGBA', (size, size), color=(30, 60, 90, 255))
+
+            img = Image.new("RGBA", (size, size), color=(30, 60, 90, 255))
             draw = ImageDraw.Draw(img)
-            
+
             # Draw circle
             margin = size // 8
-            draw.ellipse(
-                [margin, margin, size - margin, size - margin],
-                fill=(70, 130, 180, 255)
-            )
-            
+            draw.ellipse([margin, margin, size - margin, size - margin], fill=(70, 130, 180, 255))
+
             # Draw J
-            text_size = size // 3
-            draw.text(
-                (size // 3, size // 4),
-                "J",
-                fill='white'
-            )
-            
+            draw.text((size // 3, size // 4), "J", fill="white")
+
             return img
         except ImportError:
             logger.warning("PIL not available")
@@ -199,10 +204,10 @@ class CrossPlatformTray:
             return None
 
     @staticmethod
-    def create_menu(assistant: Any = None) -> List:
+    def create_menu(assistant: Any = None) -> list:
         """Create tray menu items."""
         plat = get_platform()
-        
+
         if plat == Platform.WINDOWS:
             return CrossPlatformTray._windows_menu(assistant)
         elif plat == Platform.MACOS:
@@ -215,6 +220,7 @@ class CrossPlatformTray:
         """Windows tray menu."""
         try:
             import pystray
+
             return [
                 pystray.MenuItem("JARVIS", None, enabled=False),
                 pystray.MenuItem("Status", lambda i, e: _show_status(assistant)),
@@ -276,7 +282,7 @@ class CrossPlatformService:
     def install_service() -> bool:
         """Install as system service."""
         plat = get_platform()
-        
+
         if plat == Platform.WINDOWS:
             return CrossPlatformService._install_windows()
         elif plat == Platform.LINUX:
@@ -288,6 +294,7 @@ class CrossPlatformService:
         """Install Windows service."""
         try:
             from jarvis.desktop.windows_service import WindowsServiceManager
+
             manager = WindowsServiceManager()
             return manager.install()
         except Exception as e:
@@ -298,16 +305,16 @@ class CrossPlatformService:
     def _install_linux() -> bool:
         """Install systemd user service."""
         try:
-            from pathlib import Path
             import sys
-            
+            from pathlib import Path
+
             service_content = f"""[Unit]
 Description=JARVIS Desktop Assistant
 After=network.target
 
 [Service]
 Type=simple
-User={os.environ.get('USER', 'root')}
+User={os.environ.get("USER", "root")}
 WorkingDirectory={Path.cwd()}
 ExecStart={sys.executable} -m jarvis.desktop run
 Restart=on-failure
@@ -320,10 +327,10 @@ WantedBy=default.target
 """
             service_path = Path.home() / ".config" / "systemd" / "user" / "jarvis.service"
             service_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             with open(service_path, "w") as f:
                 f.write(service_content)
-            
+
             logger.info(f"Created systemd service: {service_path}")
             return True
         except Exception as e:
@@ -334,10 +341,11 @@ WantedBy=default.target
     def uninstall_service() -> bool:
         """Uninstall system service."""
         plat = get_platform()
-        
+
         if plat == Platform.WINDOWS:
             try:
                 from jarvis.desktop.windows_service import WindowsServiceManager
+
                 manager = WindowsServiceManager()
                 return manager.uninstall()
             except Exception:
@@ -345,6 +353,7 @@ WantedBy=default.target
         elif plat == Platform.LINUX:
             try:
                 from pathlib import Path
+
                 service_path = Path.home() / ".config" / "systemd" / "user" / "jarvis.service"
                 if service_path.exists():
                     service_path.unlink()
@@ -361,7 +370,7 @@ class CrossPlatformVSCode:
     def get_extension_path() -> Path:
         """Get VS Code extensions path."""
         plat = get_platform()
-        
+
         if plat == Platform.WINDOWS:
             return Path(os.environ.get("USERPROFILE", "")) / ".vscode" / "extensions"
         elif plat == Platform.MACOS:
@@ -373,24 +382,28 @@ class CrossPlatformVSCode:
     def get_settings_path() -> Path:
         """Get VS Code settings path."""
         plat = get_platform()
-        
+
         if plat == Platform.WINDOWS:
             return Path(os.environ.get("APPDATA", "")) / "Code" / "User" / "settings.json"
         elif plat == Platform.MACOS:
-            return Path.home() / "Library" / "Application Support" / "Code" / "User" / "settings.json"
+            return (
+                Path.home() / "Library" / "Application Support" / "Code" / "User" / "settings.json"
+            )
         else:  # Linux
             return Path.home() / ".config" / "Code" / "User" / "settings.json"
 
     @staticmethod
-    def get_executable_path() -> Optional[Path]:
+    def get_executable_path() -> Path | None:
         """Find VS Code executable."""
         plat = get_platform()
-        
+
         candidates = []
-        
+
         if plat == Platform.WINDOWS:
             candidates = [
-                Path(os.environ.get("LOCALAPPDATA", "") + "\\Programs\\Microsoft VS Code\\Code.exe"),
+                Path(
+                    os.environ.get("LOCALAPPDATA", "") + "\\Programs\\Microsoft VS Code\\Code.exe"
+                ),
                 Path("C:\\Program Files\\Microsoft VS Code\\Code.exe"),
                 Path("C:\\Program Files (x86)\\Microsoft VS Code\\Code.exe"),
             ]
@@ -405,9 +418,9 @@ class CrossPlatformVSCode:
                 Path("/usr/local/bin/code"),
                 Path.home() / ".local/bin/code",
             ]
-        
+
         for path in candidates:
             if path.exists():
                 return path
-        
+
         return None

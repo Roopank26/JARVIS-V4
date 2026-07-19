@@ -2,12 +2,12 @@
 Memory module for JARVIS.
 """
 
-from jarvis.memory.base import MemoryBase, MemoryEntry, MemoryCategory
-from jarvis.memory.session import SessionMemory
+from jarvis.memory.base import MemoryBase, MemoryCategory, MemoryEntry
+from jarvis.memory.enhanced import EnhancedMemoryManager, get_enhanced_memory, init_enhanced_memory
 from jarvis.memory.long_term import LongTermMemory
 from jarvis.memory.memory_manager import MemoryManager, get_memory_manager, init_memory_manager
+from jarvis.memory.session import SessionMemory
 from jarvis.memory.user_profile import UserProfile, get_user_profile, init_user_profile
-from jarvis.memory.enhanced import EnhancedMemoryManager, get_enhanced_memory, init_enhanced_memory
 
 __all__ = [
     # Base classes

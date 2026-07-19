@@ -90,6 +90,7 @@ class ConversationManager:
         if self._bus:
             try:
                 from jarvis.voice.voice_events import emit_conversation_timeout
+
                 emit_conversation_timeout(self._bus)
             except Exception:
                 pass

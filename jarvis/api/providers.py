@@ -3,20 +3,22 @@ AI Provider Abstraction Layer for JARVIS.
 Provides fallback hierarchy: Ollama (Local) → Groq → OpenAI → Gemini → Anthropic
 """
 
+import json
 import logging
 import re
 import time
-import json
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any, AsyncIterator
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 class ProviderType(Enum):
     """AI provider types."""
+
     OLLAMA = "ollama"
     GROQ = "groq"
     OPENAI = "openai"
@@ -27,10 +29,11 @@ class ProviderType(Enum):
 @dataclass
 class LLMConfig:
     """Configuration for LLM providers."""
+
     provider: ProviderType = ProviderType.GROQ
-    model: Optional[str] = None
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None
+    model: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
     max_tokens: int = 4096
     temperature: float = 0.7
     timeout: float = 60.0
@@ -40,27 +43,29 @@ class LLMConfig:
 @dataclass
 class LLMResponse:
     """Standardized LLM response."""
+
     content: str
     provider: ProviderType
     model: str
-    usage: Optional[Dict[str, int]] = None
+    usage: dict[str, int] | None = None
     latency: float = 0.0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
 class ProviderStatus:
     """Detailed provider status."""
+
     name: str
     provider: ProviderType
     available: bool
     current_model: str
-    available_models: List[str] = field(default_factory=list)
-    fallback: Optional[str] = None
+    available_models: list[str] = field(default_factory=list)
+    fallback: str | None = None
     connection: str = "Unknown"
     latency_ms: float = 0.0
-    error: Optional[str] = None
-    last_check: Optional[str] = None
+    error: str | None = None
+    last_check: str | None = None
 
 
 class BaseLLMProvider(ABC):
@@ -69,20 +74,20 @@ class BaseLLMProvider(ABC):
     def __init__(self, config: LLMConfig):
         self.config = config
         self._available = True
-        self._last_error: Optional[str] = None
-        self._available_models: List[str] = []
-        self._model: Optional[str] = config.model
+        self._last_error: str | None = None
+        self._available_models: list[str] = []
+        self._model: str | None = config.model
 
     @property
     def is_available(self) -> bool:
         return self._available
 
     @property
-    def last_error(self) -> Optional[str]:
+    def last_error(self) -> str | None:
         return self._last_error
 
     @property
-    def available_models(self) -> List[str]:
+    def available_models(self) -> list[str]:
         return self._available_models
 
     @property
@@ -136,7 +141,7 @@ class OllamaProvider(BaseLLMProvider):
         self.base_url = (config.base_url or "http://localhost:11434").rstrip("/")
         self._connection_status = "Unknown"
         self._latency_ms = 0.0
-        self._model_cache: Dict[str, Dict] = {}
+        self._model_cache: dict[str, dict] = {}
         self._cache_time: float = 0
         self._cache_ttl: float = 300
 
@@ -159,7 +164,7 @@ class OllamaProvider(BaseLLMProvider):
                 return avail_model
         return model_hint
 
-    def _pick_available_model(self, preferred: Optional[str]) -> str:
+    def _pick_available_model(self, preferred: str | None) -> str:
         if preferred and preferred in self._available_models:
             return preferred
         if preferred:
@@ -187,6 +192,7 @@ class OllamaProvider(BaseLLMProvider):
             raise Exception("No Ollama model selected or available")
         try:
             import aiohttp
+
             async with aiohttp.ClientSession() as session:
                 url = f"{self.base_url}/api/generate"
                 options = {
@@ -227,6 +233,7 @@ class OllamaProvider(BaseLLMProvider):
         if not self._model:
             raise Exception("No Ollama model selected or available")
         import aiohttp
+
         try:
             async with aiohttp.ClientSession() as session:
                 url = f"{self.base_url}/api/generate"
@@ -253,24 +260,27 @@ class OllamaProvider(BaseLLMProvider):
         start = time.time()
         try:
             import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.base_url}/api/tags", timeout=5.0) as resp:
-                    self._latency_ms = (time.time() - start) * 1000
-                    if resp.status == 200:
-                        data = await resp.json()
-                        models = data.get("models", [])
-                        self._available_models = [m["name"] for m in models]
-                        if self._model and self._model not in self._available_models:
-                            self._model = self._pick_available_model(self._model)
-                        elif not self._model and self._available_models:
-                            self._model = self._available_models[0]
-                        self._connection_status = "Connected"
-                        self._available = True
-                        logger.info(f"Ollama available, {len(models)} models: {self._available_models}")
-                        return True
-                    self._connection_status = f"Error: {resp.status}"
-                    self._available = False
-                    return False
+
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(f"{self.base_url}/api/tags", timeout=5.0) as resp,
+            ):
+                self._latency_ms = (time.time() - start) * 1000
+                if resp.status == 200:
+                    data = await resp.json()
+                    models = data.get("models", [])
+                    self._available_models = [m["name"] for m in models]
+                    if self._model and self._model not in self._available_models:
+                        self._model = self._pick_available_model(self._model)
+                    elif not self._model and self._available_models:
+                        self._model = self._available_models[0]
+                    self._connection_status = "Connected"
+                    self._available = True
+                    logger.info(f"Ollama available, {len(models)} models: {self._available_models}")
+                    return True
+                self._connection_status = f"Error: {resp.status}"
+                self._available = False
+                return False
         except Exception as e:
             self._last_error = str(e)
             self._connection_status = "Connection Failed"
@@ -278,7 +288,7 @@ class OllamaProvider(BaseLLMProvider):
             logger.warning(f"Ollama health check failed: {e}")
             return False
 
-    async def list_models(self) -> List[str]:
+    async def list_models(self) -> list[str]:
         if self._available_models:
             return self._available_models
         await self.check_health()
@@ -310,6 +320,7 @@ class GroqProvider(BaseLLMProvider):
         if not self._model:
             raise Exception("No Groq model selected")
         import aiohttp
+
         start = time.time()
         try:
             headers = {
@@ -323,25 +334,27 @@ class GroqProvider(BaseLLMProvider):
                 "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
                 "stream": False,
             }
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
+            async with (
+                aiohttp.ClientSession() as session,
+                session.post(
                     f"{self._base_url}/chat/completions",
                     headers=headers,
                     json=payload,
                     timeout=aiohttp.ClientTimeout(total=self.config.timeout),
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        return LLMResponse(
-                            content=data["choices"][0]["message"]["content"],
-                            provider=ProviderType.GROQ,
-                            model=self._model,
-                            usage=data.get("usage"),
-                            latency=time.time() - start,
-                        )
-                    error = await resp.json()
-                    self._last_error = error.get("error", {}).get("message", "Unknown error")
-                    raise Exception(self._last_error)
+                ) as resp,
+            ):
+                if resp.status == 200:
+                    data = await resp.json()
+                    return LLMResponse(
+                        content=data["choices"][0]["message"]["content"],
+                        provider=ProviderType.GROQ,
+                        model=self._model,
+                        usage=data.get("usage"),
+                        latency=time.time() - start,
+                    )
+                error = await resp.json()
+                self._last_error = error.get("error", {}).get("message", "Unknown error")
+                raise Exception(self._last_error)
         except Exception as e:
             self._last_error = str(e)
             raise
@@ -350,6 +363,7 @@ class GroqProvider(BaseLLMProvider):
         if not self._model:
             raise Exception("No Groq model selected")
         import aiohttp
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -361,49 +375,54 @@ class GroqProvider(BaseLLMProvider):
             "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
             "stream": True,
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
                 f"{self._base_url}/chat/completions",
                 headers=headers,
                 json=payload,
-            ) as resp:
-                async for line in resp.content:
-                    if line:
-                        line = line.decode("utf-8")
-                        if line.startswith("data: "):
-                            if line.strip() == "data: [DONE]":
-                                break
-                            try:
-                                data = json.loads(line[6:])
-                                if "choices" in data:
-                                    delta = data["choices"][0].get("delta", {})
-                                    if "content" in delta:
-                                        yield delta["content"]
-                            except json.JSONDecodeError:
-                                pass
+            ) as resp,
+        ):
+            async for line in resp.content:
+                if line:
+                    line = line.decode("utf-8")
+                    if line.startswith("data: "):
+                        if line.strip() == "data: [DONE]":
+                            break
+                        try:
+                            data = json.loads(line[6:])
+                            if "choices" in data:
+                                delta = data["choices"][0].get("delta", {})
+                                if "content" in delta:
+                                    yield delta["content"]
+                        except json.JSONDecodeError:
+                            pass
 
     async def check_health(self) -> bool:
         try:
             import aiohttp
+
             headers = {"Authorization": f"Bearer {self.api_key}"}
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
                     f"{self._base_url}/models",
                     headers=headers,
                     timeout=5.0,
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        models = [m.get("id", "") for m in data.get("data", []) if m.get("id")]
-                        self._available_models = models
-                        if self._model and self._model not in self._available_models:
-                            self._model = self._available_models[0] if self._available_models else None
-                        elif not self._model and self._available_models:
-                            self._model = self._available_models[0]
-                        self._available = True
-                        return True
-                    self._available = False
-                    return False
+                ) as resp,
+            ):
+                if resp.status == 200:
+                    data = await resp.json()
+                    models = [m.get("id", "") for m in data.get("data", []) if m.get("id")]
+                    self._available_models = models
+                    if self._model and self._model not in self._available_models:
+                        self._model = self._available_models[0] if self._available_models else None
+                    elif not self._model and self._available_models:
+                        self._model = self._available_models[0]
+                    self._available = True
+                    return True
+                self._available = False
+                return False
         except Exception:
             self._available = False
             return False
@@ -421,6 +440,7 @@ class OpenAIProvider(BaseLLMProvider):
         if not self._model:
             raise Exception("No OpenAI model selected")
         import aiohttp
+
         start = time.time()
         try:
             headers = {
@@ -433,29 +453,31 @@ class OpenAIProvider(BaseLLMProvider):
                 "temperature": kwargs.get("temperature", self.config.temperature),
                 "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
             }
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
+            async with (
+                aiohttp.ClientSession() as session,
+                session.post(
                     f"{self._base_url}/chat/completions",
                     headers=headers,
                     json=payload,
                     timeout=aiohttp.ClientTimeout(total=self.config.timeout),
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        return LLMResponse(
-                            content=data["choices"][0]["message"]["content"],
-                            provider=ProviderType.OPENAI,
-                            model=self._model,
-                            usage=data.get("usage"),
-                            latency=time.time() - start,
-                        )
-                    error_text = await resp.text()
-                    try:
-                        error = json.loads(error_text)
-                        self._last_error = error.get("error", {}).get("message", error_text)
-                    except Exception:
-                        self._last_error = f"HTTP {resp.status}"
-                    raise Exception(self._last_error)
+                ) as resp,
+            ):
+                if resp.status == 200:
+                    data = await resp.json()
+                    return LLMResponse(
+                        content=data["choices"][0]["message"]["content"],
+                        provider=ProviderType.OPENAI,
+                        model=self._model,
+                        usage=data.get("usage"),
+                        latency=time.time() - start,
+                    )
+                error_text = await resp.text()
+                try:
+                    error = json.loads(error_text)
+                    self._last_error = error.get("error", {}).get("message", error_text)
+                except Exception:
+                    self._last_error = f"HTTP {resp.status}"
+                raise Exception(self._last_error)
         except Exception as e:
             self._last_error = str(e)
             raise
@@ -464,6 +486,7 @@ class OpenAIProvider(BaseLLMProvider):
         if not self._model:
             raise Exception("No OpenAI model selected")
         import aiohttp
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -475,49 +498,54 @@ class OpenAIProvider(BaseLLMProvider):
             "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
             "stream": True,
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
                 f"{self._base_url}/chat/completions",
                 headers=headers,
                 json=payload,
-            ) as resp:
-                async for line in resp.content:
-                    if line:
-                        line = line.decode("utf-8")
-                        if line.startswith("data: "):
-                            if line.strip() == "data: [DONE]":
-                                break
-                            try:
-                                data = json.loads(line[6:])
-                                if "choices" in data:
-                                    delta = data["choices"][0].get("delta", {})
-                                    if "content" in delta:
-                                        yield delta["content"]
-                            except json.JSONDecodeError:
-                                pass
+            ) as resp,
+        ):
+            async for line in resp.content:
+                if line:
+                    line = line.decode("utf-8")
+                    if line.startswith("data: "):
+                        if line.strip() == "data: [DONE]":
+                            break
+                        try:
+                            data = json.loads(line[6:])
+                            if "choices" in data:
+                                delta = data["choices"][0].get("delta", {})
+                                if "content" in delta:
+                                    yield delta["content"]
+                        except json.JSONDecodeError:
+                            pass
 
     async def check_health(self) -> bool:
         try:
             import aiohttp
+
             headers = {"Authorization": f"Bearer {self.api_key}"}
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
                     f"{self._base_url}/models",
                     headers=headers,
                     timeout=5.0,
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        models = [m.get("id", "") for m in data.get("data", []) if m.get("id")]
-                        self._available_models = models
-                        if self._model and self._model not in self._available_models:
-                            self._model = self._available_models[0] if self._available_models else None
-                        elif not self._model and self._available_models:
-                            self._model = self._available_models[0]
-                        self._available = True
-                        return True
-                    self._available = False
-                    return False
+                ) as resp,
+            ):
+                if resp.status == 200:
+                    data = await resp.json()
+                    models = [m.get("id", "") for m in data.get("data", []) if m.get("id")]
+                    self._available_models = models
+                    if self._model and self._model not in self._available_models:
+                        self._model = self._available_models[0] if self._available_models else None
+                    elif not self._model and self._available_models:
+                        self._model = self._available_models[0]
+                    self._available = True
+                    return True
+                self._available = False
+                return False
         except Exception:
             self._available = False
             return False
@@ -535,6 +563,7 @@ class AnthropicProvider(BaseLLMProvider):
         if not self._model:
             raise Exception("No Anthropic model selected")
         import aiohttp
+
         start = time.time()
         try:
             headers = {
@@ -547,33 +576,35 @@ class AnthropicProvider(BaseLLMProvider):
                 "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
                 "messages": [{"role": "user", "content": prompt}],
             }
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
+            async with (
+                aiohttp.ClientSession() as session,
+                session.post(
                     f"{self._base_url}/messages",
                     headers=headers,
                     json=payload,
                     timeout=aiohttp.ClientTimeout(total=self.config.timeout),
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        content = ""
-                        for block in data.get("content", []):
-                            if block.get("type") == "text":
-                                content += block.get("text", "")
-                        return LLMResponse(
-                            content=content,
-                            provider=ProviderType.ANTHROPIC,
-                            model=self._model,
-                            usage=data.get("usage"),
-                            latency=time.time() - start,
-                        )
-                    error_text = await resp.text()
-                    try:
-                        error = json.loads(error_text)
-                        self._last_error = error.get("error", {}).get("message", error_text)
-                    except Exception:
-                        self._last_error = f"HTTP {resp.status}"
-                    raise Exception(self._last_error)
+                ) as resp,
+            ):
+                if resp.status == 200:
+                    data = await resp.json()
+                    content = ""
+                    for block in data.get("content", []):
+                        if block.get("type") == "text":
+                            content += block.get("text", "")
+                    return LLMResponse(
+                        content=content,
+                        provider=ProviderType.ANTHROPIC,
+                        model=self._model,
+                        usage=data.get("usage"),
+                        latency=time.time() - start,
+                    )
+                error_text = await resp.text()
+                try:
+                    error = json.loads(error_text)
+                    self._last_error = error.get("error", {}).get("message", error_text)
+                except Exception:
+                    self._last_error = f"HTTP {resp.status}"
+                raise Exception(self._last_error)
         except Exception as e:
             self._last_error = str(e)
             raise
@@ -582,6 +613,7 @@ class AnthropicProvider(BaseLLMProvider):
         if not self._model:
             raise Exception("No Anthropic model selected")
         import aiohttp
+
         headers = {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
@@ -593,50 +625,55 @@ class AnthropicProvider(BaseLLMProvider):
             "messages": [{"role": "user", "content": prompt}],
             "stream": True,
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
                 f"{self._base_url}/messages",
                 headers=headers,
                 json=payload,
-            ) as resp:
-                async for line in resp.content:
-                    if line:
-                        line = line.decode("utf-8")
-                        if line.startswith("data: "):
-                            try:
-                                data = json.loads(line[6:])
-                                if data.get("type") == "content_block_delta":
-                                    delta = data.get("delta", {})
-                                    if "text" in delta:
-                                        yield delta["text"]
-                            except json.JSONDecodeError:
-                                pass
+            ) as resp,
+        ):
+            async for line in resp.content:
+                if line:
+                    line = line.decode("utf-8")
+                    if line.startswith("data: "):
+                        try:
+                            data = json.loads(line[6:])
+                            if data.get("type") == "content_block_delta":
+                                delta = data.get("delta", {})
+                                if "text" in delta:
+                                    yield delta["text"]
+                        except json.JSONDecodeError:
+                            pass
 
     async def check_health(self) -> bool:
         try:
             import aiohttp
+
             headers = {
                 "x-api-key": self.api_key,
                 "anthropic-version": "2023-06-01",
             }
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
                     "https://api.anthropic.com/v1/models",
                     headers=headers,
                     timeout=5.0,
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        models = [m.get("id", "") for m in data.get("data", []) if m.get("id")]
-                        self._available_models = models
-                        if self._model and self._model not in self._available_models:
-                            self._model = self._available_models[0] if self._available_models else None
-                        elif not self._model and self._available_models:
-                            self._model = self._available_models[0]
-                        self._available = True
-                        return True
-                    self._available = False
-                    return False
+                ) as resp,
+            ):
+                if resp.status == 200:
+                    data = await resp.json()
+                    models = [m.get("id", "") for m in data.get("data", []) if m.get("id")]
+                    self._available_models = models
+                    if self._model and self._model not in self._available_models:
+                        self._model = self._available_models[0] if self._available_models else None
+                    elif not self._model and self._available_models:
+                        self._model = self._available_models[0]
+                    self._available = True
+                    return True
+                self._available = False
+                return False
         except Exception:
             self._available = False
             return False
@@ -653,6 +690,7 @@ class GoogleProvider(BaseLLMProvider):
         if not self._model:
             raise Exception("No Google model selected")
         import aiohttp
+
         start = time.time()
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{self._model}:generateContent?key={self.api_key}"
@@ -663,29 +701,31 @@ class GoogleProvider(BaseLLMProvider):
                     "maxOutputTokens": kwargs.get("max_tokens", self.config.max_tokens),
                 },
             }
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
+            async with (
+                aiohttp.ClientSession() as session,
+                session.post(
                     url,
                     json=payload,
                     timeout=aiohttp.ClientTimeout(total=self.config.timeout),
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        candidates = data.get("candidates", [])
-                        content = ""
-                        if candidates:
-                            parts = candidates[0].get("content", {}).get("parts", [])
-                            for part in parts:
-                                content += part.get("text", "")
-                        return LLMResponse(
-                            content=content,
-                            provider=ProviderType.GOOGLE,
-                            model=self._model,
-                            latency=time.time() - start,
-                        )
-                    error_text = await resp.text()
-                    self._last_error = f"HTTP {resp.status}: {error_text}"
-                    raise Exception(self._last_error)
+                ) as resp,
+            ):
+                if resp.status == 200:
+                    data = await resp.json()
+                    candidates = data.get("candidates", [])
+                    content = ""
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        for part in parts:
+                            content += part.get("text", "")
+                    return LLMResponse(
+                        content=content,
+                        provider=ProviderType.GOOGLE,
+                        model=self._model,
+                        latency=time.time() - start,
+                    )
+                error_text = await resp.text()
+                self._last_error = f"HTTP {resp.status}: {error_text}"
+                raise Exception(self._last_error)
         except Exception as e:
             self._last_error = str(e)
             raise
@@ -694,6 +734,7 @@ class GoogleProvider(BaseLLMProvider):
         if not self._model:
             raise Exception("No Google model selected")
         import aiohttp
+
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self._model}:streamGenerateContent?key={self.api_key}&alt=sse"
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
@@ -702,50 +743,52 @@ class GoogleProvider(BaseLLMProvider):
                 "maxOutputTokens": kwargs.get("max_tokens", self.config.max_tokens),
             },
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
                 url,
                 json=payload,
-            ) as resp:
-                async for line in resp.content:
-                    if line:
-                        text = line.decode("utf-8").strip()
-                        if text.startswith("data: "):
-                            try:
-                                data = json.loads(text[6:])
-                                candidates = data.get("candidates", [])
-                                if candidates:
-                                    parts = candidates[0].get("content", {}).get("parts", [])
-                                    for part in parts:
-                                        if "text" in part:
-                                            yield part["text"]
-                            except (json.JSONDecodeError, KeyError):
-                                pass
+            ) as resp,
+        ):
+            async for line in resp.content:
+                if line:
+                    text = line.decode("utf-8").strip()
+                    if text.startswith("data: "):
+                        try:
+                            data = json.loads(text[6:])
+                            candidates = data.get("candidates", [])
+                            if candidates:
+                                parts = candidates[0].get("content", {}).get("parts", [])
+                                for part in parts:
+                                    if "text" in part:
+                                        yield part["text"]
+                        except (json.JSONDecodeError, KeyError):
+                            pass
 
     async def check_health(self) -> bool:
         try:
             import aiohttp
+
             url = f"https://generativelanguage.googleapis.com/v1beta/models?key={self.api_key}"
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=5.0) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        models = []
-                        for m in data.get("models", []):
-                            name = m.get("name", "")
-                            if name.startswith("models/"):
-                                name = name[len("models/"):]
-                            if name:
-                                models.append(name)
-                        self._available_models = models
-                        if self._model and self._model not in self._available_models:
-                            self._model = self._available_models[0] if self._available_models else None
-                        elif not self._model and self._available_models:
-                            self._model = self._available_models[0]
-                        self._available = True
-                        return True
-                    self._available = False
-                    return False
+            async with aiohttp.ClientSession() as session, session.get(url, timeout=5.0) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    models = []
+                    for m in data.get("models", []):
+                        name = m.get("name", "")
+                        if name.startswith("models/"):
+                            name = name[len("models/") :]
+                        if name:
+                            models.append(name)
+                    self._available_models = models
+                    if self._model and self._model not in self._available_models:
+                        self._model = self._available_models[0] if self._available_models else None
+                    elif not self._model and self._available_models:
+                        self._model = self._available_models[0]
+                    self._available = True
+                    return True
+                self._available = False
+                return False
         except Exception:
             self._available = False
             return False
@@ -789,18 +832,19 @@ class ProviderManager:
     ]
 
     def __init__(self):
-        self.providers: Dict[ProviderType, BaseLLMProvider] = {}
-        self.primary_provider: Optional[ProviderType] = None
+        self.providers: dict[ProviderType, BaseLLMProvider] = {}
+        self.primary_provider: ProviderType | None = None
         self._initialized = False
-        self._startup_diagnostics: Dict[str, Any] = {}
-        self._switch_log: List[Dict[str, Any]] = []
+        self._startup_diagnostics: dict[str, Any] = {}
+        self._switch_log: list[dict[str, Any]] = []
 
     def add_provider(self, provider: BaseLLMProvider) -> None:
         self.providers[provider.config.provider] = provider
 
     def _emit_switch_event(self, event_type: str, **kwargs: Any) -> None:
         try:
-            from jarvis.events import get_event_bus, EventType
+            from jarvis.events import EventType, get_event_bus
+
             bus = get_event_bus()
             data = {
                 "provider": self.primary_provider.value if self.primary_provider else None,
@@ -826,14 +870,18 @@ class ProviderManager:
         if provider_type in self.providers:
             self.primary_provider = provider_type
         if old_primary != self.primary_provider:
-            self._switch_log.append({
-                "event": "provider_switched",
-                "from": old_primary.value if old_primary else None,
-                "to": provider_type.value,
-                "model": self.get_current_model(),
-                "timestamp": time.time(),
-            })
-            self._emit_switch_event("provider_switched", from_provider=old_primary.value if old_primary else None)
+            self._switch_log.append(
+                {
+                    "event": "provider_switched",
+                    "from": old_primary.value if old_primary else None,
+                    "to": provider_type.value,
+                    "model": self.get_current_model(),
+                    "timestamp": time.time(),
+                }
+            )
+            self._emit_switch_event(
+                "provider_switched", from_provider=old_primary.value if old_primary else None
+            )
 
     def set_model(self, model: str) -> tuple:
         if ProviderType.OLLAMA in self.providers:
@@ -842,13 +890,17 @@ class ProviderManager:
                 success, resolved = ollama.switch_model(model)
                 if success:
                     self.primary_provider = ProviderType.OLLAMA
-                    self._switch_log.append({
-                        "event": "model_switched",
-                        "provider": ProviderType.OLLAMA.value,
-                        "model": resolved,
-                        "timestamp": time.time(),
-                    })
-                    self._emit_switch_event("model_switched", provider=ProviderType.OLLAMA.value, model=resolved)
+                    self._switch_log.append(
+                        {
+                            "event": "model_switched",
+                            "provider": ProviderType.OLLAMA.value,
+                            "model": resolved,
+                            "timestamp": time.time(),
+                        }
+                    )
+                    self._emit_switch_event(
+                        "model_switched", provider=ProviderType.OLLAMA.value, model=resolved
+                    )
                     return True, resolved
                 return False, resolved
             model_lower = model.lower().strip()
@@ -856,25 +908,31 @@ class ProviderManager:
                 if model_lower in avail_model.lower():
                     ollama.model = avail_model
                     self.primary_provider = ProviderType.OLLAMA
-                    self._switch_log.append({
-                        "event": "model_switched",
-                        "provider": ProviderType.OLLAMA.value,
-                        "model": avail_model,
-                        "timestamp": time.time(),
-                    })
-                    self._emit_switch_event("model_switched", provider=ProviderType.OLLAMA.value, model=avail_model)
+                    self._switch_log.append(
+                        {
+                            "event": "model_switched",
+                            "provider": ProviderType.OLLAMA.value,
+                            "model": avail_model,
+                            "timestamp": time.time(),
+                        }
+                    )
+                    self._emit_switch_event(
+                        "model_switched", provider=ProviderType.OLLAMA.value, model=avail_model
+                    )
                     return True, avail_model
 
         for provider_type, provider in self.providers.items():
             if hasattr(provider, "model"):
                 provider.model = model
                 self.primary_provider = provider_type
-                self._switch_log.append({
-                    "event": "model_switched",
-                    "provider": provider_type.value,
-                    "model": model,
-                    "timestamp": time.time(),
-                })
+                self._switch_log.append(
+                    {
+                        "event": "model_switched",
+                        "provider": provider_type.value,
+                        "model": model,
+                        "timestamp": time.time(),
+                    }
+                )
                 self._emit_switch_event("model_switched", provider=provider_type.value, model=model)
                 return True, model
 
@@ -917,11 +975,23 @@ class ProviderManager:
                     "models": provider.available_models,
                 }
                 if is_healthy:
-                    self._emit_switch_event("provider_discovered", provider=provider_type.value, models=provider.available_models)
-                    self._emit_switch_event("provider_available", provider=provider_type.value, model=provider.model)
+                    self._emit_switch_event(
+                        "provider_discovered",
+                        provider=provider_type.value,
+                        models=provider.available_models,
+                    )
+                    self._emit_switch_event(
+                        "provider_available", provider=provider_type.value, model=provider.model
+                    )
                 else:
-                    self._emit_switch_event("provider_unavailable", provider=provider_type.value, error=provider.last_error)
-                logger.info(f"[Provider] {provider_type.value}: {'detected' if is_healthy else 'unavailable'}")
+                    self._emit_switch_event(
+                        "provider_unavailable",
+                        provider=provider_type.value,
+                        error=provider.last_error,
+                    )
+                logger.info(
+                    f"[Provider] {provider_type.value}: {'detected' if is_healthy else 'unavailable'}"
+                )
                 if is_healthy and self.primary_provider is None:
                     self.primary_provider = provider_type
                     logger.info(f"[Provider] Selected primary: {provider_type.value}")
@@ -930,7 +1000,9 @@ class ProviderManager:
                     "available": False,
                     "error": str(e),
                 }
-                self._emit_switch_event("provider_unavailable", provider=provider_type.value, error=str(e))
+                self._emit_switch_event(
+                    "provider_unavailable", provider=provider_type.value, error=str(e)
+                )
                 logger.error(f"[Provider] {provider_type.value}: error - {e}")
 
         if self.primary_provider:
@@ -946,7 +1018,7 @@ class ProviderManager:
         self._initialized = False
         return False
 
-    def get_startup_diagnostics(self) -> Dict[str, Any]:
+    def get_startup_diagnostics(self) -> dict[str, Any]:
         return self._startup_diagnostics
 
     def format_status(self) -> str:
@@ -980,7 +1052,7 @@ class ProviderManager:
         if next_p and next_p in self.providers:
             return next_p.value
         idx = self.PROVIDER_PRIORITY.index(self.primary_provider)
-        for p in self.PROVIDER_PRIORITY[idx + 1:]:
+        for p in self.PROVIDER_PRIORITY[idx + 1 :]:
             if p in self.providers:
                 return p.value
         return "none"
@@ -993,7 +1065,11 @@ class ProviderManager:
                 if provider.available_models:
                     lines.append(f"[{provider_type.value}]")
                     for model in provider.available_models:
-                        marker = " (active)" if (self.primary_provider == provider_type and provider.model == model) else ""
+                        marker = (
+                            " (active)"
+                            if (self.primary_provider == provider_type and provider.model == model)
+                            else ""
+                        )
                         lines.append(f"  • {model}{marker}")
         if not lines:
             return "  No models available"
@@ -1004,7 +1080,7 @@ class ProviderManager:
             return self.providers[self.primary_provider].model
         return "No provider selected"
 
-    async def benchmark_models(self, test_prompt: str = "Count from 1 to 5") -> Dict[str, Any]:
+    async def benchmark_models(self, test_prompt: str = "Count from 1 to 5") -> dict[str, Any]:
         results = {}
         for provider_type, provider in self.providers.items():
             if not provider.is_available:
@@ -1046,7 +1122,9 @@ class ProviderManager:
             lines.append("")
         return "\n".join(lines)
 
-    async def _try_generate_with(self, provider: BaseLLMProvider, prompt: str, **kwargs) -> Optional[LLMResponse]:
+    async def _try_generate_with(
+        self, provider: BaseLLMProvider, prompt: str, **kwargs
+    ) -> LLMResponse | None:
         try:
             if not provider.is_available:
                 return None
@@ -1055,7 +1133,9 @@ class ProviderManager:
             logger.debug(f"Provider {provider.config.provider.value} generate failed: {e}")
             return None
 
-    async def _try_stream_with(self, provider: BaseLLMProvider, prompt: str, **kwargs) -> Optional[AsyncIterator[str]]:
+    async def _try_stream_with(
+        self, provider: BaseLLMProvider, prompt: str, **kwargs
+    ) -> AsyncIterator[str] | None:
         try:
             if not provider.is_available:
                 return None
@@ -1099,10 +1179,10 @@ class ProviderManager:
         response = await self.generate(prompt, **kwargs)
         yield response.content
 
-    def get_available_providers(self) -> List[ProviderType]:
+    def get_available_providers(self) -> list[ProviderType]:
         return [p for p, provider in self.providers.items() if provider.is_available]
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "primary": self.primary_provider.value if self.primary_provider else None,
             "providers": {
@@ -1119,7 +1199,7 @@ class ProviderManager:
 
 
 # Global provider manager
-_provider_manager: Optional[ProviderManager] = None
+_provider_manager: ProviderManager | None = None
 
 
 def get_provider_manager() -> ProviderManager:
@@ -1130,7 +1210,7 @@ def get_provider_manager() -> ProviderManager:
     return _provider_manager
 
 
-def init_providers(configs: Dict[ProviderType, LLMConfig]) -> ProviderManager:
+def init_providers(configs: dict[ProviderType, LLMConfig]) -> ProviderManager:
     """Initialize provider manager with configs."""
     global _provider_manager
     _provider_manager = ProviderManager()

@@ -40,27 +40,36 @@ class _ToolEventBridge:
         self._bus = bus
 
     def on_tool_start(self, tool_name: str, input_data: dict[str, Any]) -> None:
-        self._bus.emit(EventType.TOOL, {
-            "phase": "start",
-            "tool": tool_name,
-            "input": {k: _safe(v) for k, v in (input_data or {}).items()},
-        })
+        self._bus.emit(
+            EventType.TOOL,
+            {
+                "phase": "start",
+                "tool": tool_name,
+                "input": {k: _safe(v) for k, v in (input_data or {}).items()},
+            },
+        )
 
     def on_tool_complete(self, tool_name: str, result: Any) -> None:
         ok = getattr(result, "success", True)
-        self._bus.emit(EventType.TOOL, {
-            "phase": "complete",
-            "tool": tool_name,
-            "success": bool(ok),
-            "summary": _summarize_result(result),
-        })
+        self._bus.emit(
+            EventType.TOOL,
+            {
+                "phase": "complete",
+                "tool": tool_name,
+                "success": bool(ok),
+                "summary": _summarize_result(result),
+            },
+        )
 
     def on_tool_error(self, tool_name: str, error: Exception) -> None:
-        self._bus.emit(EventType.TOOL, {
-            "phase": "error",
-            "tool": tool_name,
-            "error": str(error),
-        })
+        self._bus.emit(
+            EventType.TOOL,
+            {
+                "phase": "error",
+                "tool": tool_name,
+                "error": str(error),
+            },
+        )
 
 
 def _safe(value: Any) -> Any:
@@ -153,12 +162,27 @@ class JarvisOrchestrator:
         """Heuristic: does this warrant an autonomous plan?"""
         lowered = text.lower()
         signals = [
-            "research", "create a report", "generate report", "summarize", "build", "make a",
-            "create", "index repository", "analyze repository", "plan", "step by step",
-            "ingest", "export", "download", "automate",
+            "research",
+            "create a report",
+            "generate report",
+            "summarize",
+            "build",
+            "make a",
+            "create",
+            "index repository",
+            "analyze repository",
+            "plan",
+            "step by step",
+            "ingest",
+            "export",
+            "download",
+            "automate",
         ]
         # Multi-verb / "and then" requests are good plan candidates
-        if " then " in lowered or " and " in lowered and any(s in lowered for s in ["research", "create", "generate", "build", "index"]):
+        if " then " in lowered or (
+            " and " in lowered
+            and any(s in lowered for s in ["research", "create", "generate", "build", "index"])
+        ):
             return True
         return any(s in lowered for s in signals)
 
@@ -212,12 +236,14 @@ class JarvisOrchestrator:
             plan_obj = await planner.create_plan(goal, context)
             steps = []
             for s in getattr(plan_obj, "steps", []):
-                steps.append({
-                    "step": getattr(s, "step", 0),
-                    "tool": getattr(s, "tool", ""),
-                    "description": getattr(s, "description", ""),
-                    "critical": getattr(s, "critical", True),
-                })
+                steps.append(
+                    {
+                        "step": getattr(s, "step", 0),
+                        "tool": getattr(s, "tool", ""),
+                        "description": getattr(s, "description", ""),
+                        "critical": getattr(s, "critical", True),
+                    }
+                )
             if not steps:
                 return None
             return {"goal": getattr(plan_obj, "goal", goal), "steps": steps}
@@ -239,12 +265,15 @@ class JarvisOrchestrator:
                 self.bus.emit(EventType.VOICE_INTERRUPT, {"reason": "user_speech"})
                 return "Stopped — I heard you speak."
 
-            self.bus.emit(EventType.STEP, {
-                "phase": "start",
-                "step": step["step"],
-                "tool": step["tool"],
-                "description": step["description"],
-            })
+            self.bus.emit(
+                EventType.STEP,
+                {
+                    "phase": "start",
+                    "step": step["step"],
+                    "tool": step["tool"],
+                    "description": step["description"],
+                },
+            )
 
             try:
                 res = await executor.execute(step["tool"], step["parameters"])
@@ -253,14 +282,17 @@ class JarvisOrchestrator:
                 ok = False
                 res = type("R", (), {"success": False, "error": str(e)})()
 
-            self.bus.emit(EventType.STEP, {
-                "phase": "complete" if ok else "error",
-                "step": step["step"],
-                "tool": step["tool"],
-                "description": step["description"],
-                "success": bool(ok),
-                "error": getattr(res, "error", None),
-            })
+            self.bus.emit(
+                EventType.STEP,
+                {
+                    "phase": "complete" if ok else "error",
+                    "step": step["step"],
+                    "tool": step["tool"],
+                    "description": step["description"],
+                    "success": bool(ok),
+                    "error": getattr(res, "error", None),
+                },
+            )
 
             if ok:
                 completed.append(step["description"])
@@ -274,10 +306,13 @@ class JarvisOrchestrator:
                 else:
                     break
 
-        self.bus.emit(EventType.OBSERVING, {
-            "completed": completed,
-            "failed": failed_step,
-        })
+        self.bus.emit(
+            EventType.OBSERVING,
+            {
+                "completed": completed,
+                "failed": failed_step,
+            },
+        )
 
         if failed_step:
             return f"Completed {len(completed)} step(s). Failed at: {failed_step}."
@@ -349,7 +384,11 @@ class JarvisOrchestrator:
             from jarvis.api.providers import get_provider_manager
 
             manager = get_provider_manager()
-            system = self.agent._build_system_prompt() if (inject_system and hasattr(self.agent, "_build_system_prompt")) else ""
+            system = (
+                self.agent._build_system_prompt()
+                if (inject_system and hasattr(self.agent, "_build_system_prompt"))
+                else ""
+            )
             # Build a messages payload accepted by stream_generate callers.
             messages = []
             if system:

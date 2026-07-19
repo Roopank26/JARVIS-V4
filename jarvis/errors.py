@@ -28,7 +28,7 @@ class FriendlyError:
     retry: Callable[[], Any] | None = None
     retry_label: str = "Try again"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "title": self.title,
             "reason": self.reason,
@@ -65,7 +65,10 @@ def handle_error(
     context_str = f" while {context}" if context else ""
 
     # API key / authentication
-    if any(t in msg for t in ["401", "invalid api key", "invalid_api_key", "unauthorized", "authentication"]):
+    if any(
+        t in msg
+        for t in ["401", "invalid api key", "invalid_api_key", "unauthorized", "authentication"]
+    ):
         return FriendlyError(
             title="API key missing or invalid",
             reason="JARVIS couldn't authenticate with the AI provider.",
@@ -89,7 +92,19 @@ def handle_error(
         )
 
     # Network / connectivity
-    if any(t in msg for t in ["connection", "timeout", "timed out", "name or service", "failed to resolve", "503", "502", "504"]):
+    if any(
+        t in msg
+        for t in [
+            "connection",
+            "timeout",
+            "timed out",
+            "name or service",
+            "failed to resolve",
+            "503",
+            "502",
+            "504",
+        ]
+    ):
         return FriendlyError(
             title="Connection problem",
             reason=f"JARVIS couldn't reach the service{context_str}.",
@@ -99,7 +114,18 @@ def handle_error(
         )
 
     # Audio / microphone
-    if any(t in msg for t in ["portaudio", "sounddevice", "no usable input", "input device", "mic", "microphone", "4040"]):
+    if any(
+        t in msg
+        for t in [
+            "portaudio",
+            "sounddevice",
+            "no usable input",
+            "input device",
+            "mic",
+            "microphone",
+            "4040",
+        ]
+    ):
         return FriendlyError(
             title="Microphone unavailable",
             reason="No working microphone input was found.",
@@ -113,7 +139,11 @@ def handle_error(
         return FriendlyError(
             title="Optional feature not installed",
             reason=f"A dependency needed for this feature is missing{context_str}.",
-            fix=f"Install it with: pip install {missing}" if missing else "Install the missing dependency from requirements.txt.",
+            fix=(
+                f"Install it with: pip install {missing}"
+                if missing
+                else "Install the missing dependency from requirements.txt."
+            ),
             diagnostic=str(error),
             retry=retry,
         )

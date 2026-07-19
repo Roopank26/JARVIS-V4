@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class VADResult:
     """Result of a VAD check."""
+
     is_speech: bool
     confidence: float = 0.0
     silence_duration: float = 0.0
@@ -70,8 +71,10 @@ class VAD:
         # Try Silero VAD
         try:
             import torch  # noqa: F401
+
             try:
                 from silero_vad import load_silero_vad
+
                 self._silero_model = load_silero_vad()
                 self._backend = "silero"
                 logger.info("VAD backend: silero")
@@ -83,7 +86,8 @@ class VAD:
 
         # Try WebRTC VAD
         try:
-            import webrtcvad  # noqa: F401
+            import webrtcvad
+
             self._webrtc_vad = webrtcvad.Vad(2)
             self._backend = "webrtc"
             logger.info("VAD backend: webrtc")
@@ -155,6 +159,7 @@ class VAD:
     def _process_silero(self, frame_array: np.ndarray) -> tuple[bool, float]:
         try:
             import torch
+
             tensor = torch.from_numpy(frame_array).float() / 32768.0
             with torch.no_grad():
                 prob = float(self._silero_model(tensor, self.sample_rate).item())
@@ -166,7 +171,9 @@ class VAD:
         try:
             return self._webrtc_vad.is_speech(audio_frame, self.sample_rate)
         except Exception:
-            energy = float(np.sqrt(np.mean(np.frombuffer(audio_frame, dtype=np.int16).astype(float) ** 2)))
+            energy = float(
+                np.sqrt(np.mean(np.frombuffer(audio_frame, dtype=np.int16).astype(float) ** 2))
+            )
             return energy > self.energy_threshold
 
     def _process_energy(self, frame_array: np.ndarray) -> tuple[bool, float]:
