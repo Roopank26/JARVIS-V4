@@ -16,7 +16,7 @@ class TestRAGIntegration:
     @pytest.fixture
     def test_doc_path(self):
         """Path to test document."""
-        return Path("/workspace/project/JARVIS/test_data/neural_networks.txt")
+        return Path(__file__).resolve().parent.parent / "test_data" / "neural_networks.txt"
 
     @pytest.fixture
     def rag_system(self, tmp_path):
@@ -89,7 +89,7 @@ class TestDocumentProcessing:
     @pytest.fixture
     def test_doc_path(self):
         """Path to test document."""
-        return Path("/workspace/project/JARVIS/test_data/neural_networks.txt")
+        return Path(__file__).resolve().parent.parent / "test_data" / "neural_networks.txt"
 
     @pytest.mark.asyncio
     async def test_process_markdown_file(self, processor, test_doc_path):
