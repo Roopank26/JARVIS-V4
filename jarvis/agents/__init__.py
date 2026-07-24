@@ -4,6 +4,11 @@ JARVIS Multi-Agent System
 Coordinates multiple specialized agents for complex tasks.
 """
 
+from jarvis.agents.collaboration import (
+    AgentCollaboration,
+    CollaborationRequest,
+    CollaborationResult,
+)
 from jarvis.agents.multi_agent import (
     AgentOrchestrator,
     AgentType,
@@ -19,10 +24,13 @@ from jarvis.agents.multi_agent import (
 )
 
 __all__ = [
+    "AgentCollaboration",
     "AgentOrchestrator",
     "AgentType",
     "BaseAgent",
     "CodingAgentWrapper",
+    "CollaborationRequest",
+    "CollaborationResult",
     "MemoryAgentWrapper",
     "Message",
     "PlannerAgent",

@@ -145,6 +145,47 @@ class EnhancedMemoryManager:
 
         return None
 
+    def handle_goal_command(self, text: str) -> str | None:
+        text_lower = text.lower().strip()
+
+        goal_patterns = [
+            r"what\s+(?:are\s+)?my\s+goals",
+            r"current\s+goal",
+            r"what\s+am\s+i\s+trying\s+to\s+accomplish",
+            r"remind\s+me\s+what\s+i'm\s+doing",
+        ]
+        for pattern in goal_patterns:
+            if re.search(pattern, text_lower):
+                return self._goal_summary()
+
+        save_pattern = r"(?:set|save|remember|track)\s+(?:my\s+)?(?:current\s+)?goal\s+(?:as\s+)?(?P<name>.+)$"
+        match = re.search(save_pattern, text_lower)
+        if match:
+            name = match.group("name").strip().replace(" ", "_")
+            value = text[match.start("name"):].strip()
+            self.memory.save_goal(name, value, status="active")
+            return f"Saved goal: {value}"
+
+        return None
+
+    def _goal_summary(self) -> str:
+        goals = self.memory.get_goals()
+        if not goals:
+            return "No goals saved yet."
+        lines = ["Current goals:"]
+        for key, entry in list(goals.items())[:10]:
+            if not isinstance(entry, dict):
+                continue
+            status = entry.get("status", "active")
+            value = entry.get("value", key)
+            if status in {"completed"}:
+                continue
+            priority = entry.get("priority", "medium")
+            lines.append(f"- {value} [{priority}]")
+        if len(lines) <= 1:
+            return "No active goals."
+        return "\n".join(lines)
+
     # Delegate other methods to underlying memory
     def remember(self, key: str, value: Any, category: str = "general") -> None:
         """Store information in long-term memory."""
@@ -158,15 +199,17 @@ class EnhancedMemoryManager:
         """Format memory for prompts."""
         parts = []
 
-        # Add profile summary
         profile = self.profile.format_summary()
         if profile and "don't have" not in profile:
             parts.append(profile)
 
-        # Add long-term memory
         ltm = self.memory.format_for_prompt()
         if ltm:
             parts.append(ltm)
+
+        goals = self.memory.get_goal_context()
+        if goals:
+            parts.append(goals)
 
         return "\n\n".join(parts)
 
@@ -181,6 +224,23 @@ class EnhancedMemoryManager:
     def get_context(self, max_messages: int = 20) -> str:
         """Get conversation context."""
         return self.memory.get_context(max_messages)
+
+    def extract_conversation_facts(self, user_input: str, response: str) -> None:
+        """Store derived facts from conversation in long-term memory."""
+        try:
+            if not user_input or len(user_input) < 5 or "?" in user_input:
+                return
+
+            extractions = self.profile.extract_from_text(user_input)
+            if extractions:
+                for (category, key), value in extractions.items():
+                    self.memory.remember(key, value, category)
+            else:
+                lowered = user_input.lower().strip()
+                if lowered.startswith("remember "):
+                    self.memory.remember("fact", user_input, "notes")
+        except Exception:
+            pass
 
 
 # Global instance

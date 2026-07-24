@@ -234,6 +234,7 @@ class TaskScheduler:
     async def run(self) -> None:
         """Main scheduler loop."""
         self._running = True
+        self._register_with_health_monitor()
         logger.info("Task scheduler started")
 
         while self._running:
@@ -350,6 +351,24 @@ class TaskScheduler:
             json.dump(self._daily_summary.to_dict(), f, indent=2)
 
         return filename
+
+    def _register_with_health_monitor(self) -> None:
+        try:
+            from jarvis.monitoring.health_monitor import get_health_monitor
+            monitor = get_health_monitor()
+            monitor.register(
+                "task_scheduler",
+                starter=self._scheduler_start,
+                stopper=self.stop,
+                memory_threshold_bytes=100 * 1024 * 1024,
+                pauseable=True,
+            )
+        except Exception:
+            pass
+
+    async def _scheduler_start(self) -> None:
+        if not self._running:
+            self._running = True
 
     def new_day(self) -> None:
         """Reset for new day."""

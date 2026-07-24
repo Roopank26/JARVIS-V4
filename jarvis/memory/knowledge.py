@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import re
+import weakref
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -197,6 +198,31 @@ class LocalKnowledgeBase:
         self._use_chroma = False
         self._tfidf_store = TFIDFVectorStore()
         self._metadata: dict[str, dict] = {}
+        self._finalizer = weakref.finalize(self, self.close)
+
+    def _ensure_embedding_model(self) -> None:
+        """Lazy-load the embedding model on first use."""
+        if self._embedding_model is None:
+            from sentence_transformers import SentenceTransformer
+            self._embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+    def close(self) -> None:
+        """Release resources held by the knowledge base."""
+        try:
+            if self._collection is not None and self._chromadb is not None:
+                with contextlib.suppress(Exception):
+                    self._chromadb.delete_collection("jarvis_knowledge")
+                self._collection = None
+        except Exception:
+            pass
+        try:
+            if self._chromadb is not None:
+                self._chromadb.close()
+                self._chromadb = None
+        except Exception:
+            pass
+        self._embedding_model = None
+        self._use_chroma = False
 
     async def initialize(self) -> bool:
         """Initialize the knowledge base."""
@@ -214,13 +240,11 @@ class LocalKnowledgeBase:
         try:
             import chromadb
             from chromadb.config import Settings
-            from sentence_transformers import SentenceTransformer
 
             self._chromadb = chromadb.PersistentClient(
                 path=str(self.storage_path / "chroma_db"),
                 settings=Settings(anonymized_telemetry=False),
             )
-            self._embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
             self._collection = self._chromadb.get_or_create_collection(
                 name="jarvis_knowledge", metadata={"description": "JARVIS knowledge base"}
             )
@@ -280,6 +304,7 @@ class LocalKnowledgeBase:
 
         if self._use_chroma and self._collection:
             try:
+                self._ensure_embedding_model()
                 embedding = self._embedding_model.encode([content])[0]
                 self._collection.add(
                     documents=[content],
@@ -310,6 +335,7 @@ class LocalKnowledgeBase:
 
         if self._use_chroma and self._collection:
             try:
+                self._ensure_embedding_model()
                 query_embedding = self._embedding_model.encode([query])[0]
                 chroma_results = self._collection.query(
                     query_embeddings=[query_embedding.tolist()], n_results=limit * 2

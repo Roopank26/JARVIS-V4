@@ -129,9 +129,11 @@ class TestProviderManager:
     def test_provider_priority(self):
         """Test provider priority order."""
         assert ProviderType.OLLAMA in ProviderManager.PROVIDER_PRIORITY
+        assert ProviderType.AIRLLM in ProviderManager.PROVIDER_PRIORITY
         assert ProviderType.GROQ in ProviderManager.PROVIDER_PRIORITY
-        # Ollama should be first (local priority)
+        # Ollama should be first, AirLLM last (GPU-only)
         assert ProviderManager.PROVIDER_PRIORITY[0] == ProviderType.OLLAMA
+        assert ProviderManager.PROVIDER_PRIORITY[-1] == ProviderType.AIRLLM
 
     def test_default_model(self):
         """Test default model configuration."""
@@ -210,7 +212,8 @@ class TestProviderSelection:
     def test_ollama_priority_over_groq(self):
         """Test that Ollama is prioritized over Groq."""
         assert ProviderManager.PROVIDER_PRIORITY[0] == ProviderType.OLLAMA
-        assert ProviderManager.PROVIDER_PRIORITY[1] == ProviderType.GROQ
+        assert ProviderManager.PROVIDER_PRIORITY[-1] == ProviderType.AIRLLM
+        assert ProviderType.GROQ in ProviderManager.PROVIDER_PRIORITY
 
     def test_startup_diagnostics_initialization(self):
         """Test startup diagnostics are initialized."""
@@ -321,8 +324,9 @@ class TestProviderFallback:
     def test_fallback_order(self):
         """Test fallback order is correct."""
         priority = ProviderManager.PROVIDER_PRIORITY
-        assert priority[0] == ProviderType.OLLAMA  # Local first
-        assert priority[1] == ProviderType.GROQ  # Cloud fallback
+        assert priority[0] == ProviderType.OLLAMA  # Ollama first (general-purpose local)
+        assert priority[-1] == ProviderType.AIRLLM  # AirLLM last (GPU-only memory-efficient)
+        assert ProviderType.GROQ in priority  # Cloud fallback
 
     def test_provider_manager_has_generate(self):
         """Test ProviderManager has generate method."""

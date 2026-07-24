@@ -252,10 +252,129 @@ class AdvancedPluginManager:
         await self._load_enabled_list()
 
         # Discover and load all plugins
-        await self.discover_plugins()
+        plugin_ids = self._scan_plugin_dir(self.plugins_dir)
+        for plugin_id in plugin_ids:
+            self.load_plugin(plugin_id)
 
         # Initialize enabled plugins
         await self._initialize_enabled()
+
+    @staticmethod
+    def _scan_plugin_dir(directory: Path) -> list[str]:
+        """
+        Scan a plugins directory for subdirectories containing plugin.json manifests.
+
+        Args:
+            directory: Directory to scan for plugins
+
+        Returns:
+            List of discovered plugin IDs
+        """
+        discovered: list[str] = []
+        if directory.exists() and directory.is_dir():
+            for path in directory.iterdir():
+                if path.is_dir() and not path.name.startswith("_"):
+                    manifest = path / "plugin.json"
+                    if manifest.exists():
+                        try:
+                            data = json.loads(manifest.read_text())
+                            plugin_id = data.get("id", path.name)
+                            discovered.append(plugin_id)
+                        except Exception as e:
+                            logger.warning(f"Failed to read manifest in {path}: {e}")
+        logger.info(f"Discovered {len(discovered)} plugins from {directory}")
+        return discovered
+
+    def load_plugin(self, plugin_id: str) -> bool:
+        """
+        Load a plugin by ID.
+
+        Args:
+            plugin_id: Plugin ID to load
+
+        Returns:
+            True if plugin loaded successfully
+        """
+        plugin_dir = self.plugins_dir / plugin_id
+        if not plugin_dir.exists():
+            logger.error(f"Plugin directory not found: {plugin_dir}")
+            return False
+
+        if plugin_id in self.plugins:
+            logger.warning(f"Plugin already loaded: {plugin_id}")
+            return True
+
+        try:
+            # Check for manifest
+            manifest = plugin_dir / "plugin.json"
+            if manifest.exists():
+                data = json.loads(manifest.read_text())
+                entry_point = data.get("entry_point", "plugin.py")
+                plugin_file = plugin_dir / entry_point
+            else:
+                plugin_file = plugin_dir / "__init__.py"
+
+            if not plugin_file.exists():
+                plugin_file = plugin_dir / "plugin.py"
+
+            if not plugin_file.exists():
+                logger.error(f"No plugin file found in {plugin_dir}")
+                return False
+
+            # Load module from file
+            spec = importlib.util.spec_from_file_location(
+                f"jarvis_plugins.{plugin_id}", plugin_file
+            )
+            if not spec or not spec.loader:
+                logger.error(f"Failed to create spec for {plugin_id}")
+                return False
+
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            # Find plugin class
+            plugin_class = None
+            for attr_name in dir(module):
+                attr = getattr(module, attr_name)
+                if (
+                    isinstance(attr, type)
+                    and issubclass(attr, PluginInterface)
+                    and attr != PluginInterface
+                    and attr != IntentPlugin
+                    and attr != ToolPlugin
+                    and attr != MemoryPlugin
+                ):
+                    plugin_class = attr
+                    break
+
+            if not plugin_class:
+                logger.error(f"No PluginInterface subclass found in {plugin_id}")
+                return False
+
+            # Create plugin instance
+            instance = plugin_class()
+            info = instance.get_info()
+
+            plugin = PluginRecord(
+                info=info, state=PluginState.LOADED, instance=instance, module=module
+            )
+
+            self.plugins[plugin_id] = plugin
+            logger.debug(f"Loaded plugin: {plugin_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to load plugin {plugin_id}: {e}")
+            if plugin_id not in self.plugins:
+                self.plugins[plugin_id] = PluginRecord(
+                    info=PluginInfo(id=plugin_id, name=plugin_id, version="unknown", description=""),
+                    state=PluginState.FAILED,
+                    error=str(e),
+                )
+            else:
+                self.plugins[plugin_id].state = PluginState.FAILED
+                self.plugins[plugin_id].error = str(e)
+            return False
 
     async def _load_enabled_list(self) -> None:
         """Load list of enabled plugins from config."""
@@ -511,13 +630,14 @@ class AdvancedPluginManager:
         return {"error": f"Tool not found: {tool_name}"}
 
     def list_plugins(self) -> list[dict[str, Any]]:
-        """List all plugins with their states."""
+        """List all plugins with their metadata."""
         return [
             {
                 "id": p.info.id,
                 "name": p.info.name,
                 "version": p.info.version,
                 "description": p.info.description,
+                "author": p.info.author,
                 "state": p.state.value,
                 "enabled": p.info.id in self._enabled_plugins,
                 "error": p.error,

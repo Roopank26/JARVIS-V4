@@ -5,14 +5,13 @@ Adapted from Mark-XXXIX-OR's executor.py
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import Any
 
+from jarvis.core.planner import PlanStep
 from jarvis.tools.base import ToolResult
-
-if TYPE_CHECKING:
-    from jarvis.core.planner import PlanStep
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +50,22 @@ class Executor:
         self.planner = planner
         self._speak_callback: Callable | None = None
         self._cancel_flag = asyncio.Event()
+        self._after_execute: Callable | None = None
 
     def set_speak_callback(self, callback: Callable):
         """Set the speak callback for voice output."""
         self._speak_callback = callback
+
+    def set_after_execute_callback(self, callback: Callable):
+        """Set a callback invoked after plan execution with ExecutionResult."""
+        self._after_execute = callback
+
+    async def _maybe_after_execute(self, result: ExecutionResult, goal: str, duration_ms: float):
+        if self._after_execute:
+            try:
+                await self._after_execute(result, goal, duration_ms)
+            except Exception as exc:
+                logger.debug("after_execute callback failed: %s", exc)
 
     def speak(self, message: str):
         """Speak a message if callback is set."""
@@ -85,8 +96,8 @@ class Executor:
         """
         self.reset()
         completed_steps: list[ExecutionStep] = []
+        start_ms = asyncio.get_event_loop().time() * 1000.0
 
-        # Create initial plan
         if self.planner:
             plan = await self.planner.create_plan(goal, context)
         else:
@@ -104,6 +115,12 @@ class Executor:
                 ],
             )
 
+        result = await self._execute_plan(plan, completed_steps, goal)
+        duration_ms = (asyncio.get_event_loop().time() * 1000.0) - start_ms
+        await self._maybe_after_execute(result, goal, duration_ms)
+        return result
+
+    async def _execute_plan(self, plan, completed_steps, goal):
         replan_attempts = 0
 
         while True:
@@ -123,7 +140,6 @@ class Executor:
                         completed_steps=completed_steps,
                     )
 
-                # Execute step
                 execution_step, result = await self._execute_step(plan_step)
 
                 if result.success:
@@ -151,7 +167,6 @@ class Executor:
                     error="No failed step recorded",
                 )
 
-            # Try to replan
             if replan_attempts >= self.MAX_REPLANS:
                 return ExecutionResult(
                     success=False,
@@ -179,7 +194,6 @@ class Executor:
                     goal, completed_data, failed_data, failed_step.error or ""
                 )
             else:
-                # No planner, give up
                 return ExecutionResult(
                     success=False,
                     summary="Execution failed without replanning capability",
@@ -198,33 +212,43 @@ class Executor:
         execution = ExecutionStep(step=step, attempts=0)
         result = ToolResult(success=False, output=None)
 
+        start_ts = time.time()
         for attempt in range(1, self.MAX_RETRIES + 1):
             execution.attempts = attempt
 
             if self._cancel_flag.is_set():
                 result.error = "Cancelled"
+                from jarvis.core.observability import get_observability
+                get_observability().record_cancellation()
                 return execution, result
 
             try:
                 result = await self.tool_registry.execute(step.tool, step.parameters)
+                latency_ms = (time.time() - start_ts) * 1000.0
+
+                from jarvis.core.observability import get_observability
+                get_observability().record_execution(step.tool, latency_ms, result.success)
 
                 if result.success:
                     return execution, result
 
                 logger.warning(f"[WARN] Attempt {attempt} failed: {result.error}")
 
-                # Backoff on retry
                 if attempt < self.MAX_RETRIES:
                     await asyncio.sleep(1)
 
             except Exception as e:
                 result.error = str(e)
+                latency_ms = (time.time() - start_ts) * 1000.0
+                from jarvis.core.observability import get_observability
+                get_observability().record_execution(step.tool, latency_ms, False)
                 logger.warning(f"[WARN] Attempt {attempt} exception: {e}")
 
                 if attempt < self.MAX_RETRIES:
                     await asyncio.sleep(1)
 
         return execution, result
+
 
     async def _summarize(self, goal: str, completed: list[ExecutionStep]) -> str:
         """Generate a summary of what was accomplished."""
@@ -276,4 +300,41 @@ class Executor:
             success=True,
             summary=f"Completed {len(completed_steps)} steps",
             completed_steps=completed_steps,
+        )
+
+    async def execute_step(self, tool_name: str, parameters: dict[str, Any]) -> ExecutionResult:
+        """
+        Execute a single tool step and return an ExecutionResult.
+
+        This is the primitive building block for orchestrators that iterate
+        over plan steps one-by-one, as opposed to ``execute()`` which builds
+        and runs a full plan.
+
+        Args:
+            tool_name: Tool to invoke
+            parameters: Tool arguments
+
+        Returns:
+            ExecutionResult describing the single-step outcome
+        """
+        self.reset()
+        step = PlanStep(
+            step=1,
+            tool=tool_name,
+            description=f"Execute {tool_name}",
+            parameters=parameters or {},
+        )
+        execution_step, result = await self._execute_step(step)
+        if result.success:
+            return ExecutionResult(
+                success=True,
+                summary=result.output or f"Executed {tool_name}",
+                completed_steps=[execution_step],
+            )
+        return ExecutionResult(
+            success=False,
+            summary=result.error or f"Failed to execute {tool_name}",
+            completed_steps=[],
+            failed_step=execution_step,
+            error=result.error,
         )

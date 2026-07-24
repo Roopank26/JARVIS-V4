@@ -28,12 +28,21 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from jarvis.voice.fish_audio_tts import FishAudioTTS
 
 from jarvis.voice.audio_queue import AudioChunk, AudioQueue
 from jarvis.voice.conversation_manager import ConversationManager
 from jarvis.voice.interrupt_manager import InterruptManager
-from jarvis.voice.speech_state import SpeechState, SpeechStateMachine
+from jarvis.voice.speech_state import (
+    _VALID_TRANSITIONS as _VALID_STATE_EDGES,
+)
+from jarvis.voice.speech_state import (
+    SpeechState,
+    SpeechStateMachine,
+)
 from jarvis.voice.streaming_stt import StreamingSTT
 from jarvis.voice.streaming_tts import StreamingTTS
 from jarvis.voice.vad import VAD
@@ -153,6 +162,9 @@ class VoiceConfig:
     tts_model: str = "en_US-lessac-medium"
     tts_voice: str = "en_US-lessac-medium.onnx"
     tts_speaker: int = 0
+    tts_provider: str = "local"
+    fish_audio_api_key: str = ""
+    fish_audio_voice_id: str = ""
 
     # Wake word settings
     wake_word: str = "jarvis"
@@ -216,7 +228,7 @@ class VoiceComponent:
 
 
 class FasterWhisperSTT(VoiceComponent):
-    """Speech-to-Text using faster-whisper."""
+    """Speech-to-Text using faster-whisper with streaming support."""
 
     def __init__(self, config: VoiceConfig):
         super().__init__("STT")
@@ -274,7 +286,29 @@ class FasterWhisperSTT(VoiceComponent):
             logger.error("Transcription error: %s", e)
             return None
 
+    async def transcribe_stream(self, audio_path: str):
+        if self.status != VoiceComponentStatus.READY or not self._model:
+            return
+        try:
+            segments, _ = self._model.transcribe(
+                audio_path,
+                language=self.config.stt_language,
+                vad_filter=True,
+                vad_parameters=dict(min_silence_duration_ms=500),
+            )
+            buffer = []
+            for seg in segments:
+                text = seg.text.strip()
+                if text:
+                    buffer.append(text)
+                    yield " ".join(buffer)
+        except Exception as e:
+            logger.error("Streaming transcription error: %s", e)
+
     async def transcribe_bytes(self, audio_data: bytes) -> str | None:
+        return await self._transcribe_wav_bytes(audio_data)
+
+    async def _transcribe_wav_bytes(self, audio_data: bytes) -> str | None:
         import tempfile
 
         fd = None
@@ -578,6 +612,7 @@ class VoiceRuntime:
         self.wake_word: OpenWakeWord | None = None
         self.stt: FasterWhisperSTT | None = None
         self.tts: PiperTTS | None = None
+        self.fish_audio: FishAudioTTS | None = None
         self._fallback_tts = None
         self._tts_backups: list[tuple] = []
 
@@ -639,48 +674,76 @@ class VoiceRuntime:
             except Exception as e:
                 logger.warning("Fallback STT failed: %s", e)
 
-        self.tts = PiperTTS(self.config)
-        tts_result = await self.tts.initialize()
-        if not tts_result.success:
-            self._fallback_tts = None
-            self._tts_backups = []
-            try:
-                import pyttsx3
+        # Initialize TTS provider
+        tts_result = ComponentInitResult.fail("No TTS initialized")
+        self.tts = None
+        self.fish_audio = None
 
-                tts = pyttsx3.init()
-                tts.setProperty("rate", 150)
-                tts.setProperty("volume", 1.0)
-                self._tts_backups.append(("pyttsx3", tts))
-                logger.info("TTS fallback: pyttsx3 available")
-            except Exception:
-                pass
-            try:
-                from jarvis.voice.audio import AudioConfig, TextToSpeech
+        if self.config.tts_provider == "fish_audio":
+            from jarvis.voice.fish_audio_tts import FishAudioConfig, FishAudioTTS
 
-                gtts = TextToSpeech(
-                    AudioConfig(
-                        sample_rate=self.config.sample_rate,
-                        channels=self.config.channels,
-                    )
-                )
-                self._tts_backups.append(("gtts", gtts))
-                logger.info("TTS fallback: gTTS available")
-            except Exception:
-                pass
-            if self._tts_backups:
-                tts_result = ComponentInitResult.ok(
-                    status=VoiceComponentStatus.READY,
-                    message=f"Using fallback TTS ({self._tts_backups[0][0]})",
-                )
-                self.tts.status = VoiceComponentStatus.READY
-                logger.info("TTS initialized with fallback backend: %s", self._tts_backups[0][0])
+            fish_config = FishAudioConfig(
+                api_key=self.config.fish_audio_api_key or os.environ.get("FISH_AUDIO_API_KEY", ""),
+                voice_id=self.config.fish_audio_voice_id
+                or os.environ.get("FISH_AUDIO_VOICE_ID", ""),
+            )
+            self.fish_audio = FishAudioTTS(fish_config)
+            fish_result = await self.fish_audio.initialize()
+            if fish_result.success:
+                tts_result = fish_result
+                self.tts = self.fish_audio
+                logger.info("TTS initialized with Fish Audio provider")
             else:
-                logger.warning("No TTS backend available")
+                logger.warning(
+                    "Fish Audio TTS failed, falling back to local TTS: %s", fish_result.error
+                )
+                tts_result = fish_result
+
+        if self.config.tts_provider != "fish_audio" or self.tts is None:
+            self.tts = PiperTTS(self.config)
+            tts_result = await self.tts.initialize()
+            if not tts_result.success:
+                self._fallback_tts = None
+                self._tts_backups = []
+                try:
+                    import pyttsx3
+
+                    tts = pyttsx3.init()
+                    tts.setProperty("rate", 150)
+                    tts.setProperty("volume", 1.0)
+                    self._tts_backups.append(("pyttsx3", tts))
+                    logger.info("TTS fallback: pyttsx3 available")
+                except Exception:
+                    pass
+                try:
+                    from jarvis.voice.audio import AudioConfig, TextToSpeech
+
+                    gtts = TextToSpeech(
+                        AudioConfig(
+                            sample_rate=self.config.sample_rate,
+                            channels=self.config.channels,
+                        )
+                    )
+                    self._tts_backups.append(("gtts", gtts))
+                    logger.info("TTS fallback: gTTS available")
+                except Exception:
+                    pass
+                if self._tts_backups:
+                    tts_result = ComponentInitResult.ok(
+                        status=VoiceComponentStatus.READY,
+                        message=f"Using fallback TTS ({self._tts_backups[0][0]})",
+                    )
+                    self.tts.status = VoiceComponentStatus.READY
+                    logger.info(
+                        "TTS initialized with fallback backend: %s", self._tts_backups[0][0]
+                    )
+                else:
+                    logger.warning("No TTS backend available")
 
         # Initialize enhanced components
         self._streaming_stt = StreamingSTT(self.stt, self.config.sample_rate, self.config.channels)
         self._streaming_tts = StreamingTTS(
-            self.tts if self.tts.status == VoiceComponentStatus.READY else None
+            self.tts if self.tts and self.tts.status == VoiceComponentStatus.READY else None
         )
 
         # Start audio queue if loop is available
@@ -701,9 +764,9 @@ class VoiceRuntime:
     async def shutdown(self) -> None:
         """Shutdown all voice components."""
         self._running = False
-        self.stop_push_to_talk()
+        await self.stop_push_to_talk()
         self._conversation_manager.stop()
-        self._audio_queue.stop()
+        await self._audio_queue.stop_async()
 
         if self._listen_task:
             self._listen_task.cancel()
@@ -715,6 +778,8 @@ class VoiceRuntime:
             await self.wake_word.shutdown()
         if self.stt:
             await self.stt.shutdown()
+        if self.fish_audio and self.fish_audio is not self.tts:
+            await self.fish_audio.shutdown()
         if self.tts:
             await self.tts.shutdown()
 
@@ -733,6 +798,24 @@ class VoiceRuntime:
     def clear_interrupt(self) -> None:
         """Clear interrupt state."""
         self._interrupt_manager.clear()
+
+    def reset_state(self) -> None:
+        """Reset all transient runtime state to a clean baseline.
+
+        Used between independent operations (and in tests) so that interrupt
+        flags, the audio queue, the speech state machine and the conversation
+        timer do not leak from one interaction into the next. The async
+        interrupt event is cleared synchronously so it cannot be stranded on a
+        loop that is not currently running.
+        """
+        self._interrupt_manager.reset()
+        self._audio_queue.cancel()
+        self._conversation_manager.stop()
+        # Force the state machine back to IDLE regardless of current state.
+        while self._state_machine.state != SpeechState.IDLE:
+            if not self._state_machine.transition(SpeechState.IDLE):
+                # No direct edge to IDLE (very rare) — break out defensively.
+                break
 
     # ------------------------------------------------------------------
     # Speech state machine
@@ -865,13 +948,56 @@ class VoiceRuntime:
     # Speaking (enhanced with streaming TTS + audio queue)
     # ------------------------------------------------------------------
 
+    def _goto_state(self, target: SpeechState) -> None:
+        """
+        Transition to ``target`` following only valid edges.
+
+        ``speak``/interrupt can be entered from a variety of states (IDLE,
+        LISTENING, PLANNING, ...). Rather than forcing an illegal edge (which
+        only produces an "invalid transition" warning and leaves the state
+        machine stuck), walk the declared transition graph breadth-first so the
+        UI always observes a clean, monotonic state progression.
+        """
+        if self._state_machine.state == target:
+            return
+        from collections import deque
+
+        start = self._state_machine.state
+        if target not in _VALID_STATE_EDGES.get(start, set()):
+            # BFS over the valid-edge graph to find a path to ``target``.
+            visited = {start}
+            queue: deque = deque([(start, [])])
+            path: list[SpeechState] | None = None
+            while queue:
+                node, route = queue.popleft()
+                for nxt in _VALID_STATE_EDGES.get(node, set()):
+                    if nxt in visited:
+                        continue
+                    visited.add(nxt)
+                    new_route = route + [nxt]
+                    if nxt == target:
+                        path = new_route
+                        break
+                    queue.append((nxt, new_route))
+                if path:
+                    break
+            if path:
+                for step in path:
+                    self._state_machine.transition(step)
+                return
+        # ``target`` is directly reachable.
+        self._state_machine.transition(target)
+
     async def speak(self, text: str) -> bool:
         """Speak text using TTS with interruptible streaming."""
         if not text:
             return False
 
         self._interrupt_manager.clear()
-        self._state_machine.transition(SpeechState.STREAMING)
+        # Enter the responding phase via a valid state path (handles IDLE,
+        # LISTENING, PLANNING, etc. without emitting invalid transitions).
+        self._goto_state(SpeechState.RESPONDING)
+        self._goto_state(SpeechState.STREAMING)
         emit_tts_started()
 
         played = False
@@ -923,15 +1049,21 @@ class VoiceRuntime:
                         continue
 
         emit_tts_finished()
-        self._state_machine.transition(SpeechState.SPEAKING)
-        emit_playback_started()
-        self._state_machine.transition(SpeechState.RESPONDING)
 
-        if self.config.continuous_listening and not self._interrupt_manager.is_interrupted():
-            self._conversation_manager.start()
-            self._state_machine.transition(SpeechState.LISTENING)
+        if self._interrupt_manager.is_interrupted():
+            # User barged in: stay on the interrupted branch, then return to
+            # listening (conversation) or idle.
+            self._goto_state(SpeechState.INTERRUPTED)
+            if self.config.continuous_listening:
+                self._goto_state(SpeechState.LISTENING)
         else:
-            self._state_machine.transition(SpeechState.IDLE)
+            self._goto_state(SpeechState.SPEAKING)
+            emit_playback_started()
+            if self.config.continuous_listening:
+                self._conversation_manager.start()
+                self._goto_state(SpeechState.LISTENING)
+            else:
+                self._goto_state(SpeechState.IDLE)
 
         emit_playback_finished()
         emit_voice_stopped()
@@ -1141,6 +1273,14 @@ class VoiceRuntime:
     # ------------------------------------------------------------------
 
     def get_status(self) -> dict[str, Any]:
+        tts_info = {
+            "status": self.tts.status.value if self.tts else "not_initialized",
+            "model": self.config.tts_model,
+            "provider": self.config.tts_provider,
+            "error": self.tts.error_message if self.tts else None,
+        }
+        if self.fish_audio:
+            tts_info.update(self.fish_audio.get_status())
         return {
             "wake_word": {
                 "status": self.wake_word.status.value if self.wake_word else "not_initialized",
@@ -1151,11 +1291,7 @@ class VoiceRuntime:
                 "model": self.config.stt_model,
                 "error": self.stt.error_message if self.stt else None,
             },
-            "tts": {
-                "status": self.tts.status.value if self.tts else "not_initialized",
-                "model": self.config.tts_model,
-                "error": self.tts.error_message if self.tts else None,
-            },
+            "tts": tts_info,
             "speech_state": self._state_machine.state.value,
             "conversation_active": self._conversation_manager.active,
             "push_to_talk": self.config.push_to_talk,
@@ -1177,7 +1313,9 @@ class VoiceRuntime:
             icon = (
                 "✓"
                 if "ready" in info.get("status", "")
-                else "✗" if "error" in info.get("status", "") else "○"
+                else "✗"
+                if "error" in info.get("status", "")
+                else "○"
             )
             lines.append(f"{icon} {name}: {info.get('status', 'unknown')}")
             if info.get("model"):

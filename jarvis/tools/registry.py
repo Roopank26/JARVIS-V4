@@ -175,11 +175,78 @@ class ToolRegistry:
 _registry: ToolRegistry | None = None
 
 
+def _populate_default_tools(registry: ToolRegistry) -> None:
+
+    """Auto-discover and register all built-in JARVIS tools."""
+    # File tools
+    try:
+        from jarvis.tools.file_tools import (
+            CreateTempFileTool,
+            DeleteFileTool,
+            DiskUsageTool,
+            FindFilesTool,
+            ListDirectoryTool,
+            ReadFileTool,
+            WriteFileTool,
+        )
+        for t in [ReadFileTool(), WriteFileTool(), ListDirectoryTool(), FindFilesTool(), DeleteFileTool(), DiskUsageTool(), CreateTempFileTool()]:
+            if t.name not in registry._tools:
+                registry.register(t)
+    except Exception:
+        pass
+
+    # Terminal tools
+    try:
+        from jarvis.tools.terminal_tools import BashTool, RunScriptTool
+        for t in [BashTool(), RunScriptTool()]:
+            if t.name not in registry._tools:
+                registry.register(t)
+    except Exception:
+        pass
+
+    # System tools
+    try:
+        from jarvis.tools.system_tools import (
+            GetClipboardTool,
+            GetEnvironmentTool,
+            GetSystemInfoTool,
+            OpenAppTool,
+            SetClipboardTool,
+            SetEnvironmentTool,
+        )
+        for t in [GetSystemInfoTool(), OpenAppTool(), GetEnvironmentTool(), SetEnvironmentTool(), GetClipboardTool(), SetClipboardTool()]:
+            if t.name not in registry._tools:
+                registry.register(t)
+    except Exception:
+        pass
+
+    # Web / Browser tools
+    try:
+        from jarvis.tools.browser_tools import BrowserTool, ScrapeWebTool, SearchWebTool
+        for t in [BrowserTool(), SearchWebTool(), ScrapeWebTool()]:
+            if t.name not in registry._tools:
+                registry.register(t)
+    except Exception:
+        pass
+
+    # Voice / Media / Camera capability tools
+    try:
+        from jarvis.tools.camera_tool import CameraTool, ScreenshotTool
+        from jarvis.tools.image_gen_tool import ImageGenerationTool
+        from jarvis.tools.speak_tool import SpeakTool
+        for t in [SpeakTool(), ImageGenerationTool(), CameraTool(), ScreenshotTool()]:
+            if t.name not in registry._tools:
+                registry.register(t)
+    except Exception:
+        pass
+
+
 def get_registry() -> ToolRegistry:
     """Get the global tool registry instance."""
     global _registry
     if _registry is None:
         _registry = ToolRegistry()
+        _populate_default_tools(_registry)
     return _registry
 
 
@@ -187,4 +254,6 @@ def init_registry() -> ToolRegistry:
     """Initialize the global tool registry."""
     global _registry
     _registry = ToolRegistry()
+    _populate_default_tools(_registry)
     return _registry
+

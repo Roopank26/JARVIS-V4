@@ -1,0 +1,1526 @@
+jarvis\activity.py:10	from __future__ import annotations
+jarvis\activity.py:12	import logging
+jarvis\activity.py:13	import time
+jarvis\activity.py:14	from dataclasses import asdict, dataclass, field
+jarvis\activity.py:15	from typing import Any
+jarvis\activity.py:17	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\diagnostics.py:6	import platform
+jarvis\diagnostics.py:7	from datetime import datetime
+jarvis\diagnostics.py:8	from typing import Any
+jarvis\diagnostics.py:13	import sys
+jarvis\diagnostics.py:25	import subprocess
+jarvis\diagnostics.py:86	import asyncio
+jarvis\diagnostics.py:87	import threading
+jarvis\diagnostics.py:89	import aiohttp
+jarvis\diagnostics.py:165	import sounddevice as sd
+jarvis\diagnostics.py:187	import sounddevice as sd
+jarvis\diagnostics.py:279	import socket
+jarvis\diagnostics.py:440	import asyncio
+jarvis\errors.py:10	from __future__ import annotations
+jarvis\errors.py:12	import logging
+jarvis\errors.py:13	from collections.abc import Callable
+jarvis\errors.py:14	from dataclasses import dataclass
+jarvis\errors.py:15	from typing import Any
+jarvis\errors.py:172	import re
+jarvis\events.py:10	from __future__ import annotations
+jarvis\events.py:12	import asyncio
+jarvis\events.py:13	import logging
+jarvis\events.py:14	import time
+jarvis\events.py:15	import uuid
+jarvis\events.py:16	from collections.abc import Callable
+jarvis\events.py:17	from dataclasses import dataclass, field
+jarvis\events.py:18	from enum import Enum
+jarvis\events.py:19	from typing import Any
+jarvis\metrics.py:9	from __future__ import annotations
+jarvis\metrics.py:11	import logging
+jarvis\metrics.py:12	import platform
+jarvis\metrics.py:13	import socket
+jarvis\metrics.py:14	import time
+jarvis\metrics.py:15	from typing import Any
+jarvis\metrics.py:37	import psutil
+jarvis\metrics.py:46	import psutil
+jarvis\metrics.py:60	from jarvis.api.providers import get_provider_manager
+jarvis\metrics.py:72	from jarvis.api.providers import get_provider_manager
+jarvis\metrics.py:84	from jarvis.voice.voice_runtime import get_voice_runtime
+jarvis\metrics.py:101	from jarvis.memory.enhanced import get_enhanced_memory
+jarvis\orchestrator.py:18	from __future__ import annotations
+jarvis\orchestrator.py:20	import asyncio
+jarvis\orchestrator.py:21	import logging
+jarvis\orchestrator.py:22	from collections.abc import AsyncIterator
+jarvis\orchestrator.py:23	from typing import Any
+jarvis\orchestrator.py:25	from jarvis.conversation.context import ConversationContext
+jarvis\orchestrator.py:26	from jarvis.errors import handle_error
+jarvis\orchestrator.py:27	from jarvis.events import (
+jarvis\orchestrator.py:35	from jarvis.notifications.manager import get_notification_manager
+jarvis\orchestrator.py:36	from jarvis.proactive.monitor import get_proactive_monitor
+jarvis\orchestrator.py:37	from jarvis.workspace.awareness import WorkspaceAwareness
+jarvis\orchestrator.py:401	from jarvis.api.providers import get_provider_manager
+jarvis\orchestrator.py:444	from jarvis.proactive.monitor import MonitorRule
+jarvis\palette.py:9	from __future__ import annotations
+jarvis\palette.py:11	import logging
+jarvis\palette.py:12	import os
+jarvis\palette.py:13	import time
+jarvis\palette.py:14	from dataclasses import asdict, dataclass
+jarvis\palette.py:15	from typing import Any
+jarvis\palette.py:95	from jarvis.agents.multi_agent import get_agent_coordinator
+jarvis\palette.py:117	from jarvis.plugins.plugin_manager import get_plugin_manager
+jarvis\palette.py:138	from jarvis.api.providers import get_provider_manager
+jarvis\palette.py:161	from jarvis.core.agent import create_jarvis
+jarvis\palette.py:167	from jarvis.memory.enhanced import get_enhanced_memory
+jarvis\suggestions.py:14	from __future__ import annotations
+jarvis\suggestions.py:16	import logging
+jarvis\suggestions.py:17	import os
+jarvis\suggestions.py:18	import subprocess
+jarvis\suggestions.py:19	from dataclasses import asdict, dataclass
+jarvis\suggestions.py:21	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\suggestions.py:134	from jarvis.tasks import get_task_manager
+jarvis\tools_library.py:10	from __future__ import annotations
+jarvis\tools_library.py:12	import builtins
+jarvis\tools_library.py:13	import logging
+jarvis\tools_library.py:14	import time
+jarvis\tools_library.py:15	from dataclasses import asdict, dataclass
+jarvis\tools_library.py:16	from typing import Any
+jarvis\tools_library.py:18	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\tools_library.py:53	from jarvis.tools.registry import get_registry
+jarvis\tools_library.py:72	from jarvis.plugins.plugin_manager import get_plugin_manager
+jarvis\__init__.py:9	from jarvis.core.agent import JarvisAgent
+jarvis\__init__.py:10	from jarvis.memory.memory_manager import MemoryManager
+jarvis\__init__.py:11	from jarvis.tools.registry import ToolRegistry
+jarvis\__init__.py:14	from jarvis.background.tasks import BackgroundIntelligence
+jarvis\__init__.py:15	from jarvis.conversation.context import ConversationContext
+jarvis\__init__.py:16	from jarvis.daily.assistant import DailyAssistant
+jarvis\__init__.py:17	from jarvis.notifications.manager import NotificationManager, get_notification_manager
+jarvis\__init__.py:18	from jarvis.personality.manager import PersonalityManager, get_personality_manager
+jarvis\__init__.py:19	from jarvis.proactive.monitor import ProactiveMonitor, get_proactive_monitor
+jarvis\__init__.py:20	from jarvis.proactive.suggestions import SuggestionEngine, get_suggestion_engine
+jarvis\__init__.py:21	from jarvis.workspace.awareness import WorkspaceAwareness
+jarvis\__main__.py:5	import asyncio
+jarvis\__main__.py:6	import io
+jarvis\__main__.py:7	import os
+jarvis\__main__.py:8	import sys
+jarvis\__main__.py:29	from jarvis.ui.cli import run_cli
+jarvis\__main__.py:51	from jarvis.ui.app import create_app
+jarvis\__main__.py:52	from jarvis.ui.server import run_ui
+jarvis\agents\collaboration.py:14	from __future__ import annotations
+jarvis\agents\collaboration.py:16	import asyncio
+jarvis\agents\collaboration.py:17	import logging
+jarvis\agents\collaboration.py:18	import time
+jarvis\agents\collaboration.py:19	import uuid
+jarvis\agents\collaboration.py:20	from dataclasses import dataclass, field
+jarvis\agents\collaboration.py:21	from typing import Any
+jarvis\agents\collaboration.py:23	from jarvis.core.context_bus import ContextBus, get_context_bus
+jarvis\agents\collaboration.py:24	from jarvis.events import EventBus, EventType
+jarvis\agents\collaboration.py:293	from jarvis.core.agent_registry import get_agent_registry
+jarvis\agents\collaboration.py:306	from jarvis.core.agent_registry import get_agent_registry
+jarvis\agents\multi_agent.py:7	import asyncio
+jarvis\agents\multi_agent.py:8	import logging
+jarvis\agents\multi_agent.py:9	from abc import ABC, abstractmethod
+jarvis\agents\multi_agent.py:10	from dataclasses import dataclass, field
+jarvis\agents\multi_agent.py:11	from datetime import datetime
+jarvis\agents\multi_agent.py:12	from enum import Enum
+jarvis\agents\multi_agent.py:13	from typing import Any
+jarvis\agents\multi_agent.py:234	import uuid
+jarvis\agents\multi_agent.py:271	from jarvis.research.research_agent import ResearchAgent
+jarvis\agents\vision_agent.py:11	from __future__ import annotations
+jarvis\agents\vision_agent.py:13	import base64
+jarvis\agents\vision_agent.py:14	import logging
+jarvis\agents\vision_agent.py:15	from dataclasses import dataclass
+jarvis\agents\vision_agent.py:16	from pathlib import Path
+jarvis\agents\vision_agent.py:17	from typing import Any
+jarvis\agents\vision_agent.py:77	from jarvis.desktop.automation import get_desktop_automation
+jarvis\agents\vision_agent.py:117	from jarvis.vision.production import VisionPipeline
+jarvis\agents\vision_agent.py:136	from jarvis.api.providers import get_provider_manager
+jarvis\agents\vision_agent.py:144	from jarvis.vision.production import VisionPipeline
+jarvis\agents\__init__.py:7	from jarvis.agents.collaboration import (
+jarvis\agents\__init__.py:12	from jarvis.agents.multi_agent import (
+jarvis\api\gemini.py:6	import json
+jarvis\api\gemini.py:7	import logging
+jarvis\api\gemini.py:8	import os
+jarvis\api\gemini.py:9	from pathlib import Path
+jarvis\api\gemini.py:61	from groq import Groq
+jarvis\api\gemini.py:213	import importlib.util
+jarvis\api\os.py:17	from __future__ import annotations
+jarvis\api\os.py:19	import asyncio
+jarvis\api\os.py:20	import logging
+jarvis\api\os.py:21	from dataclasses import dataclass, field
+jarvis\api\os.py:22	from typing import Any
+jarvis\api\os.py:24	from jarvis.runtime.manager import get_runtime_manager
+jarvis\api\providers.py:6	import asyncio
+jarvis\api\providers.py:7	import contextlib
+jarvis\api\providers.py:8	import json
+jarvis\api\providers.py:9	import logging
+jarvis\api\providers.py:10	import re
+jarvis\api\providers.py:11	import time
+jarvis\api\providers.py:12	from abc import ABC, abstractmethod
+jarvis\api\providers.py:13	from collections.abc import AsyncIterator
+jarvis\api\providers.py:14	from dataclasses import dataclass, field
+jarvis\api\providers.py:15	from enum import Enum
+jarvis\api\providers.py:16	from typing import Any
+jarvis\api\providers.py:186	import aiohttp
+jarvis\api\providers.py:230	import aiohttp
+jarvis\api\providers.py:259	import aiohttp
+jarvis\api\providers.py:319	import aiohttp
+jarvis\api\providers.py:362	import aiohttp
+jarvis\api\providers.py:400	import aiohttp
+jarvis\api\providers.py:439	import aiohttp
+jarvis\api\providers.py:485	import aiohttp
+jarvis\api\providers.py:523	import aiohttp
+jarvis\api\providers.py:562	import aiohttp
+jarvis\api\providers.py:612	import aiohttp
+jarvis\api\providers.py:648	import aiohttp
+jarvis\api\providers.py:689	import aiohttp
+jarvis\api\providers.py:733	import aiohttp
+jarvis\api\providers.py:767	import aiohttp
+jarvis\api\providers.py:805	import aiohttp
+jarvis\api\providers.py:853	import aiohttp
+jarvis\api\providers.py:893	import aiohttp
+jarvis\api\providers.py:931	import aiohttp
+jarvis\api\providers.py:967	import aiohttp
+jarvis\api\providers.py:1000	import aiohttp
+jarvis\api\providers.py:1113	from jarvis.events import EventType, get_event_bus
+jarvis\api\providers.py:1584	from jarvis.providers.airllm.provider import AirLLMProvider
+jarvis\api\__init__.py:6	from jarvis.api.gemini import (
+jarvis\background\tasks.py:7	from __future__ import annotations
+jarvis\background\tasks.py:9	import contextlib
+jarvis\background\tasks.py:10	import logging
+jarvis\background\tasks.py:11	import time
+jarvis\background\tasks.py:12	from dataclasses import dataclass, field
+jarvis\background\tasks.py:13	from datetime import datetime
+jarvis\background\tasks.py:14	from enum import Enum
+jarvis\background\tasks.py:15	from typing import Any
+jarvis\background\tasks.py:17	from jarvis.memory.long_term import LongTermMemory
+jarvis\background\tasks.py:18	from jarvis.suggestions import SuggestionEngine
+jarvis\background\tasks.py:74	from jarvis.memory.long_term import LongTermMemory
+jarvis\background\tasks.py:110	from jarvis.workspace.awareness import WorkspaceAwareness
+jarvis\background\tasks.py:116	from jarvis.notifications.manager import get_notification_manager
+jarvis\browser\config.py:3	from __future__ import annotations
+jarvis\browser\config.py:5	from dataclasses import dataclass, field
+jarvis\browser\config.py:6	from pathlib import Path
+jarvis\browser\manager.py:9	from __future__ import annotations
+jarvis\browser\manager.py:11	import asyncio
+jarvis\browser\manager.py:12	import logging
+jarvis\browser\manager.py:13	from contextlib import suppress
+jarvis\browser\manager.py:14	from typing import Any
+jarvis\browser\manager.py:16	from jarvis.browser.config import BrowserConfig
+jarvis\browser\manager.py:17	from jarvis.browser.state import BrowserState
+jarvis\browser\manager.py:64	from playwright.async_api import async_playwright
+jarvis\browser\state.py:3	from __future__ import annotations
+jarvis\browser\state.py:5	import json
+jarvis\browser\state.py:6	from contextlib import suppress
+jarvis\browser\state.py:7	from pathlib import Path
+jarvis\browser\state.py:8	from typing import Any
+jarvis\browser\state.py:38	import os
+jarvis\browser\tools.py:3	from __future__ import annotations
+jarvis\browser\tools.py:5	import logging
+jarvis\browser\tools.py:6	from typing import Any
+jarvis\browser\tools.py:8	from jarvis.browser.config import BrowserConfig
+jarvis\browser\tools.py:9	from jarvis.browser.manager import PersistentBrowserManager, get_manager
+jarvis\browser\tools.py:10	from jarvis.tools.base import ReadOnlyTool, ToolResult
+jarvis\browser\tools.py:260	from jarvis.tools.browser_tools import get_browser_tools as _legacy  # noqa: F401
+jarvis\browser\tools.py:264	from jarvis.browser.manager import PersistentBrowserManager
+jarvis\browser\tools.py:268	from jarvis.tools.browser_tools import get_browser_tools as _legacy
+jarvis\coding\coding_agent.py:5	import asyncio
+jarvis\coding\coding_agent.py:6	import contextlib
+jarvis\coding\coding_agent.py:7	import logging
+jarvis\coding\coding_agent.py:8	import re
+jarvis\coding\coding_agent.py:9	from collections import defaultdict
+jarvis\coding\coding_agent.py:10	from dataclasses import dataclass, field
+jarvis\coding\coding_agent.py:11	from datetime import datetime
+jarvis\coding\coding_agent.py:12	from pathlib import Path
+jarvis\coding\coding_agent.py:13	from typing import Any
+jarvis\coding\coding_agent.py:400	import shutil
+jarvis\coding\coding_agent.py:406	import subprocess
+jarvis\coding\coding_agent.py:481	import ast
+jarvis\coding\coding_agent.py:534	import re
+jarvis\coding\__init__.py:5	from jarvis.coding.coding_agent import (
+jarvis\computers\agent.py:20	from __future__ import annotations
+jarvis\computers\agent.py:22	import logging
+jarvis\computers\agent.py:23	import os
+jarvis\computers\agent.py:24	import platform
+jarvis\computers\agent.py:25	import shutil
+jarvis\computers\agent.py:26	import subprocess
+jarvis\computers\agent.py:27	from dataclasses import dataclass, field
+jarvis\computers\agent.py:28	from typing import Any
+jarvis\computers\agent.py:30	from jarvis.desktop.automation import DesktopAutomation, get_desktop_automation
+jarvis\computers\agent.py:137	import math
+jarvis\conversation\context.py:7	from __future__ import annotations
+jarvis\conversation\context.py:9	import asyncio
+jarvis\conversation\context.py:10	import logging
+jarvis\conversation\context.py:11	import time
+jarvis\conversation\context.py:12	import uuid
+jarvis\conversation\context.py:13	from dataclasses import dataclass, field
+jarvis\conversation\context.py:14	from enum import Enum
+jarvis\conversation\context.py:15	from typing import Any
+jarvis\conversation\reference.py:8	from __future__ import annotations
+jarvis\conversation\reference.py:10	import logging
+jarvis\conversation\reference.py:11	import re
+jarvis\conversation\reference.py:12	from typing import Any
+jarvis\core\agent.py:6	import asyncio
+jarvis\core\agent.py:7	import contextlib
+jarvis\core\agent.py:8	import logging
+jarvis\core\agent.py:9	import re
+jarvis\core\agent.py:10	from collections.abc import Callable
+jarvis\core\agent.py:11	from typing import Any
+jarvis\core\agent.py:13	from jarvis.api.gemini import SimpleLLMClient
+jarvis\core\agent.py:14	from jarvis.core.config import Config, get_config
+jarvis\core\agent.py:15	from jarvis.core.executor import Executor
+jarvis\core\agent.py:16	from jarvis.core.goal import Goal
+jarvis\core\agent.py:17	from jarvis.core.planner import Planner
+jarvis\core\agent.py:18	from jarvis.memory.enhanced import EnhancedMemoryManager, get_enhanced_memory
+jarvis\core\agent.py:19	from jarvis.rag import get_rag_system
+jarvis\core\agent.py:20	from jarvis.tools.base import ToolResult
+jarvis\core\agent.py:21	from jarvis.tools.registry import ToolRegistry, get_registry
+jarvis\core\agent.py:28	from jarvis.conversation.context import ConversationContext, ConversationState
+jarvis\core\agent.py:29	from jarvis.conversation.reference import expand_token
+jarvis\core\agent.py:36	from jarvis.personality.manager import get_personality_manager
+jarvis\core\agent.py:788	from jarvis.desktop.automation import get_desktop_automation
+jarvis\core\agent.py:876	from jarvis.research.research_agent import get_research_agent
+jarvis\core\agent.py:991	from pathlib import Path
+jarvis\core\agent.py:1056	from pathlib import Path
+jarvis\core\agent.py:1061	from jarvis.repo.analyzer import RepositoryAnalyzer
+jarvis\core\agent.py:1062	from jarvis.repo.security import SecurityScanner
+jarvis\core\agent.py:1153	from jarvis.voice.voice_runtime import get_voice_runtime
+jarvis\core\agent.py:1172	from jarvis.voice.voice_runtime import get_voice_runtime
+jarvis\core\agent.py:1253	import time
+jarvis\core\agent.py:1258	import sounddevice as sd
+jarvis\core\agent.py:1303	import sounddevice as sd
+jarvis\core\agent.py:1351	import sounddevice as sd
+jarvis\core\agent.py:1413	import sounddevice as sd
+jarvis\core\agent.py:1420	import numpy as np
+jarvis\core\agent.py:1448	import numpy as np
+jarvis\core\agent.py:1449	import sounddevice as sd
+jarvis\core\agent.py:1520	import subprocess
+jarvis\core\agent.py:1580	from jarvis.api.providers import ProviderType, get_provider_manager
+jarvis\core\agent.py:1596	from jarvis.api.providers import get_provider_manager
+jarvis\core\agent.py:1628	from jarvis.api.providers import get_provider_manager
+jarvis\core\agent.py:1906	from jarvis.api.providers import (
+jarvis\core\agent.py:1928	from jarvis.providers.airllm.provider import AirLLMProvider
+jarvis\core\agent.py:1944	import os
+jarvis\core\agent.py:1963	import os
+jarvis\core\agent.py:1980	import os
+jarvis\core\agent.py:1997	import os
+jarvis\core\agent.py:2014	import os
+jarvis\core\agent_registry.py:12	from __future__ import annotations
+jarvis\core\agent_registry.py:14	import importlib
+jarvis\core\agent_registry.py:15	import logging
+jarvis\core\agent_registry.py:16	from collections.abc import Callable
+jarvis\core\agent_registry.py:17	from dataclasses import dataclass, field
+jarvis\core\agent_registry.py:18	from typing import Any
+jarvis\core\capabilities.py:14	from __future__ import annotations
+jarvis\core\capabilities.py:16	import logging
+jarvis\core\capabilities.py:17	import os
+jarvis\core\capabilities.py:18	import platform
+jarvis\core\capabilities.py:19	import shutil
+jarvis\core\capabilities.py:20	import socket
+jarvis\core\capabilities.py:21	from dataclasses import dataclass, field
+jarvis\core\capabilities.py:22	from pathlib import Path
+jarvis\core\capabilities.py:23	from typing import Any
+jarvis\core\capabilities.py:103	from jarvis.core.provider_manager import get_provider_manager
+jarvis\core\capabilities.py:118	from jarvis.tools.registry import get_registry
+jarvis\core\capabilities.py:129	from jarvis.plugins.base import get_plugin_manager
+jarvis\core\capabilities.py:138	import importlib.metadata as metadata
+jarvis\core\capabilities.py:168	import psutil
+jarvis\core\config.py:5	import json
+jarvis\core\config.py:6	from pathlib import Path
+jarvis\core\context_bus.py:15	from __future__ import annotations
+jarvis\core\context_bus.py:17	import logging
+jarvis\core\context_bus.py:18	import time
+jarvis\core\context_bus.py:19	import uuid
+jarvis\core\context_bus.py:20	from collections.abc import Callable
+jarvis\core\context_bus.py:21	from typing import Any
+jarvis\core\context_bus.py:23	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\core\dashboard.py:12	from __future__ import annotations
+jarvis\core\dashboard.py:14	import asyncio
+jarvis\core\dashboard.py:15	import logging
+jarvis\core\dashboard.py:16	from dataclasses import dataclass, field
+jarvis\core\dashboard.py:17	from typing import Any
+jarvis\core\dashboard.py:78	from jarvis.core.agent_registry import get_agent_registry
+jarvis\core\dashboard.py:87	from jarvis.core.task_engine import get_task_engine
+jarvis\core\dashboard.py:105	from jarvis.memory.memory_manager import get_memory_manager
+jarvis\core\dashboard.py:116	from jarvis.memory.memory_manager import get_memory_manager
+jarvis\core\dashboard.py:127	from jarvis.core.provider_manager import get_provider_manager
+jarvis\core\dashboard.py:138	from jarvis.plugins.base import get_plugin_manager
+jarvis\core\dashboard.py:147	import platform
+jarvis\core\dashboard.py:149	import psutil
+jarvis\core\dashboard.py:171	from jarvis.events import get_event_bus
+jarvis\core\dashboard.py:185	from jarvis.vision.production import get_vision_system
+jarvis\core\dashboard.py:196	from jarvis.desktop.automation import get_desktop_automation
+jarvis\core\dashboard.py:211	from jarvis.memory.knowledge_graph import get_knowledge_graph
+jarvis\core\dashboard.py:224	from jarvis.notifications.manager import get_notification_manager
+jarvis\core\dashboard.py:236	from jarvis.core.task_engine import get_task_engine
+jarvis\core\dashboard.py:252	from jarvis.orchestration.engine import get_orchestration_engine
+jarvis\core\dashboard.py:268	from jarvis.learning import ContinuousLearningEngine
+jarvis\core\executor.py:6	import asyncio
+jarvis\core\executor.py:7	import logging
+jarvis\core\executor.py:8	from collections.abc import Callable
+jarvis\core\executor.py:9	from dataclasses import dataclass
+jarvis\core\executor.py:10	from typing import TYPE_CHECKING
+jarvis\core\executor.py:12	from jarvis.tools.base import ToolResult
+jarvis\core\executor.py:15	from jarvis.core.planner import PlanStep
+jarvis\core\executor.py:92	from jarvis.core.planner import Plan, PlanStep
+jarvis\core\goal.py:8	from __future__ import annotations
+jarvis\core\goal.py:10	from dataclasses import dataclass, field
+jarvis\core\goal.py:11	from datetime import datetime
+jarvis\core\goal.py:12	from enum import StrEnum
+jarvis\core\goal.py:13	from typing import Any
+jarvis\core\master_agent.py:9	from __future__ import annotations
+jarvis\core\master_agent.py:11	import logging
+jarvis\core\master_agent.py:13	from jarvis.core.agent import JarvisAgent, create_jarvis
+jarvis\core\master_agent.py:14	from jarvis.core.goal import Goal
+jarvis\core\pipeline.py:10	from __future__ import annotations
+jarvis\core\pipeline.py:12	import contextlib
+jarvis\core\pipeline.py:13	import logging
+jarvis\core\pipeline.py:14	from dataclasses import dataclass, field
+jarvis\core\pipeline.py:15	from typing import Any
+jarvis\core\pipeline.py:17	from jarvis.core.agent import JarvisAgent, classify_intent
+jarvis\core\pipeline.py:18	from jarvis.core.capabilities import get_capability_discovery
+jarvis\core\pipeline.py:19	from jarvis.events import EventBus, EventType, Stage, get_event_bus
+jarvis\core\pipeline.py:126	from jarvis.core.agent_registry import get_agent_registry
+jarvis\core\pipeline.py:173	from jarvis.events import EventType
+jarvis\core\planner.py:6	import json
+jarvis\core\planner.py:7	import logging
+jarvis\core\planner.py:8	import re
+jarvis\core\planner.py:9	from dataclasses import dataclass
+jarvis\core\planner.py:10	from typing import Any
+jarvis\core\planner_v2.py:13	from __future__ import annotations
+jarvis\core\planner_v2.py:15	import asyncio
+jarvis\core\planner_v2.py:16	import logging
+jarvis\core\planner_v2.py:17	import time
+jarvis\core\planner_v2.py:18	import uuid
+jarvis\core\planner_v2.py:19	from collections.abc import Callable
+jarvis\core\planner_v2.py:20	from dataclasses import dataclass, field
+jarvis\core\planner_v2.py:21	from enum import StrEnum
+jarvis\core\planner_v2.py:22	from typing import Any
+jarvis\core\planner_v2.py:24	from jarvis.core.planner import Planner, PlanStep
+jarvis\core\provider_manager.py:6	import asyncio
+jarvis\core\provider_manager.py:7	import logging
+jarvis\core\provider_manager.py:8	from abc import ABC, abstractmethod
+jarvis\core\provider_manager.py:9	from dataclasses import dataclass, field
+jarvis\core\provider_manager.py:10	from enum import Enum
+jarvis\core\provider_manager.py:11	from typing import Any
+jarvis\core\provider_manager.py:129	import httpx
+jarvis\core\provider_manager.py:286	import httpx
+jarvis\core\provider_manager.py:289	from jarvis.core.config import get_config
+jarvis\core\reflection.py:9	from __future__ import annotations
+jarvis\core\reflection.py:11	import contextlib
+jarvis\core\reflection.py:12	import logging
+jarvis\core\reflection.py:13	from dataclasses import dataclass, field
+jarvis\core\reflection.py:14	from typing import Any
+jarvis\core\reflection.py:16	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\core\task_engine.py:13	from __future__ import annotations
+jarvis\core\task_engine.py:15	import asyncio
+jarvis\core\task_engine.py:16	import contextlib
+jarvis\core\task_engine.py:17	import json
+jarvis\core\task_engine.py:18	import logging
+jarvis\core\task_engine.py:19	import time
+jarvis\core\task_engine.py:20	import uuid
+jarvis\core\task_engine.py:21	from collections.abc import Callable, Coroutine
+jarvis\core\task_engine.py:22	from dataclasses import dataclass, field
+jarvis\core\task_engine.py:23	from enum import StrEnum
+jarvis\core\task_engine.py:24	from pathlib import Path
+jarvis\core\task_engine.py:25	from typing import Any
+jarvis\core\task_engine.py:27	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\core\__init__.py:5	from jarvis.core.agent import JarvisAgent
+jarvis\core\__init__.py:6	from jarvis.core.agent_registry import AgentRegistry
+jarvis\core\__init__.py:7	from jarvis.core.capabilities import CapabilityDiscovery
+jarvis\core\__init__.py:8	from jarvis.core.config import Config
+jarvis\core\__init__.py:9	from jarvis.core.context_bus import ContextBus
+jarvis\core\__init__.py:10	from jarvis.core.dashboard import AIOSDashboard
+jarvis\core\__init__.py:11	from jarvis.core.executor import Executor
+jarvis\core\__init__.py:12	from jarvis.core.goal import Goal, GoalPriority, GoalStatus
+jarvis\core\__init__.py:13	from jarvis.core.master_agent import MasterAgent, create_master_agent
+jarvis\core\__init__.py:14	from jarvis.core.pipeline import IntelligentReasoningPipeline
+jarvis\core\__init__.py:15	from jarvis.core.planner import Planner
+jarvis\core\__init__.py:16	from jarvis.core.planner_v2 import (
+jarvis\core\__init__.py:23	from jarvis.core.reflection import ReflectionEngine
+jarvis\core\__init__.py:24	from jarvis.core.task_engine import LongRunningTaskEngine
+jarvis\daily\assistant.py:6	from __future__ import annotations
+jarvis\daily\assistant.py:8	import logging
+jarvis\daily\assistant.py:9	from dataclasses import dataclass
+jarvis\daily\assistant.py:10	from datetime import datetime
+jarvis\daily\assistant.py:12	from jarvis.services.scheduler import TaskScheduler
+jarvis\daily\assistant.py:60	from jarvis.workspace.awareness import WorkspaceAwareness
+jarvis\daily\assistant.py:70	from jarvis.memory.enhanced import get_enhanced_memory
+jarvis\daily\assistant.py:93	from jarvis.workspace.awareness import WorkspaceAwareness
+jarvis\desktop\automation.py:6	import asyncio
+jarvis\desktop\automation.py:7	import logging
+jarvis\desktop\automation.py:8	import platform
+jarvis\desktop\automation.py:9	import subprocess
+jarvis\desktop\automation.py:10	from dataclasses import dataclass
+jarvis\desktop\automation.py:11	from pathlib import Path
+jarvis\desktop\automation.py:433	import base64
+jarvis\desktop\diagnose.py:6	import asyncio
+jarvis\desktop\diagnose.py:7	from typing import Any
+jarvis\desktop\diagnose.py:9	from jarvis.desktop.platform import (
+jarvis\desktop\diagnose.py:305	import argparse
+jarvis\desktop\diagnose.py:334	import json
+jarvis\desktop\main.py:13	import argparse
+jarvis\desktop\main.py:14	import asyncio
+jarvis\desktop\main.py:15	import contextlib
+jarvis\desktop\main.py:16	import logging
+jarvis\desktop\main.py:17	from pathlib import Path
+jarvis\desktop\main.py:19	from jarvis.desktop import DesktopAssistant, DesktopConfig
+jarvis\desktop\main.py:20	from jarvis.desktop.state import PersistentState, StartupManager
+jarvis\desktop\main.py:97	import os
+jarvis\desktop\main.py:117	import os
+jarvis\desktop\main.py:118	import signal
+jarvis\desktop\main.py:125	import time
+jarvis\desktop\main.py:147	import time
+jarvis\desktop\main.py:222	import subprocess
+jarvis\desktop\main.py:223	import sys
+jarvis\desktop\main.py:246	from jarvis.desktop.diagnose import main as diagnose_main
+jarvis\desktop\main.py:253	from jarvis.desktop.platform import get_platform_info
+jarvis\desktop\platform.py:6	from __future__ import annotations
+jarvis\desktop\platform.py:8	import logging
+jarvis\desktop\platform.py:9	import os
+jarvis\desktop\platform.py:10	import platform
+jarvis\desktop\platform.py:11	import sys
+jarvis\desktop\platform.py:12	from dataclasses import dataclass
+jarvis\desktop\platform.py:13	from enum import Enum
+jarvis\desktop\platform.py:14	from pathlib import Path
+jarvis\desktop\platform.py:15	from typing import TYPE_CHECKING, Any
+jarvis\desktop\platform.py:18	from PIL.Image import Image as PILImage
+jarvis\desktop\platform.py:105	import pyaudio
+jarvis\desktop\platform.py:132	import pyaudio
+jarvis\desktop\platform.py:183	from PIL import Image, ImageDraw
+jarvis\desktop\platform.py:222	import pystray
+jarvis\desktop\platform.py:296	from jarvis.desktop.windows_service import WindowsServiceManager
+jarvis\desktop\platform.py:308	import sys
+jarvis\desktop\platform.py:309	from pathlib import Path
+jarvis\desktop\platform.py:347	from jarvis.desktop.windows_service import WindowsServiceManager
+jarvis\desktop\platform.py:355	from pathlib import Path
+jarvis\desktop\state.py:6	import asyncio
+jarvis\desktop\state.py:7	import json
+jarvis\desktop\state.py:8	import logging
+jarvis\desktop\state.py:9	import os
+jarvis\desktop\state.py:10	import sys
+jarvis\desktop\state.py:11	from dataclasses import asdict, dataclass
+jarvis\desktop\state.py:12	from datetime import datetime
+jarvis\desktop\state.py:13	from pathlib import Path
+jarvis\desktop\state.py:291	import winreg
+jarvis\desktop\tray.py:5	import asyncio
+jarvis\desktop\tray.py:6	import logging
+jarvis\desktop\tray.py:7	from typing import TYPE_CHECKING
+jarvis\desktop\tray.py:10	from jarvis.desktop import DesktopAssistant
+jarvis\desktop\tray.py:25	import pystray
+jarvis\desktop\tray.py:26	from PIL import Image, ImageDraw
+jarvis\desktop\tray.py:57	import threading
+jarvis\desktop\windows_service.py:6	from __future__ import annotations
+jarvis\desktop\windows_service.py:8	import logging
+jarvis\desktop\windows_service.py:9	import os
+jarvis\desktop\windows_service.py:10	import sys
+jarvis\desktop\windows_service.py:11	from pathlib import Path
+jarvis\desktop\windows_service.py:12	from typing import TYPE_CHECKING
+jarvis\desktop\windows_service.py:15	from PIL.Image import Image as PILImage
+jarvis\desktop\windows_service.py:41	import tempfile
+jarvis\desktop\windows_service.py:66	import win32service
+jarvis\desktop\windows_service.py:67	import win32serviceutil
+jarvis\desktop\windows_service.py:83	import servicemanager
+jarvis\desktop\windows_service.py:84	import win32service
+jarvis\desktop\windows_service.py:85	import win32serviceutil
+jarvis\desktop\windows_service.py:86	import win32api
+jarvis\desktop\windows_service.py:87	import os
+jarvis\desktop\windows_service.py:88	import sys
+jarvis\desktop\windows_service.py:89	import time
+jarvis\desktop\windows_service.py:117	import asyncio
+jarvis\desktop\windows_service.py:118	from jarvis.desktop import DesktopAssistant
+jarvis\desktop\windows_service.py:160	import win32serviceutil
+jarvis\desktop\windows_service.py:178	import win32serviceutil
+jarvis\desktop\windows_service.py:193	import win32serviceutil
+jarvis\desktop\windows_service.py:208	import win32serviceutil
+jarvis\desktop\windows_service.py:229	import pyaudio
+jarvis\desktop\windows_service.py:257	import pyaudio
+jarvis\desktop\windows_service.py:285	import pyaudio
+jarvis\desktop\windows_service.py:319	from PIL import Image
+jarvis\desktop\windows_service.py:330	from PIL import Image, ImageDraw, ImageFont
+jarvis\desktop\windows_service.py:344	from PIL import Image, ImageDraw
+jarvis\desktop\windows_service.py:399	import platform
+jarvis\desktop\__init__.py:6	import asyncio
+jarvis\desktop\__init__.py:7	import contextlib
+jarvis\desktop\__init__.py:8	import json
+jarvis\desktop\__init__.py:9	import logging
+jarvis\desktop\__init__.py:10	import signal
+jarvis\desktop\__init__.py:11	from dataclasses import dataclass, field
+jarvis\desktop\__init__.py:12	from datetime import date, datetime
+jarvis\desktop\__init__.py:13	from pathlib import Path
+jarvis\desktop\__init__.py:15	from jarvis.memory.knowledge import LocalKnowledgeBase
+jarvis\desktop\__init__.py:16	from jarvis.memory.long_term import LongTermMemory
+jarvis\desktop\__init__.py:17	from jarvis.memory.project import ProjectMemory
+jarvis\desktop\__init__.py:18	from jarvis.memory.self_improve import Outcome, SelfImprovementLogs
+jarvis\desktop\__init__.py:19	from jarvis.plugins.base import PluginManager
+jarvis\desktop\__init__.py:20	from jarvis.services.daemon import JarvisDaemon
+jarvis\desktop\__init__.py:21	from jarvis.services.scheduler import TaskScheduler, TaskType
+jarvis\desktop\__init__.py:22	from jarvis.voice.listener import (
+jarvis\desktop\__init__.py:467	from plyer import notification
+jarvis\desktop\__init__.py:519	from jarvis.desktop.tray import TrayIcon
+jarvis\desktop\__main__.py:7	from jarvis.desktop.main import main
+jarvis\goals\__init__.py:16	from __future__ import annotations
+jarvis\goals\__init__.py:18	import asyncio
+jarvis\goals\__init__.py:19	import logging
+jarvis\goals\__init__.py:20	import time
+jarvis\goals\__init__.py:21	import uuid
+jarvis\goals\__init__.py:22	from dataclasses import dataclass, field
+jarvis\goals\__init__.py:23	from datetime import datetime
+jarvis\goals\__init__.py:24	from enum import StrEnum
+jarvis\goals\__init__.py:25	from typing import Any
+jarvis\goals\__init__.py:27	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\integrations\vscode.py:6	import asyncio
+jarvis\integrations\vscode.py:7	import json
+jarvis\integrations\vscode.py:8	import logging
+jarvis\integrations\vscode.py:9	from collections.abc import Callable
+jarvis\integrations\vscode.py:10	from dataclasses import dataclass
+jarvis\integrations\vscode.py:11	from enum import Enum
+jarvis\integrations\vscode.py:12	from typing import Any
+jarvis\integrations\vscode.py:209	import uuid
+jarvis\integrations\__init__.py:6	from jarvis.integrations.vscode import VSCodeBridge, VSCodeCommands
+jarvis\intelligence\distributed.py:7	from __future__ import annotations
+jarvis\intelligence\distributed.py:9	import logging
+jarvis\intelligence\distributed.py:10	import time
+jarvis\intelligence\distributed.py:11	from contextlib import suppress
+jarvis\intelligence\distributed.py:12	from dataclasses import dataclass
+jarvis\intelligence\distributed.py:13	from typing import Any
+jarvis\intelligence\distributed.py:15	from jarvis.providers.selector import ProviderSelector
+jarvis\learning\engine.py:7	from __future__ import annotations
+jarvis\learning\engine.py:9	from jarvis.learning import ContinuousLearningEngine, DecisionRecord, Experience
+jarvis\learning\__init__.py:9	from __future__ import annotations
+jarvis\learning\__init__.py:11	import json
+jarvis\learning\__init__.py:12	import logging
+jarvis\learning\__init__.py:13	import time
+jarvis\learning\__init__.py:14	import uuid
+jarvis\learning\__init__.py:15	from collections import deque
+jarvis\learning\__init__.py:16	from dataclasses import asdict, dataclass, field
+jarvis\learning\__init__.py:17	from pathlib import Path
+jarvis\learning\__init__.py:18	from typing import Any
+jarvis\memory\base.py:5	from abc import ABC, abstractmethod
+jarvis\memory\base.py:6	from datetime import datetime
+jarvis\memory\base.py:7	from typing import Any
+jarvis\memory\enhanced.py:6	import re
+jarvis\memory\enhanced.py:7	from typing import Any
+jarvis\memory\enhanced.py:9	from jarvis.memory.memory_manager import MemoryManager
+jarvis\memory\enhanced.py:10	from jarvis.memory.user_profile import UserProfile, get_user_profile
+jarvis\memory\intelligent.py:17	from __future__ import annotations
+jarvis\memory\intelligent.py:19	import asyncio
+jarvis\memory\intelligent.py:20	import contextlib
+jarvis\memory\intelligent.py:21	import logging
+jarvis\memory\intelligent.py:22	import time
+jarvis\memory\intelligent.py:23	from collections.abc import Callable
+jarvis\memory\intelligent.py:24	from dataclasses import dataclass, field
+jarvis\memory\intelligent.py:25	from typing import Any
+jarvis\memory\intelligent.py:208	from jarvis.memory.long_term import LongTermMemory
+jarvis\memory\intelligent.py:216	from jarvis.memory.knowledge_graph import get_knowledge_graph
+jarvis\memory\intelligent.py:224	from jarvis.memory.semantic import SemanticMemory
+jarvis\memory\intelligent.py:232	from jarvis.memory.session import ConversationMemory
+jarvis\memory\intelligent.py:240	from jarvis.learning.engine import ContinuousLearningEngine
+jarvis\memory\intelligent.py:252	from jarvis.memory.project import ProjectMemory
+jarvis\memory\knowledge.py:6	import contextlib
+jarvis\memory\knowledge.py:7	import hashlib
+jarvis\memory\knowledge.py:8	import json
+jarvis\memory\knowledge.py:9	import logging
+jarvis\memory\knowledge.py:10	import re
+jarvis\memory\knowledge.py:11	import weakref
+jarvis\memory\knowledge.py:12	from collections import defaultdict
+jarvis\memory\knowledge.py:13	from dataclasses import dataclass, field
+jarvis\memory\knowledge.py:14	from datetime import datetime
+jarvis\memory\knowledge.py:15	from pathlib import Path
+jarvis\memory\knowledge.py:16	from typing import Any
+jarvis\memory\knowledge.py:206	from sentence_transformers import SentenceTransformer
+jarvis\memory\knowledge.py:243	import chromadb
+jarvis\memory\knowledge.py:244	from chromadb.config import Settings
+jarvis\memory\knowledge_graph.py:12	from __future__ import annotations
+jarvis\memory\knowledge_graph.py:14	import json
+jarvis\memory\knowledge_graph.py:15	import logging
+jarvis\memory\knowledge_graph.py:16	from dataclasses import dataclass, field
+jarvis\memory\knowledge_graph.py:17	from pathlib import Path
+jarvis\memory\knowledge_graph.py:18	from typing import Any
+jarvis\memory\long_term.py:6	import json
+jarvis\memory\long_term.py:7	import sys
+jarvis\memory\long_term.py:8	from datetime import datetime
+jarvis\memory\long_term.py:9	from pathlib import Path
+jarvis\memory\long_term.py:10	from threading import Lock
+jarvis\memory\long_term.py:11	from typing import Any
+jarvis\memory\long_term.py:212	import numpy as np
+jarvis\memory\long_term.py:213	from sentence_transformers import SentenceTransformer
+jarvis\memory\memory_manager.py:6	from pathlib import Path
+jarvis\memory\memory_manager.py:7	from typing import Any
+jarvis\memory\memory_manager.py:9	from jarvis.memory.base import MemoryBase, MemoryCategory
+jarvis\memory\memory_manager.py:10	from jarvis.memory.long_term import LongTermMemory
+jarvis\memory\memory_manager.py:11	from jarvis.memory.session import SessionMemory
+jarvis\memory\project.py:6	import json
+jarvis\memory\project.py:7	import logging
+jarvis\memory\project.py:8	import subprocess
+jarvis\memory\project.py:9	from dataclasses import asdict, dataclass, field
+jarvis\memory\project.py:10	from datetime import datetime
+jarvis\memory\project.py:11	from pathlib import Path
+jarvis\memory\project.py:12	from typing import Any
+jarvis\memory\self_improve.py:6	import json
+jarvis\memory\self_improve.py:7	import logging
+jarvis\memory\self_improve.py:8	from collections import Counter
+jarvis\memory\self_improve.py:9	from dataclasses import asdict, dataclass, field
+jarvis\memory\self_improve.py:10	from datetime import datetime, timedelta
+jarvis\memory\self_improve.py:11	from enum import Enum
+jarvis\memory\self_improve.py:12	from pathlib import Path
+jarvis\memory\self_improve.py:13	from typing import Any
+jarvis\memory\semantic.py:6	import hashlib
+jarvis\memory\semantic.py:7	import json
+jarvis\memory\semantic.py:8	import logging
+jarvis\memory\semantic.py:9	from dataclasses import dataclass, field
+jarvis\memory\semantic.py:10	from datetime import datetime
+jarvis\memory\semantic.py:11	from enum import Enum
+jarvis\memory\semantic.py:12	from pathlib import Path
+jarvis\memory\semantic.py:13	from typing import Any
+jarvis\memory\semantic.py:15	import numpy as np
+jarvis\memory\semantic.py:191	from sentence_transformers import SentenceTransformer
+jarvis\memory\session.py:5	from dataclasses import dataclass, field
+jarvis\memory\session.py:6	from datetime import datetime
+jarvis\memory\session.py:7	from typing import Any
+jarvis\memory\user_profile.py:6	import json
+jarvis\memory\user_profile.py:7	import re
+jarvis\memory\user_profile.py:8	from datetime import datetime
+jarvis\memory\user_profile.py:9	from pathlib import Path
+jarvis\memory\user_profile.py:10	from threading import Lock
+jarvis\memory\user_profile.py:11	from typing import Any
+jarvis\memory\__init__.py:5	from jarvis.memory.base import MemoryBase, MemoryCategory, MemoryEntry
+jarvis\memory\__init__.py:6	from jarvis.memory.enhanced import EnhancedMemoryManager, get_enhanced_memory, init_enhanced_memory
+jarvis\memory\__init__.py:7	from jarvis.memory.long_term import LongTermMemory
+jarvis\memory\__init__.py:8	from jarvis.memory.memory_manager import MemoryManager, get_memory_manager, init_memory_manager
+jarvis\memory\__init__.py:9	from jarvis.memory.session import SessionMemory
+jarvis\memory\__init__.py:10	from jarvis.memory.user_profile import UserProfile, get_user_profile, init_user_profile
+jarvis\monitoring\health.py:5	from __future__ import annotations
+jarvis\monitoring\health.py:7	import asyncio
+jarvis\monitoring\health.py:8	import logging
+jarvis\monitoring\health.py:9	import time
+jarvis\monitoring\health.py:10	from dataclasses import dataclass, field
+jarvis\monitoring\health.py:11	from typing import Any
+jarvis\monitoring\health.py:13	from jarvis.runtime.manager import get_runtime_manager
+jarvis\notifications\manager.py:9	from __future__ import annotations
+jarvis\notifications\manager.py:11	import asyncio
+jarvis\notifications\manager.py:12	import contextlib
+jarvis\notifications\manager.py:13	import logging
+jarvis\notifications\manager.py:14	import time
+jarvis\notifications\manager.py:15	import uuid
+jarvis\notifications\manager.py:16	from dataclasses import dataclass, field
+jarvis\notifications\manager.py:17	from enum import Enum
+jarvis\notifications\manager.py:18	from typing import Any
+jarvis\notifications\manager.py:20	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\notifications\manager.py:87	from jarvis.events import EventType
+jarvis\orchestration\engine.py:15	from __future__ import annotations
+jarvis\orchestration\engine.py:17	import asyncio
+jarvis\orchestration\engine.py:18	import logging
+jarvis\orchestration\engine.py:19	import time
+jarvis\orchestration\engine.py:20	import uuid
+jarvis\orchestration\engine.py:21	from collections import deque
+jarvis\orchestration\engine.py:22	from dataclasses import dataclass, field
+jarvis\orchestration\engine.py:23	from typing import Any
+jarvis\orchestration\engine.py:25	from jarvis.core.context_bus import ContextBus, get_context_bus
+jarvis\orchestration\engine.py:26	from jarvis.core.master_agent import MasterAgent, create_master_agent
+jarvis\orchestration\engine.py:27	from jarvis.core.planner import Planner
+jarvis\orchestration\engine.py:28	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\orchestration\engine.py:148	from jarvis.agents.collaboration import AgentCollaboration
+jarvis\orchestration\__init__.py:8	from __future__ import annotations
+jarvis\orchestration\__init__.py:10	import asyncio
+jarvis\orchestration\__init__.py:11	import logging
+jarvis\orchestration\__init__.py:12	import time
+jarvis\orchestration\__init__.py:13	import uuid
+jarvis\orchestration\__init__.py:14	from collections import deque
+jarvis\orchestration\__init__.py:15	from dataclasses import dataclass, field
+jarvis\orchestration\__init__.py:16	from typing import Any
+jarvis\orchestration\__init__.py:18	from jarvis.core.context_bus import ContextBus, get_context_bus
+jarvis\orchestration\__init__.py:19	from jarvis.core.master_agent import MasterAgent, create_master_agent
+jarvis\orchestration\__init__.py:20	from jarvis.core.planner import Plan as Plan
+jarvis\orchestration\__init__.py:21	from jarvis.core.planner import Planner
+jarvis\performance\optimizer.py:17	from __future__ import annotations
+jarvis\performance\optimizer.py:19	import asyncio
+jarvis\performance\optimizer.py:20	import contextlib
+jarvis\performance\optimizer.py:21	import functools
+jarvis\performance\optimizer.py:22	import logging
+jarvis\performance\optimizer.py:23	import time
+jarvis\performance\optimizer.py:24	from collections import OrderedDict
+jarvis\performance\optimizer.py:25	from collections.abc import Callable
+jarvis\performance\optimizer.py:26	from dataclasses import dataclass, field
+jarvis\performance\optimizer.py:27	from typing import Any
+jarvis\personality\adaptive.py:16	from __future__ import annotations
+jarvis\personality\adaptive.py:18	import logging
+jarvis\personality\adaptive.py:19	import time
+jarvis\personality\adaptive.py:20	from dataclasses import dataclass, field
+jarvis\personality\adaptive.py:21	from enum import StrEnum
+jarvis\personality\adaptive.py:22	from typing import Any
+jarvis\personality\adaptive.py:24	from jarvis.personality.manager import PersonalityManager, PersonalityProfile
+jarvis\personality\manager.py:6	from __future__ import annotations
+jarvis\personality\manager.py:8	import logging
+jarvis\personality\manager.py:9	from dataclasses import dataclass
+jarvis\personality\manager.py:10	from typing import Any
+jarvis\plugins\base.py:5	import importlib
+jarvis\plugins\base.py:6	import importlib.util
+jarvis\plugins\base.py:7	import json
+jarvis\plugins\base.py:8	import logging
+jarvis\plugins\base.py:9	import sys
+jarvis\plugins\base.py:10	from collections.abc import Callable
+jarvis\plugins\base.py:11	from dataclasses import dataclass, field
+jarvis\plugins\base.py:12	from datetime import datetime
+jarvis\plugins\base.py:13	from pathlib import Path
+jarvis\plugins\base.py:14	from typing import Any
+jarvis\plugins\example_plugin.py:7	import logging
+jarvis\plugins\example_plugin.py:8	from typing import Any
+jarvis\plugins\example_plugin.py:10	from jarvis.plugins.plugin_manager import (
+jarvis\plugins\example_plugin.py:66	import re
+jarvis\plugins\example_plugin.py:80	import re
+jarvis\plugins\example_plugin.py:90	import random
+jarvis\plugins\example_plugin.py:162	import ast
+jarvis\plugins\example_plugin.py:163	import operator
+jarvis\plugins\marketplace.py:17	from __future__ import annotations
+jarvis\plugins\marketplace.py:19	import hashlib
+jarvis\plugins\marketplace.py:20	import json
+jarvis\plugins\marketplace.py:21	import logging
+jarvis\plugins\marketplace.py:22	import time
+jarvis\plugins\marketplace.py:23	from dataclasses import dataclass, field
+jarvis\plugins\marketplace.py:24	from enum import StrEnum
+jarvis\plugins\marketplace.py:25	from pathlib import Path
+jarvis\plugins\marketplace.py:26	from typing import Any
+jarvis\plugins\marketplace.py:28	from jarvis.plugins.plugin_manager import PluginInfo
+jarvis\plugins\plugin_manager.py:7	import importlib
+jarvis\plugins\plugin_manager.py:8	import importlib.util
+jarvis\plugins\plugin_manager.py:9	import json
+jarvis\plugins\plugin_manager.py:10	import logging
+jarvis\plugins\plugin_manager.py:11	from abc import ABC, abstractmethod
+jarvis\plugins\plugin_manager.py:12	from dataclasses import dataclass, field
+jarvis\plugins\plugin_manager.py:13	from enum import Enum
+jarvis\plugins\plugin_manager.py:14	from pathlib import Path
+jarvis\plugins\plugin_manager.py:15	from typing import Any
+jarvis\plugins\__init__.py:9	from jarvis.plugins.base import Plugin, PluginManager, PluginMetadata
+jarvis\plugins\__init__.py:10	from jarvis.plugins.plugin_manager import (
+jarvis\plugins\__init__.py:18	from jarvis.plugins.plugin_manager import (
+jarvis\proactive\monitor.py:7	from __future__ import annotations
+jarvis\proactive\monitor.py:9	import logging
+jarvis\proactive\monitor.py:10	import time
+jarvis\proactive\monitor.py:11	from collections.abc import Callable
+jarvis\proactive\monitor.py:12	from dataclasses import dataclass
+jarvis\proactive\monitor.py:13	from typing import Any
+jarvis\proactive\monitor.py:15	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\proactive\monitor.py:67	from jarvis.notifications.manager import get_notification_manager
+jarvis\proactive\predictive.py:15	from __future__ import annotations
+jarvis\proactive\predictive.py:17	import asyncio
+jarvis\proactive\predictive.py:18	import logging
+jarvis\proactive\predictive.py:19	import time
+jarvis\proactive\predictive.py:20	from collections import defaultdict
+jarvis\proactive\predictive.py:21	from dataclasses import dataclass, field
+jarvis\proactive\predictive.py:22	from typing import Any
+jarvis\proactive\predictive.py:24	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\proactive\predictive.py:25	from jarvis.proactive.suggestions import get_suggestion_engine, SuggestionEngine
+jarvis\proactive\suggestions.py:6	from __future__ import annotations
+jarvis\proactive\suggestions.py:8	import logging
+jarvis\proactive\suggestions.py:9	import time
+jarvis\proactive\suggestions.py:10	from dataclasses import dataclass, field
+jarvis\proactive\suggestions.py:11	from typing import Any
+jarvis\proactive\suggestions.py:13	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\providers\selector.py:15	from __future__ import annotations
+jarvis\providers\selector.py:17	import asyncio
+jarvis\providers\selector.py:18	import logging
+jarvis\providers\selector.py:19	import time
+jarvis\providers\selector.py:20	from dataclasses import dataclass, field
+jarvis\providers\selector.py:21	from enum import StrEnum
+jarvis\providers\selector.py:22	from typing import Any
+jarvis\providers\selector.py:93	from jarvis.api.providers import get_provider_manager
+jarvis\providers\airllm\config.py:4	from __future__ import annotations
+jarvis\providers\airllm\config.py:6	from dataclasses import dataclass
+jarvis\providers\airllm\config.py:7	from typing import Literal
+jarvis\providers\airllm\discovery.py:4	from __future__ import annotations
+jarvis\providers\airllm\discovery.py:6	import logging
+jarvis\providers\airllm\discovery.py:7	import os
+jarvis\providers\airllm\discovery.py:8	from pathlib import Path
+jarvis\providers\airllm\discovery.py:10	from jarvis.providers.airllm.metadata import (
+jarvis\providers\airllm\discovery.py:82	from huggingface_hub import HfApi
+jarvis\providers\airllm\discovery.py:110	from huggingface_hub import model_info
+jarvis\providers\airllm\loader.py:4	from __future__ import annotations
+jarvis\providers\airllm\loader.py:6	import importlib.util
+jarvis\providers\airllm\loader.py:7	import logging
+jarvis\providers\airllm\loader.py:8	from concurrent.futures import ThreadPoolExecutor
+jarvis\providers\airllm\loader.py:9	from pathlib import Path
+jarvis\providers\airllm\loader.py:10	from typing import Any
+jarvis\providers\airllm\loader.py:12	from jarvis.providers.airllm.utils import clean_memory, get_vram_used_gb
+jarvis\providers\airllm\loader.py:74	import torch
+jarvis\providers\airllm\loader.py:75	from accelerate import init_empty_weights
+jarvis\providers\airllm\loader.py:76	from accelerate.utils.modeling import set_module_tensor_to_device
+jarvis\providers\airllm\loader.py:77	from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+jarvis\providers\airllm\loader.py:129	import torch
+jarvis\providers\airllm\loader.py:147	from transformers import AutoConfig
+jarvis\providers\airllm\loader.py:179	import torch
+jarvis\providers\airllm\loader.py:226	import importlib.util
+jarvis\providers\airllm\loader.py:240	from huggingface_hub import snapshot_download
+jarvis\providers\airllm\metadata.py:4	from __future__ import annotations
+jarvis\providers\airllm\metadata.py:6	import contextlib
+jarvis\providers\airllm\metadata.py:7	import logging
+jarvis\providers\airllm\metadata.py:8	from dataclasses import dataclass, field
+jarvis\providers\airllm\metadata.py:9	from pathlib import Path
+jarvis\providers\airllm\metadata.py:10	from typing import Any
+jarvis\providers\airllm\metadata.py:58	from transformers import AutoConfig
+jarvis\providers\airllm\metadata.py:60	from jarvis.providers.airllm.utils import get_model_size_gb
+jarvis\providers\airllm\provider.py:4	from __future__ import annotations
+jarvis\providers\airllm\provider.py:6	import logging
+jarvis\providers\airllm\provider.py:7	import os
+jarvis\providers\airllm\provider.py:8	import time
+jarvis\providers\airllm\provider.py:9	from collections.abc import AsyncIterator
+jarvis\providers\airllm\provider.py:10	from typing import Any
+jarvis\providers\airllm\provider.py:12	from jarvis.api.providers import BaseLLMProvider, LLMConfig, LLMResponse, ProviderType
+jarvis\providers\airllm\provider.py:13	from jarvis.providers.airllm.config import AirLLMConfig
+jarvis\providers\airllm\provider.py:14	from jarvis.providers.airllm.discovery import discover_all_models
+jarvis\providers\airllm\provider.py:15	from jarvis.providers.airllm.loader import AirLLMLoader, AirLLMLoaderError
+jarvis\providers\airllm\provider.py:16	from jarvis.providers.airllm.metadata import ModelMetadata
+jarvis\providers\airllm\provider.py:17	from jarvis.providers.airllm.utils import (
+jarvis\providers\airllm\provider.py:66	import torch
+jarvis\providers\airllm\utils.py:4	from __future__ import annotations
+jarvis\providers\airllm\utils.py:6	import gc
+jarvis\providers\airllm\utils.py:7	import importlib.util
+jarvis\providers\airllm\utils.py:8	import os
+jarvis\providers\airllm\utils.py:9	from pathlib import Path
+jarvis\providers\airllm\utils.py:11	import torch
+jarvis\providers\airllm\utils.py:20	import ctypes
+jarvis\providers\airllm\utils.py:76	from transformers import AutoConfig
+jarvis\rag\document_processor.py:6	import hashlib
+jarvis\rag\document_processor.py:7	import logging
+jarvis\rag\document_processor.py:8	import re
+jarvis\rag\document_processor.py:9	from dataclasses import dataclass, field
+jarvis\rag\document_processor.py:10	from datetime import datetime
+jarvis\rag\document_processor.py:11	from pathlib import Path
+jarvis\rag\document_processor.py:12	from typing import Any
+jarvis\rag\document_processor.py:146	import fitz
+jarvis\rag\document_processor.py:165	import PyPDF2
+jarvis\rag\document_processor.py:240	from docx import Document
+jarvis\rag\document_processor.py:263	from html.parser import HTMLParser
+jarvis\rag\document_processor.py:311	import json
+jarvis\rag\rag_system.py:5	import json
+jarvis\rag\rag_system.py:6	import logging
+jarvis\rag\rag_system.py:7	from datetime import datetime
+jarvis\rag\rag_system.py:8	from pathlib import Path
+jarvis\rag\rag_system.py:9	from typing import Any
+jarvis\rag\rag_system.py:11	from jarvis.memory.knowledge import LocalKnowledgeBase
+jarvis\rag\rag_system.py:12	from jarvis.rag.document_processor import DocumentProcessor, StudyAssistant
+jarvis\rag\__init__.py:5	from jarvis.rag.document_processor import (
+jarvis\rag\__init__.py:11	from jarvis.rag.rag_system import RAGSystem, get_rag_system, init_rag_system
+jarvis\repo\analyzer.py:6	import ast
+jarvis\repo\analyzer.py:7	import os
+jarvis\repo\analyzer.py:8	import re
+jarvis\repo\analyzer.py:9	from collections import defaultdict
+jarvis\repo\analyzer.py:10	from dataclasses import dataclass, field
+jarvis\repo\analyzer.py:11	from datetime import datetime
+jarvis\repo\analyzer.py:12	from pathlib import Path
+jarvis\repo\analyzer.py:13	from typing import Any
+jarvis\repo\ast_analysis.py:6	import ast
+jarvis\repo\ast_analysis.py:7	from collections import defaultdict
+jarvis\repo\ast_analysis.py:8	from dataclasses import dataclass, field
+jarvis\repo\ast_analysis.py:9	from typing import Any
+jarvis\repo\security.py:6	import re
+jarvis\repo\security.py:7	from dataclasses import dataclass
+jarvis\repo\security.py:8	from pathlib import Path
+jarvis\repo\security.py:9	from typing import Any
+jarvis\repo\__init__.py:6	from jarvis.repo.analyzer import RepositoryAnalyzer
+jarvis\repo\__init__.py:7	from jarvis.repo.ast_analysis import ASTAnalyzer
+jarvis\repo\__init__.py:8	from jarvis.repo.security import SecurityScanner
+jarvis\research\pipeline.py:9	from __future__ import annotations
+jarvis\research\pipeline.py:11	import logging
+jarvis\research\pipeline.py:12	from dataclasses import dataclass, field
+jarvis\research\pipeline.py:13	from datetime import datetime
+jarvis\research\pipeline.py:14	from typing import Any
+jarvis\research\pipeline.py:55	from jarvis.research.research_agent import ResearchAgent
+jarvis\research\pipeline.py:137	from jarvis.memory.memory_manager import get_memory_manager
+jarvis\research\production.py:6	import logging
+jarvis\research\production.py:7	import re
+jarvis\research\production.py:8	from abc import ABC, abstractmethod
+jarvis\research\production.py:9	from dataclasses import dataclass, field
+jarvis\research\production.py:10	from datetime import datetime
+jarvis\research\production.py:11	from enum import Enum
+jarvis\research\production.py:12	from typing import Any
+jarvis\research\production.py:120	import httpx
+jarvis\research\production.py:159	import httpx
+jarvis\research\production.py:187	import httpx
+jarvis\research\production.py:228	import httpx
+jarvis\research\production.py:271	import httpx
+jarvis\research\production.py:318	import httpx
+jarvis\research\research_agent.py:6	import logging
+jarvis\research\research_agent.py:7	import os
+jarvis\research\research_agent.py:8	import re
+jarvis\research\research_agent.py:9	from dataclasses import dataclass, field
+jarvis\research\research_agent.py:10	from datetime import datetime, timedelta
+jarvis\research\research_agent.py:11	from pathlib import Path
+jarvis\research\research_agent.py:12	from typing import Any
+jarvis\research\research_agent.py:53	import os
+jarvis\research\research_agent.py:118	import aiohttp
+jarvis\research\research_agent.py:168	import aiohttp
+jarvis\research\research_agent.py:208	import aiohttp
+jarvis\research\research_agent.py:246	import aiohttp
+jarvis\research\research_agent.py:271	import aiohttp
+jarvis\research\research_agent.py:375	import aiohttp
+jarvis\research\research_agent.py:411	import aiohttp
+jarvis\research\research_agent.py:434	import aiohttp
+jarvis\research\research_agent.py:449	import aiohttp
+jarvis\research\__init__.py:6	from jarvis.research.production import CitationFormat, Source
+jarvis\research\__init__.py:7	from jarvis.research.research_agent import (
+jarvis\runtime\manager.py:7	from __future__ import annotations
+jarvis\runtime\manager.py:9	import asyncio
+jarvis\runtime\manager.py:10	import contextlib
+jarvis\runtime\manager.py:11	import logging
+jarvis\runtime\manager.py:12	import time
+jarvis\runtime\manager.py:13	import uuid
+jarvis\runtime\manager.py:14	from dataclasses import dataclass, field
+jarvis\runtime\manager.py:15	from enum import StrEnum
+jarvis\runtime\manager.py:16	from typing import Any
+jarvis\runtime\manager.py:18	from jarvis.core.master_agent import MasterAgent, create_master_agent
+jarvis\runtime\manager.py:19	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\runtime\manager.py:355	from jarvis.orchestration.engine import get_orchestration_engine
+jarvis\runtime\manager.py:360	from jarvis.core.planner import Planner
+jarvis\runtime\manager.py:366	from jarvis.core.provider_manager import get_provider_manager
+jarvis\runtime\manager.py:374	from jarvis.browser.manager import get_browser_manager
+jarvis\runtime\manager.py:378	from jarvis.browser.manager import PersistentBrowserManager
+jarvis\runtime\manager.py:385	from jarvis.desktop.automation import get_desktop_automation
+jarvis\runtime\manager.py:391	from jarvis.vision.production import get_vision_system
+jarvis\runtime\manager.py:398	from jarvis.memory.memory_manager import get_memory_manager
+jarvis\runtime\manager.py:404	from jarvis.memory.knowledge_graph import get_knowledge_graph
+jarvis\runtime\manager.py:412	from jarvis.research.agent import get_research_agent
+jarvis\runtime\manager.py:420	from jarvis.learning.engine import ContinuousLearningEngine
+jarvis\runtime\manager.py:428	from jarvis.skills.manager import get_skill_manager
+jarvis\runtime\manager.py:435	from jarvis.plugins.plugin_manager import get_plugin_manager
+jarvis\runtime\manager.py:441	from jarvis.voice.engine import get_voice_engine
+jarvis\runtime\manager.py:448	from jarvis.core.dashboard import get_dashboard
+jarvis\runtime\manager.py:453	from jarvis.background.tasks import BackgroundIntelligence
+jarvis\runtime\manager.py:458	from jarvis.services.scheduler import TaskScheduler
+jarvis\runtime\manager.py:464	from jarvis.diagnostics import DiagnosticRunner
+jarvis\runtime\__init__.py:33	from __future__ import annotations
+jarvis\runtime\__init__.py:35	import asyncio
+jarvis\runtime\__init__.py:36	import logging
+jarvis\runtime\__init__.py:37	import time
+jarvis\runtime\__init__.py:38	import uuid
+jarvis\runtime\__init__.py:39	from dataclasses import dataclass, field
+jarvis\runtime\__init__.py:40	from enum import StrEnum
+jarvis\runtime\__init__.py:41	from typing import Any
+jarvis\runtime\__init__.py:43	from jarvis.core.master_agent import MasterAgent, create_master_agent
+jarvis\runtime\__init__.py:44	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\runtime\__init__.py:383	from jarvis.orchestration.engine import get_orchestration_engine
+jarvis\runtime\__init__.py:388	from jarvis.core.planner import Planner
+jarvis\runtime\__init__.py:394	from jarvis.browser.manager import get_browser_manager
+jarvis\runtime\__init__.py:397	from jarvis.browser.manager import PersistentBrowserManager
+jarvis\runtime\__init__.py:402	from jarvis.desktop.automation import get_desktop_automation
+jarvis\runtime\__init__.py:408	from jarvis.vision.production import get_vision_system
+jarvis\runtime\__init__.py:415	from jarvis.memory.memory_manager import get_memory_manager
+jarvis\runtime\__init__.py:421	from jarvis.research.agent import get_research_agent
+jarvis\runtime\__init__.py:429	from jarvis.learning.engine import ContinuousLearningEngine
+jarvis\runtime\__init__.py:437	from jarvis.skills.manager import get_skill_manager
+jarvis\runtime\__init__.py:444	from jarvis.plugins.plugin_manager import get_plugin_manager
+jarvis\runtime\__init__.py:450	from jarvis.voice.engine import get_voice_engine
+jarvis\runtime\__init__.py:457	from jarvis.core.dashboard import get_dashboard
+jarvis\runtime\__init__.py:462	from jarvis.background.tasks import BackgroundIntelligence
+jarvis\runtime\__init__.py:467	from jarvis.services.scheduler import TaskScheduler
+jarvis\runtime\__init__.py:473	from jarvis.diagnostics import DiagnosticRunner
+jarvis\runtime\__init__.py:496	import contextlib
+jarvis\security\approval.py:14	from __future__ import annotations
+jarvis\security\approval.py:16	import logging
+jarvis\security\approval.py:17	import time
+jarvis\security\approval.py:18	from dataclasses import dataclass, field
+jarvis\security\approval.py:19	from datetime import datetime
+jarvis\security\approval.py:20	from enum import StrEnum
+jarvis\security\approval.py:21	from typing import Any
+jarvis\security\approval.py:23	from jarvis.security.privacy import AuditLog, AuditRecord
+jarvis\security\approval.py:189	import uuid
+jarvis\security\audit.py:7	from __future__ import annotations
+jarvis\security\audit.py:9	from jarvis.security import (
+jarvis\security\encryption.py:5	from __future__ import annotations
+jarvis\security\encryption.py:7	from jarvis.security.audit import AuditLog, AuditRecord
+jarvis\security\encryption.py:8	from jarvis.security.privacy import EncryptedStore, PermissionChecker, SensitiveDataMasker
+jarvis\security\privacy.py:5	from __future__ import annotations
+jarvis\security\privacy.py:7	import hashlib
+jarvis\security\privacy.py:8	import json
+jarvis\security\privacy.py:9	import logging
+jarvis\security\privacy.py:10	import time
+jarvis\security\privacy.py:11	from dataclasses import dataclass, field
+jarvis\security\privacy.py:12	from pathlib import Path
+jarvis\security\privacy.py:13	from typing import Any
+jarvis\security\__init__.py:13	from __future__ import annotations
+jarvis\security\__init__.py:15	import hashlib
+jarvis\security\__init__.py:16	import json
+jarvis\security\__init__.py:17	import logging
+jarvis\security\__init__.py:18	import time
+jarvis\security\__init__.py:19	from dataclasses import dataclass, field
+jarvis\security\__init__.py:20	from pathlib import Path
+jarvis\security\__init__.py:21	from typing import Any
+jarvis\services\daemon.py:6	import asyncio
+jarvis\services\daemon.py:7	import contextlib
+jarvis\services\daemon.py:8	import json
+jarvis\services\daemon.py:9	import logging
+jarvis\services\daemon.py:10	import os
+jarvis\services\daemon.py:11	import signal
+jarvis\services\daemon.py:12	import sys
+jarvis\services\daemon.py:13	from collections.abc import Callable
+jarvis\services\daemon.py:14	from dataclasses import dataclass
+jarvis\services\daemon.py:15	from datetime import datetime
+jarvis\services\daemon.py:16	from pathlib import Path
+jarvis\services\daemon.py:17	from typing import Any
+jarvis\services\daemon.py:349	import argparse
+jarvis\services\scheduler.py:5	import asyncio
+jarvis\services\scheduler.py:6	import json
+jarvis\services\scheduler.py:7	import logging
+jarvis\services\scheduler.py:8	from collections.abc import Callable
+jarvis\services\scheduler.py:9	from dataclasses import dataclass, field
+jarvis\services\scheduler.py:10	from datetime import date, datetime
+jarvis\services\scheduler.py:11	from enum import Enum
+jarvis\services\scheduler.py:12	from pathlib import Path
+jarvis\services\scheduler.py:13	from typing import Any
+jarvis\services\scheduler.py:15	from croniter import croniter
+jarvis\services\__init__.py:5	from jarvis.services.daemon import DaemonConfig, JarvisDaemon, ServiceManager
+jarvis\services\__init__.py:6	from jarvis.services.scheduler import DailySummary, ScheduledTask, TaskScheduler, TaskType
+jarvis\skills\manager.py:5	from __future__ import annotations
+jarvis\skills\manager.py:7	import logging
+jarvis\skills\manager.py:8	import time
+jarvis\skills\manager.py:9	from dataclasses import dataclass, field
+jarvis\skills\manager.py:10	from typing import Any
+jarvis\skills\__init__.py:8	from __future__ import annotations
+jarvis\skills\__init__.py:10	import logging
+jarvis\skills\__init__.py:11	import time
+jarvis\skills\__init__.py:12	from dataclasses import dataclass, field
+jarvis\skills\__init__.py:13	from typing import Any
+jarvis\tasks\manager.py:13	from __future__ import annotations
+jarvis\tasks\manager.py:15	import asyncio
+jarvis\tasks\manager.py:16	import builtins
+jarvis\tasks\manager.py:17	import contextlib
+jarvis\tasks\manager.py:18	import logging
+jarvis\tasks\manager.py:19	import time
+jarvis\tasks\manager.py:20	import uuid
+jarvis\tasks\manager.py:21	from collections.abc import Awaitable, Callable
+jarvis\tasks\manager.py:22	from dataclasses import asdict, dataclass, field
+jarvis\tasks\manager.py:23	from enum import Enum
+jarvis\tasks\manager.py:24	from typing import Any
+jarvis\tasks\manager.py:26	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\tasks\__init__.py:5	from jarvis.tasks.manager import (
+jarvis\tools\base.py:6	from abc import ABC, abstractmethod
+jarvis\tools\base.py:7	from dataclasses import dataclass
+jarvis\tools\base.py:8	from enum import Enum
+jarvis\tools\base.py:9	from typing import Any
+jarvis\tools\browser_tools.py:6	import asyncio
+jarvis\tools\browser_tools.py:7	from dataclasses import dataclass
+jarvis\tools\browser_tools.py:8	from typing import Any
+jarvis\tools\browser_tools.py:10	from jarvis.tools.base import ReadOnlyTool, ToolResult
+jarvis\tools\browser_tools.py:81	from selenium import webdriver
+jarvis\tools\browser_tools.py:82	from selenium.webdriver.chrome.options import Options as ChromeOptions
+jarvis\tools\browser_tools.py:83	from selenium.webdriver.chrome.service import Service as ChromeService
+jarvis\tools\browser_tools.py:84	from webdriver_manager.chrome import ChromeDriverManager
+jarvis\tools\browser_tools.py:108	from selenium.webdriver.common.by import By
+jarvis\tools\browser_tools.py:109	from selenium.webdriver.support import expected_conditions as EC
+jarvis\tools\browser_tools.py:110	from selenium.webdriver.support.ui import WebDriverWait
+jarvis\tools\browser_tools.py:265	from selenium import webdriver
+jarvis\tools\browser_tools.py:266	from selenium.webdriver.chrome.options import Options
+jarvis\tools\browser_tools.py:267	from selenium.webdriver.chrome.service import Service
+jarvis\tools\browser_tools.py:268	from selenium.webdriver.common.by import By
+jarvis\tools\browser_tools.py:269	from webdriver_manager.chrome import ChromeDriverManager
+jarvis\tools\browser_tools.py:333	from selenium import webdriver
+jarvis\tools\browser_tools.py:334	from selenium.webdriver.chrome.options import Options
+jarvis\tools\browser_tools.py:335	from selenium.webdriver.chrome.service import Service
+jarvis\tools\browser_tools.py:336	from selenium.webdriver.common.by import By
+jarvis\tools\browser_tools.py:337	from webdriver_manager.chrome import ChromeDriverManager
+jarvis\tools\browser_tools.py:367	from jarvis.browser.manager import get_manager
+jarvis\tools\browser_tools.py:370	from jarvis.browser.tools import (
+jarvis\tools\file_tools.py:6	import shutil
+jarvis\tools\file_tools.py:7	from pathlib import Path
+jarvis\tools\file_tools.py:8	from typing import Any
+jarvis\tools\file_tools.py:10	from jarvis.tools.base import DestructiveTool, ReadOnlyTool, ToolResult, WriteTool
+jarvis\tools\registry.py:6	from typing import Any
+jarvis\tools\registry.py:8	from jarvis.tools.base import PermissionLevel, Tool, ToolCallback, ToolResult
+jarvis\tools\system_tools.py:6	import os
+jarvis\tools\system_tools.py:7	import platform
+jarvis\tools\system_tools.py:8	import subprocess
+jarvis\tools\system_tools.py:9	from pathlib import Path
+jarvis\tools\system_tools.py:10	from typing import Any
+jarvis\tools\system_tools.py:12	from jarvis.tools.base import ReadOnlyTool, ToolResult, WriteTool
+jarvis\tools\terminal_tools.py:6	import os
+jarvis\tools\terminal_tools.py:7	import shlex
+jarvis\tools\terminal_tools.py:8	import subprocess
+jarvis\tools\terminal_tools.py:9	import tempfile
+jarvis\tools\terminal_tools.py:10	from pathlib import Path
+jarvis\tools\terminal_tools.py:11	from typing import Any
+jarvis\tools\terminal_tools.py:13	from jarvis.tools.base import PermissionLevel, ToolResult, WriteTool
+jarvis\tools\__init__.py:6	from jarvis.tools.base import (
+jarvis\tools\__init__.py:15	from jarvis.tools.browser_tools import BrowserTool, ScrapeWebTool, SearchWebTool
+jarvis\tools\__init__.py:16	from jarvis.tools.registry import ToolRegistry, get_registry, init_registry
+jarvis\ui\app.py:9	from __future__ import annotations
+jarvis\ui\app.py:11	import logging
+jarvis\ui\app.py:12	from typing import Any
+jarvis\ui\app.py:14	from jarvis.activity import get_activity_center
+jarvis\ui\app.py:15	from jarvis.events import EventType, get_event_bus
+jarvis\ui\app.py:16	from jarvis.orchestrator import JarvisOrchestrator
+jarvis\ui\app.py:17	from jarvis.palette import get_command_palette
+jarvis\ui\app.py:18	from jarvis.suggestions import get_suggestion_engine
+jarvis\ui\app.py:19	from jarvis.tasks import get_task_manager
+jarvis\ui\app.py:20	from jarvis.tools_library import get_tool_library
+jarvis\ui\app.py:21	from jarvis.ui.desktop_ui import DesktopUI
+jarvis\ui\app.py:49	from jarvis.ui.cli import JarvisCLI
+jarvis\ui\app.py:69	from jarvis.voice.voice_runtime import get_voice_runtime
+jarvis\ui\app.py:140	import asyncio  # noqa: E402  (placed after helper to keep utils first)
+jarvis\ui\app.py:153	from jarvis.core.agent import create_jarvis
+jarvis\ui\cli.py:5	import asyncio
+jarvis\ui\cli.py:6	import logging
+jarvis\ui\cli.py:7	import os
+jarvis\ui\cli.py:8	import sys
+jarvis\ui\cli.py:11	from rich.console import Console
+jarvis\ui\cli.py:12	from rich.markdown import Markdown
+jarvis\ui\cli.py:13	from rich.panel import Panel
+jarvis\ui\cli.py:14	from rich.prompt import Prompt
+jarvis\ui\cli.py:15	from rich.table import Table
+jarvis\ui\cli.py:21	from jarvis.core.agent import JarvisAgent, create_jarvis
+jarvis\ui\cli.py:22	from jarvis.tools.file_tools import (
+jarvis\ui\cli.py:30	from jarvis.tools.registry import get_registry
+jarvis\ui\cli.py:31	from jarvis.tools.system_tools import (
+jarvis\ui\cli.py:39	from jarvis.tools.terminal_tools import BashTool, CreateTempFileTool, RunScriptTool
+jarvis\ui\cli.py:111	from jarvis.voice.voice_runtime import get_voice_runtime
+jarvis\ui\cli.py:266	import os
+jarvis\ui\cli.py:296	from jarvis.voice.voice_runtime import get_voice_runtime
+jarvis\ui\desktop_ui.py:6	import logging
+jarvis\ui\desktop_ui.py:7	from collections.abc import Callable
+jarvis\ui\desktop_ui.py:8	from dataclasses import dataclass
+jarvis\ui\desktop_ui.py:9	from typing import Any
+jarvis\ui\desktop_ui.py:84	from datetime import datetime
+jarvis\ui\server.py:22	from __future__ import annotations
+jarvis\ui\server.py:24	import asyncio
+jarvis\ui\server.py:25	import contextlib
+jarvis\ui\server.py:26	import json
+jarvis\ui\server.py:27	import logging
+jarvis\ui\server.py:28	import time
+jarvis\ui\server.py:29	from pathlib import Path
+jarvis\ui\server.py:30	from typing import Any
+jarvis\ui\server.py:32	from jarvis.events import get_event_bus
+jarvis\ui\server.py:33	from jarvis.ui.app import JarvisApp
+jarvis\ui\server.py:62	from aiohttp import web
+jarvis\ui\server.py:133	from aiohttp import web
+jarvis\ui\server.py:141	from aiohttp import web
+jarvis\ui\server.py:153	from aiohttp import web
+jarvis\ui\server.py:160	from jarvis.metrics import get_system_metrics
+jarvis\ui\server.py:202	from aiohttp import web
+jarvis\ui\server.py:204	from jarvis.metrics import get_system_metrics
+jarvis\ui\server.py:210	from aiohttp import web
+jarvis\ui\server.py:212	from jarvis.api.providers import get_provider_manager
+jarvis\ui\server.py:219	from aiohttp import web
+jarvis\ui\server.py:227	from aiohttp import web
+jarvis\ui\server.py:243	from aiohttp import web
+jarvis\ui\server.py:251	from aiohttp import web
+jarvis\ui\server.py:258	from aiohttp import web
+jarvis\ui\server.py:264	from aiohttp import web
+jarvis\ui\server.py:278	from aiohttp import web
+jarvis\ui\server.py:285	from aiohttp import web
+jarvis\ui\server.py:297	from aiohttp import web
+jarvis\ui\server.py:301	from jarvis.agents.multi_agent import get_agent_coordinator
+jarvis\ui\server.py:333	from aiohttp import web
+jarvis\ui\server.py:337	from jarvis.plugins.plugin_manager import get_plugin_manager
+jarvis\ui\server.py:356	from aiohttp import web
+jarvis\ui\server.py:362	from jarvis.plugins.plugin_manager import get_plugin_manager
+jarvis\ui\server.py:376	from aiohttp import web
+jarvis\ui\server.py:379	from jarvis.events import EventType, get_event_bus
+jarvis\ui\server.py:398	from jarvis.api.providers import get_provider_manager
+jarvis\ui\server.py:411	import random
+jarvis\ui\server.py:429	import os
+jarvis\ui\server.py:431	from aiohttp import web
+jarvis\ui\server.py:456	import os
+jarvis\ui\server.py:458	from aiohttp import web
+jarvis\ui\server.py:474	from datetime import datetime
+jarvis\ui\server.py:476	from aiohttp import web
+jarvis\ui\server.py:483	from jarvis.goals import get_goal_memory
+jarvis\ui\server.py:495	from jarvis.api.providers import get_provider_manager
+jarvis\ui\server.py:518	from pathlib import Path
+jarvis\ui\server.py:520	from aiohttp import web
+jarvis\ui\server.py:524	from jarvis.workspace.awareness import WorkspaceAwareness
+jarvis\ui\server.py:532	import subprocess
+jarvis\ui\server.py:547	from aiohttp import web
+jarvis\ui\server.py:558	from jarvis.api.providers import get_provider_manager
+jarvis\ui\server.py:562	from jarvis.api.providers import ProviderType
+jarvis\ui\server.py:583	from aiohttp import web
+jarvis\ui\server.py:588	from jarvis.api.providers import get_provider_manager
+jarvis\ui\server.py:601	from aiohttp import web
+jarvis\ui\server.py:615	from aiohttp import web
+jarvis\ui\server.py:617	from jarvis.metrics import get_system_metrics
+jarvis\ui\server.py:622	from aiohttp import web
+jarvis\ui\server.py:625	from jarvis.memory.enhanced import get_enhanced_memory
+jarvis\ui\server.py:639	from aiohttp import web
+jarvis\ui\server.py:641	from jarvis.metrics import get_system_metrics
+jarvis\ui\server.py:648	from aiohttp import web
+jarvis\ui\server.py:650	from jarvis.api.providers import get_provider_manager
+jarvis\ui\__init__.py:5	from jarvis.ui.cli import JarvisCLI, run_cli
+jarvis\utils\diagnostics.py:6	import logging
+jarvis\utils\diagnostics.py:7	import platform
+jarvis\utils\diagnostics.py:8	import sys
+jarvis\utils\diagnostics.py:9	from dataclasses import dataclass, field
+jarvis\utils\diagnostics.py:10	from datetime import datetime
+jarvis\utils\diagnostics.py:11	from typing import Any
+jarvis\utils\diagnostics.py:177	import httpx
+jarvis\utils\diagnostics.py:234	from jarvis.core.config import get_config
+jarvis\utils\diagnostics.py:249	import httpx
+jarvis\utils\diagnostics.py:305	import psutil
+jarvis\utils\diagnostics.py:353	import psutil
+jarvis\utils\exceptions.py:6	from typing import Any
+jarvis\utils\lifecycle.py:6	import asyncio
+jarvis\utils\lifecycle.py:7	import logging
+jarvis\utils\lifecycle.py:8	from abc import ABC, abstractmethod
+jarvis\utils\lifecycle.py:9	from collections.abc import Callable
+jarvis\utils\lifecycle.py:10	from contextlib import asynccontextmanager
+jarvis\utils\lifecycle.py:11	from dataclasses import dataclass, field
+jarvis\utils\lifecycle.py:12	from datetime import datetime
+jarvis\utils\lifecycle.py:13	from enum import Enum
+jarvis\utils\lifecycle.py:14	from typing import Any
+jarvis\utils\logging.py:6	import logging
+jarvis\utils\logging.py:7	import logging.handlers
+jarvis\utils\logging.py:8	import sys
+jarvis\utils\logging.py:9	from pathlib import Path
+jarvis\utils\logging.py:10	from typing import Optional
+jarvis\utils\__init__.py:5	import logging as _logging
+jarvis\utils\__init__.py:6	import platform
+jarvis\utils\__init__.py:7	import re
+jarvis\utils\__init__.py:8	import sys
+jarvis\utils\__init__.py:9	import threading
+jarvis\utils\__init__.py:10	import time
+jarvis\utils\__init__.py:11	import uuid
+jarvis\utils\__init__.py:12	from collections.abc import Callable
+jarvis\utils\__init__.py:13	from contextlib import contextmanager
+jarvis\utils\__init__.py:14	from datetime import datetime, timedelta
+jarvis\utils\__init__.py:15	from pathlib import Path
+jarvis\utils\__init__.py:16	from typing import Any
+jarvis\utils\__init__.py:18	from jarvis.utils.diagnostics import (
+jarvis\utils\__init__.py:24	from jarvis.utils.exceptions import (
+jarvis\utils\__init__.py:38	from jarvis.utils.lifecycle import (
+jarvis\utils\__init__.py:47	from jarvis.utils.logging import configure_logging, get_logger, setup_logging
+jarvis\vision\camera.py:6	import contextlib
+jarvis\vision\camera.py:21	import cv2
+jarvis\vision\camera.py:40	import cv2
+jarvis\vision\camera.py:50	import io
+jarvis\vision\camera.py:52	from PIL import Image
+jarvis\vision\camera.py:74	import cv2
+jarvis\vision\production.py:6	import base64
+jarvis\vision\production.py:7	import io
+jarvis\vision\production.py:8	import logging
+jarvis\vision\production.py:9	import os
+jarvis\vision\production.py:10	import platform
+jarvis\vision\production.py:11	from dataclasses import dataclass
+jarvis\vision\production.py:12	from typing import Any
+jarvis\vision\production.py:14	import numpy as np
+jarvis\vision\production.py:104	import pyautogui
+jarvis\vision\production.py:127	import subprocess
+jarvis\vision\production.py:134	import tempfile
+jarvis\vision\production.py:155	import io
+jarvis\vision\production.py:157	from PIL import Image
+jarvis\vision\production.py:174	import subprocess
+jarvis\vision\production.py:192	from PIL import Image
+jarvis\vision\production.py:219	from PIL import ImageGrab
+jarvis\vision\production.py:258	import easyocr
+jarvis\vision\production.py:272	import pytesseract
+jarvis\vision\production.py:311	from PIL import Image
+jarvis\vision\production.py:328	import pytesseract
+jarvis\vision\production.py:361	from PIL import Image
+jarvis\vision\production.py:438	from PIL import Image
+jarvis\vision\screen.py:6	import base64
+jarvis\vision\screen.py:7	import io
+jarvis\vision\screen.py:8	from dataclasses import dataclass
+jarvis\vision\screen.py:9	from pathlib import Path
+jarvis\vision\screen.py:37	import mss
+jarvis\vision\screen.py:105	from PIL import Image
+jarvis\vision\screen.py:185	import importlib.util
+jarvis\vision\screen.py:195	import importlib.util
+jarvis\vision\screen.py:218	import pytesseract
+jarvis\vision\screen.py:219	from PIL import Image
+jarvis\vision\screen.py:242	import cv2
+jarvis\vision\screen.py:243	import numpy as np
+jarvis\vision\screen.py:290	from PIL import Image
+jarvis\vision\screen.py:316	import cv2
+jarvis\vision\screen.py:317	import numpy as np
+jarvis\vision\screen.py:392	from jarvis.vision.camera import CameraCapture
+jarvis\vision\__init__.py:6	from jarvis.vision.camera import CameraCapture
+jarvis\vision\__init__.py:7	from jarvis.vision.screen import ScreenAnalyzer, ScreenCapture, ScreenRegion, VisionCapture
+jarvis\voice\audio.py:6	import asyncio
+jarvis\voice\audio.py:7	import contextlib
+jarvis\voice\audio.py:8	import io
+jarvis\voice\audio.py:9	import logging
+jarvis\voice\audio.py:10	import tempfile
+jarvis\voice\audio.py:11	import threading
+jarvis\voice\audio.py:12	import wave
+jarvis\voice\audio.py:13	from collections.abc import Awaitable, Callable
+jarvis\voice\audio.py:14	from dataclasses import dataclass
+jarvis\voice\audio.py:15	from pathlib import Path
+jarvis\voice\audio.py:51	import sounddevice as sd
+jarvis\voice\audio.py:66	import importlib.util
+jarvis\voice\audio.py:78	import importlib.util
+jarvis\voice\audio.py:90	import importlib.util
+jarvis\voice\audio.py:127	import whisper
+jarvis\voice\audio.py:142	import numpy as np
+jarvis\voice\audio.py:143	import sounddevice as sd
+jarvis\voice\audio.py:212	import numpy as np
+jarvis\voice\audio.py:230	import speech_recognition as sr
+jarvis\voice\audio.py:280	import speech_recognition as sr
+jarvis\voice\audio.py:352	from gtts import gTTS
+jarvis\voice\audio.py:360	from pydub import AudioSegment
+jarvis\voice\audio.py:385	import pyttsx3
+jarvis\voice\audio.py:413	from edge_tts import Communicate
+jarvis\voice\audio.py:421	from pydub import AudioSegment
+jarvis\voice\audio.py:443	from gtts import gTTS
+jarvis\voice\audio.py:454	import numpy as np
+jarvis\voice\audio.py:455	import sounddevice as sd
+jarvis\voice\audio.py:571	import sounddevice as sd
+jarvis\voice\audio.py:616	import sounddevice as sd
+jarvis\voice\audio.py:668	import sounddevice as sd
+jarvis\voice\audio_queue.py:9	from __future__ import annotations
+jarvis\voice\audio_queue.py:11	import asyncio
+jarvis\voice\audio_queue.py:12	import logging
+jarvis\voice\audio_queue.py:13	import queue
+jarvis\voice\audio_queue.py:14	import threading
+jarvis\voice\audio_queue.py:15	from dataclasses import dataclass
+jarvis\voice\audio_queue.py:17	import numpy as np
+jarvis\voice\audio_queue.py:18	import sounddevice as sd
+jarvis\voice\conversation_manager.py:8	from __future__ import annotations
+jarvis\voice\conversation_manager.py:10	import asyncio
+jarvis\voice\conversation_manager.py:11	import contextlib
+jarvis\voice\conversation_manager.py:12	import logging
+jarvis\voice\conversation_manager.py:13	from collections.abc import Callable
+jarvis\voice\conversation_manager.py:92	from jarvis.voice.voice_events import emit_conversation_timeout
+jarvis\voice\interrupt_manager.py:9	from __future__ import annotations
+jarvis\voice\interrupt_manager.py:11	import asyncio
+jarvis\voice\interrupt_manager.py:12	import logging
+jarvis\voice\interrupt_manager.py:13	import threading
+jarvis\voice\listener.py:6	import asyncio
+jarvis\voice\listener.py:7	import contextlib
+jarvis\voice\listener.py:8	import logging
+jarvis\voice\listener.py:9	from collections.abc import Callable
+jarvis\voice\listener.py:10	from dataclasses import dataclass
+jarvis\voice\listener.py:11	from typing import Any
+jarvis\voice\listener.py:13	from jarvis.voice.audio import AudioConfig, SpeechToText, TextToSpeech
+jarvis\voice\listener.py:14	from jarvis.voice.wake_word import VoiceStateMachine, WakeWordConfig, WakeWordEngine
+jarvis\voice\listener.py:266	import re
+jarvis\voice\listener.py:307	from datetime import datetime
+jarvis\voice\listener.py:312	from datetime import datetime
+jarvis\voice\production.py:6	import asyncio
+jarvis\voice\production.py:7	import io
+jarvis\voice\production.py:8	import logging
+jarvis\voice\production.py:9	import wave
+jarvis\voice\production.py:10	from abc import ABC, abstractmethod
+jarvis\voice\production.py:11	from collections.abc import Callable
+jarvis\voice\production.py:12	from dataclasses import dataclass, field
+jarvis\voice\production.py:13	from typing import Any
+jarvis\voice\production.py:15	import numpy as np
+jarvis\voice\production.py:90	import importlib.util
+jarvis\voice\production.py:94	from openwakeword.model import Model
+jarvis\voice\production.py:127	import importlib.util
+jarvis\voice\production.py:131	import sounddevice as sd
+jarvis\voice\production.py:196	import sounddevice as sd
+jarvis\voice\production.py:264	from faster_whisper import WhisperModel
+jarvis\voice\production.py:416	import subprocess
+jarvis\voice\production.py:452	import subprocess
+jarvis\voice\production.py:490	import sounddevice as sd
+jarvis\voice\production.py:512	import sounddevice as sd
+jarvis\voice\production.py:555	import pyttsx3
+jarvis\voice\production.py:752	import sounddevice as sd
+jarvis\voice\production.py:859	import platform
+jarvis\voice\production.py:861	from jarvis.voice.audio import check_audio_availability
+jarvis\voice\production.py:881	import sounddevice as sd
+jarvis\voice\production.py:897	import sounddevice as sd
+jarvis\voice\production.py:919	import subprocess
+jarvis\voice\speech_state.py:8	from __future__ import annotations
+jarvis\voice\speech_state.py:10	import logging
+jarvis\voice\speech_state.py:11	from collections.abc import Callable
+jarvis\voice\speech_state.py:12	from enum import StrEnum
+jarvis\voice\speech_state.py:14	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\voice\streaming_stt.py:8	from __future__ import annotations
+jarvis\voice\streaming_stt.py:10	import asyncio
+jarvis\voice\streaming_stt.py:11	import contextlib
+jarvis\voice\streaming_stt.py:12	import io
+jarvis\voice\streaming_stt.py:13	import logging
+jarvis\voice\streaming_stt.py:14	import os
+jarvis\voice\streaming_stt.py:15	import time
+jarvis\voice\streaming_stt.py:16	import wave
+jarvis\voice\streaming_stt.py:17	from collections.abc import AsyncIterator
+jarvis\voice\streaming_stt.py:114	import tempfile
+jarvis\voice\streaming_tts.py:8	from __future__ import annotations
+jarvis\voice\streaming_tts.py:10	import asyncio
+jarvis\voice\streaming_tts.py:11	import contextlib
+jarvis\voice\streaming_tts.py:12	import logging
+jarvis\voice\streaming_tts.py:13	from collections.abc import AsyncIterator
+jarvis\voice\streaming_tts.py:54	import os
+jarvis\voice\streaming_tts.py:55	import tempfile
+jarvis\voice\vad.py:16	from __future__ import annotations
+jarvis\voice\vad.py:18	import asyncio
+jarvis\voice\vad.py:19	import logging
+jarvis\voice\vad.py:20	import time
+jarvis\voice\vad.py:21	from dataclasses import dataclass
+jarvis\voice\vad.py:23	import numpy as np
+jarvis\voice\vad.py:73	import torch  # noqa: F401
+jarvis\voice\vad.py:76	from silero_vad import load_silero_vad
+jarvis\voice\vad.py:89	import webrtcvad
+jarvis\voice\vad.py:161	import torch
+jarvis\voice\voice_events.py:9	from __future__ import annotations
+jarvis\voice\voice_events.py:11	from jarvis.events import EventBus, EventType, get_event_bus
+jarvis\voice\voice_router.py:6	import asyncio
+jarvis\voice\voice_router.py:7	import contextlib
+jarvis\voice\voice_router.py:8	import logging
+jarvis\voice\voice_router.py:9	from collections.abc import Callable
+jarvis\voice\voice_router.py:11	from jarvis.core.agent import JarvisAgent
+jarvis\voice\voice_router.py:12	from jarvis.voice.wake_word import VoiceStateMachine, WakeWordEngine
+jarvis\voice\voice_router.py:61	from jarvis.voice.audio import SpeechToText
+jarvis\voice\voice_router.py:72	from jarvis.voice.audio import TextToSpeech
+jarvis\voice\voice_router.py:230	import re
+jarvis\voice\voice_runtime.py:17	from __future__ import annotations
+jarvis\voice\voice_runtime.py:19	import asyncio
+jarvis\voice\voice_runtime.py:20	import contextlib
+jarvis\voice\voice_runtime.py:21	import io
+jarvis\voice\voice_runtime.py:22	import json
+jarvis\voice\voice_runtime.py:23	import logging
+jarvis\voice\voice_runtime.py:24	import os
+jarvis\voice\voice_runtime.py:25	import subprocess
+jarvis\voice\voice_runtime.py:26	import wave
+jarvis\voice\voice_runtime.py:27	from collections.abc import Callable
+jarvis\voice\voice_runtime.py:28	from dataclasses import asdict, dataclass
+jarvis\voice\voice_runtime.py:29	from enum import Enum
+jarvis\voice\voice_runtime.py:30	from pathlib import Path
+jarvis\voice\voice_runtime.py:31	from typing import Any
+jarvis\voice\voice_runtime.py:33	from jarvis.voice.audio_queue import AudioChunk, AudioQueue
+jarvis\voice\voice_runtime.py:34	from jarvis.voice.conversation_manager import ConversationManager
+jarvis\voice\voice_runtime.py:35	from jarvis.voice.interrupt_manager import InterruptManager
+jarvis\voice\voice_runtime.py:36	from jarvis.voice.speech_state import (
+jarvis\voice\voice_runtime.py:39	from jarvis.voice.speech_state import (
+jarvis\voice\voice_runtime.py:43	from jarvis.voice.streaming_stt import StreamingSTT
+jarvis\voice\voice_runtime.py:44	from jarvis.voice.streaming_tts import StreamingTTS
+jarvis\voice\voice_runtime.py:45	from jarvis.voice.vad import VAD
+jarvis\voice\voice_runtime.py:46	from jarvis.voice.voice_events import (
+jarvis\voice\voice_runtime.py:236	from faster_whisper import WhisperModel
+jarvis\voice\voice_runtime.py:241	import torch
+jarvis\voice\voice_runtime.py:284	import tempfile
+jarvis\voice\voice_runtime.py:327	import speech_recognition as sr
+jarvis\voice\voice_runtime.py:345	import pyaudio
+jarvis\voice\voice_runtime.py:346	import speech_recognition as sr
+jarvis\voice\voice_runtime.py:392	import speech_recognition as sr
+jarvis\voice\voice_runtime.py:414	import grpc
+jarvis\voice\voice_runtime.py:415	import piper_pb2
+jarvis\voice\voice_runtime.py:416	import piper_pb2_grpc
+jarvis\voice\voice_runtime.py:447	import piper_pb2
+jarvis\voice\voice_runtime.py:500	from openwakeword import WakeWordClassifier
+jarvis\voice\voice_runtime.py:542	import numpy as np
+jarvis\voice\voice_runtime.py:556	import numpy as np
+jarvis\voice\voice_runtime.py:654	import pyttsx3
+jarvis\voice\voice_runtime.py:664	from jarvis.voice.audio import AudioConfig, TextToSpeech
+jarvis\voice\voice_runtime.py:774	import sounddevice as sd
+jarvis\voice\voice_runtime.py:831	import threading
+jarvis\voice\voice_runtime.py:833	import sounddevice as sd
+jarvis\voice\voice_runtime.py:904	from collections import deque
+jarvis\voice\voice_runtime.py:977	import numpy as np
+jarvis\voice\voice_runtime.py:978	import sounddevice as sd
+jarvis\voice\voice_runtime.py:1081	import threading
+jarvis\voice\voice_runtime.py:1083	import numpy as np
+jarvis\voice\voice_runtime.py:1084	import sounddevice as sd
+jarvis\voice\voice_runtime.py:1164	import keyboard
+jarvis\voice\voice_runtime.py:1192	import numpy as np
+jarvis\voice\voice_runtime.py:1193	import sounddevice as sd
+jarvis\voice\wake_word.py:6	import asyncio
+jarvis\voice\wake_word.py:7	import contextlib
+jarvis\voice\wake_word.py:8	import io
+jarvis\voice\wake_word.py:9	import logging
+jarvis\voice\wake_word.py:10	from collections.abc import Callable
+jarvis\voice\wake_word.py:11	from dataclasses import dataclass
+jarvis\voice\wake_word.py:75	import numpy as np
+jarvis\voice\wake_word.py:76	import sounddevice as sd
+jarvis\voice\wake_word.py:147	import speech_recognition as sr
+jarvis\voice\wake_word.py:153	import wave
+jarvis\voice\__init__.py:5	from jarvis.voice.audio import (
+jarvis\workspace\awareness.py:7	from __future__ import annotations
+jarvis\workspace\awareness.py:9	import logging
+jarvis\workspace\awareness.py:10	import os
+jarvis\workspace\awareness.py:11	import platform
+jarvis\workspace\awareness.py:12	import subprocess
+jarvis\workspace\awareness.py:13	import time
+jarvis\workspace\awareness.py:14	from dataclasses import dataclass, field

@@ -11,13 +11,32 @@ from collections.abc import Callable
 from typing import Any
 
 from jarvis.api.gemini import SimpleLLMClient
+from jarvis.core.capability_router import CapabilityRouter, get_capability_router
 from jarvis.core.config import Config, get_config
-from jarvis.core.executor import Executor
+from jarvis.core.executor import ExecutionResult, Executor
+from jarvis.core.goal import Goal
 from jarvis.core.planner import Planner
 from jarvis.memory.enhanced import EnhancedMemoryManager, get_enhanced_memory
 from jarvis.rag import get_rag_system
 from jarvis.tools.base import ToolResult
 from jarvis.tools.registry import ToolRegistry, get_registry
+
+
+def _noop_expand(token, ctx, hist):
+    return None
+
+try:
+    from jarvis.conversation.context import ConversationContext, ConversationState
+    from jarvis.conversation.reference import expand_token
+except ImportError:
+    ConversationContext = None  # type: ignore[misc, assignment]
+    ConversationState = None  # type: ignore[misc, attr-defined]
+    expand_token = _noop_expand  # type: ignore[assignment]
+
+try:
+    from jarvis.personality.manager import get_personality_manager
+except ImportError:
+    get_personality_manager = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +72,8 @@ class Intent:
     REPO_QUERY = "repo_query"  # Repository analysis queries
     TOOL_EXECUTION = "tool_execution"  # Explicit tool/task execution
     SPEAK = "speak"  # Explicit text-to-speech commands
+    IMAGE_GEN = "image_gen"  # Image generation requests
+    CAMERA = "camera"  # Camera / screenshot capture requests
 
 
 # Keywords for intent classification
@@ -173,6 +194,65 @@ VOICE_CONFIG_PATTERNS = [
 SPEAK_PATTERNS = [
     r"^\s*say\s+(.+)$",
     r"^\s*speak\s+(.+)$",
+]
+
+# TTS request patterns — broader than SPEAK_PATTERNS
+# Covers implicit requests for voice output
+TTS_REQUEST_PATTERNS = [
+    r"\bcannot\s+hear\b",
+    r"\bcan'?t\s+hear\b",
+    r"\bhear\s+(?:your|you|jarvis)\b",
+    r"\bno\s+(?:sound|audio|voice)\b",
+    r"\bspeak\s+(?:to\s+me|out\s+loud|aloud)\b",
+    r"\btalk\s+to\s+me\b",
+    r"\bread\s+(?:this|it|that|aloud)\b",
+    r"\buse\s+(?:your\s+)?voice\b",
+    r"\bvoice\s+(?:output|response|reply)\b",
+    r"\bsay\s+(?:hello|hi|that|this)\b",
+    r"\bplay\s+(?:audio|sound|voice|speech)\b",
+    r"\blet\s+me\s+hear\b",
+    r"\bplease\s+(?:speak|talk|say)\b",
+    r"\bresponse\s+(?:in\s+)?voice\b",
+]
+
+# Image generation patterns
+IMAGE_GEN_PATTERNS = [
+    r"\bgenerate\s+(?:an?\s+)?image\b",
+    r"\bcreate\s+(?:an?\s+)?image\b",
+    r"\bdraw\s+(?:me\s+)?(?:an?\s+)?\b",
+    r"\bmake\s+(?:an?\s+)?(?:image|picture|wallpaper|logo|art|illustration)\b",
+    r"\bpaint\s+\b",
+    r"\billustrate\b",
+    r"\brender\s+(?:an?\s+)?image\b",
+    r"\bvisualize\b",
+    r"\bimage\s+(?:of|showing|depicting)\b",
+    r"\bpicture\s+of\b",
+    r"\bwallpaper\s+(?:of|with|showing)?\b",
+    r"\blogo\s+(?:for|of|with)?\b",
+    r"\bthumbnail\b",
+    r"\banime\s+(?:style|art|image|drawing)?\b",
+    r"\bstable\s+diffusion\b",
+    r"\bdall.?e\b",
+    r"\bflux\b",
+    r"\bportrait\s+of\b",
+]
+
+# Camera / screenshot patterns
+CAMERA_PATTERNS = [
+    r"\bopen\s+(?:the\s+)?camera\b",
+    r"\bstart\s+(?:the\s+)?camera\b",
+    r"\btake\s+(?:a\s+)?photo\b",
+    r"\btake\s+(?:a\s+)?picture\b",
+    r"\btake\s+(?:a\s+)?snapshot\b",
+    r"\bcapture\s+(?:an?\s+)?image\b",
+    r"\bwebcam\b",
+    r"\bsnap\s+(?:a\s+)?photo\b",
+    r"\bshow\s+(?:me\s+)?(?:the\s+)?camera\b",
+    r"\bscreenshot\b",
+    r"\btake\s+(?:a\s+)?screenshot\b",
+    r"\bscreen\s+capture\b",
+    r"\bcapture\s+(?:the\s+)?screen\b",
+    r"\bwhat\s+(?:does|do)\s+(?:my|the)\s+screen\b",
 ]
 
 PROVIDER_QUERY_PATTERNS = [
@@ -381,28 +461,36 @@ def _sanitize_response(response: str) -> str:
 
 
 SYSTEM_PROMPT = """You are JARVIS, Just A Rather Very Intelligent System.
-You are a helpful AI assistant that can help users with various tasks.
 
-Your capabilities:
-- Answer questions about any topic
-- Remember personal facts and preferences
-- File operations (read, write, list, search, delete)
-- Terminal/command execution
-- Planning and executing multi-step tasks
+You are a powerful AI assistant with access to a wide range of tools and plugins.
 
-Guidelines:
-- Be concise and helpful
-- Answer factual questions directly without using tools
-- Use tools only when explicitly needed for system operations
-- Remember personal information for future reference
-- Execute commands safely and report results clearly
-- Address the user respectfully
+## ABSOLUTE RULES
 
-Personal memory:
+1. NEVER say "I cannot", "I am text-only", "I cannot generate images",
+   "I cannot speak", "I cannot browse", "I don't have access to" any capability
+   UNLESS the Capability Discovery layer has confirmed that NO suitable tool exists.
+
+2. BEFORE answering ANY request that involves a capability:
+   - The Planner/CapabilityRouter has ALREADY checked what tools are available.
+   - If a tool exists: INVOKE it. Do not refuse.
+   - Only state a limitation if the capability was NOT found in the tool registry.
+
+3. When a tool executes successfully: present its output clearly and helpfully.
+   Do NOT re-explain what happened — just relay the results.
+
+4. For conversational questions: answer directly and concisely.
+
+## YOUR CAPABILITIES (dynamically discovered — this list is authoritative)
+
+{capabilities}
+
+## MEMORY
+
 {memory}
 
-Available tools (use only when system operations are needed):
-{tools}
+## CURRENT GOAL
+
+{goal}
 """
 
 
@@ -447,6 +535,24 @@ def classify_intent(user_input: str) -> Intent:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
             return Intent.SPEAK
+
+    # Check for broader TTS/voice output requests
+    for pattern in TTS_REQUEST_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            logger.debug("[Planner] Intent: TTS request -> SPEAK")
+            return Intent.SPEAK
+
+    # Check for image generation requests
+    for pattern in IMAGE_GEN_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            logger.debug("[Planner] Intent: image generation -> IMAGE_GEN")
+            return Intent.IMAGE_GEN
+
+    # Check for camera / screenshot requests
+    for pattern in CAMERA_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            logger.debug("[Planner] Intent: camera/screenshot -> CAMERA")
+            return Intent.CAMERA
 
     # Check for provider/model queries
     for pattern in PROVIDER_QUERY_PATTERNS:
@@ -518,6 +624,17 @@ def classify_intent(user_input: str) -> Intent:
 class JarvisAgent:
     """
     Main JARVIS agent that orchestrates all components.
+
+    Architecture (capability-driven):
+      User Input
+          ↓
+      classify_intent()      ← broad pattern matching
+          ↓
+      CapabilityRouter       ← confirms tool exists at runtime
+          ↓
+      Tool Execution         ← actual work happens here
+          ↓
+      LLM formats response   ← LLM never decides what is possible
     """
 
     def __init__(
@@ -527,25 +644,74 @@ class JarvisAgent:
         tool_registry: ToolRegistry | None = None,
         llm_client: Any | None = None,
     ):
+        # 1. Configuration
         self.config = config or get_config()
-        # Use enhanced memory manager for better profile support
+
+        # 2. Provider Health Monitor
+        from jarvis.core.provider_health_monitor import get_provider_health_monitor
+        self.health_monitor = get_provider_health_monitor()
+
+        # 3. Observability
+        from jarvis.core.observability import get_observability
+        self.observability = get_observability()
+
+        # 4. Memory & Tools & LLM
         self.memory = memory_manager or get_enhanced_memory()
         self.tools = tool_registry or get_registry()
         self.llm = llm_client or SimpleLLMClient()
 
-        # Initialize planner and executor
+        # 5. Planner and Executor
         self.planner = Planner(llm_client=self.llm)
         self.executor = Executor(self.tools, self.planner)
 
-        # Initialize RAG system
-        self.rag = get_rag_system()
+        # 5a. Continuous Learning Hook
+        try:
+            from jarvis.learning import ContinuousLearningEngine
+            self.learning = ContinuousLearningEngine()
+            self.executor.set_after_execute_callback(self._record_experience)
+        except Exception as exc:
+            logger.debug("Learning engine init failed: %s", exc)
+            self.learning = None
 
-        # State
+        # 6. Capability Discovery & Catalog
+        from jarvis.core.capability_discovery import CapabilityDiscovery
+        self.capability_discovery = CapabilityDiscovery()
+        self.capability_discovery.set_tool_registry(self.tools)
+
+        # 7. Capability Router
+        self.capability_router: CapabilityRouter = get_capability_router()
+        self.capability_router.discovery = self.capability_discovery
+
+        # Wire router into planner
+        self.planner.set_tool_registry(self.tools)
+        self.planner.set_capability_router(self.capability_router)
+
+        # 8. RAG system & Context
+        self.rag = get_rag_system()
         self._is_running = False
         self._speak_callback: Callable | None = None
         self._message_handlers: list[Callable] = []
         self._device_cache: tuple | None = None
         self._device_cache_ts: float = 0.0
+        self._interrupt_flag = asyncio.Event()
+        self._conversation_context = ConversationContext() if ConversationContext else None
+        self._personality = get_personality_manager() if get_personality_manager else None
+        self._current_goal: Goal | None = None
+
+        # 9. Register capability tools & Print Diagnostics
+        self._register_capability_tools()
+
+    def request_interrupt(self):
+        self._interrupt_flag.set()
+        if self.executor is not None:
+            self.executor.cancel()
+
+    def clear_interrupt(self):
+        self._interrupt_flag.clear()
+        if self.executor is not None:
+            self.executor.reset()
+        if self._conversation_context is not None:
+            self._conversation_context.set_state(ConversationState.ACTIVE)  # type: ignore[attr-defined]
 
     def set_speak_callback(self, callback: Callable):
         """Set callback for voice output."""
@@ -579,15 +745,69 @@ class JarvisAgent:
         return "\n".join(lines)
 
     def _build_system_prompt(self) -> str:
-        """Build the system prompt with tools and memory."""
-        tools_str = self._format_tools()
+        """Build the system prompt with dynamic capabilities, memory, and goals."""
+        rolling_summary = ""
+        with contextlib.suppress(Exception):
+            rolling_summary = self.memory.get_rolling_summary()
+
+        memory_parts: list[str] = []
+        if rolling_summary:
+            memory_parts.append(f"[Earlier conversation: {rolling_summary}]")
+
         memory_str = self.memory.format_for_prompt()
+        if isinstance(memory_str, str) and memory_str:
+            memory_parts.append(memory_str)
+
+        goal_context = ""
+        if self._current_goal:
+            goal_context = f"Current Goal: {self._current_goal.value}"
+
+        # Inject live capability list from CapabilityRouter
+        try:
+            capabilities_str = self.capability_router.build_capabilities_prompt()
+        except Exception:
+            capabilities_str = self._format_tools()  # fallback to old format
 
         return SYSTEM_PROMPT.format(
-            tools=tools_str, memory=memory_str if memory_str else "(no memory stored)"
+            capabilities=capabilities_str,
+            memory="\n\n".join(memory_parts) if memory_parts else "(no memory stored)",
+            goal=goal_context if goal_context else "(no active goal)",
         )
 
-    async def process(self, user_input: str) -> str:
+    def set_goal(self, goal: Goal | None) -> None:
+        self._current_goal = goal
+
+    def get_goal(self) -> Goal | None:
+        return self._current_goal
+
+    async def _record_experience(self, result: ExecutionResult, goal: str, duration_ms: float):
+        """Record task experience via the continuous learning engine."""
+        if self.learning is not None:
+            try:
+                await self.learning.record_experience(
+                    task_id="",
+                    input_text=goal,
+                    output_text=result.summary or "",
+                    success=result.success,
+                    duration_ms=duration_ms,
+                )
+            except Exception as exc:
+                logger.debug("Experience recording failed: %s", exc)
+
+        try:
+            from jarvis.evolution.experience_collector import get_experience_collector
+            collector = get_experience_collector()
+            collector.record_task(
+                task_id="",
+                input_text=goal,
+                output_text=result.summary or "",
+                success=result.success,
+                duration_ms=duration_ms,
+            )
+        except Exception as exc:
+            logger.debug("V7 experience recording failed: %s", exc)
+
+    async def process(self, user_input: str, goal: Goal | None = None) -> str:
         """
         Process a user input and generate a response.
 
@@ -597,50 +817,135 @@ class JarvisAgent:
         Returns:
             JARVIS's response
         """
-        # Add to session memory
+        # Handle cancellations
+        if self._interrupt_flag.is_set():
+            self.clear_interrupt()
+            response = "Got it, stopping. What now?"
+            self.memory.add_user_message(user_input)
+            self.memory.add_assistant_message(response)
+            return response
+
+        if goal is not None:
+            self._current_goal = goal
+
         self.memory.add_user_message(user_input)
 
-        # Classify intent
-        intent = classify_intent(user_input)
+        if self._conversation_context is not None:
+            self._conversation_context.set_state(ConversationState.ACTIVE)  # type: ignore[union-attr]
+            self._conversation_context.add_turn("user", user_input)
 
-        # Route based on intent
+        expanded_input = user_input
+        try:
+            if (
+                ConversationContext is not None
+                and self._conversation_context is not None
+                and expand_token
+            ):
+                expanded = expand_token(
+                    user_input, self._conversation_context, self.memory
+                )
+                if expanded and expanded.lower() != user_input.lower():
+                    expanded_input = f"{user_input} (refers to: {expanded})"
+        except Exception:
+            expanded_input = user_input
+
+        intent = classify_intent(expanded_input)
+        logger.info("[Planner] Detected intent: %s", intent)
+
+        matches = self.capability_router.find_capabilities_for_intent(expanded_input, max_results=1)
+        if matches:
+            top = matches[0]
+            logger.info(
+                "[Capability Router] Matched capability: %s (confidence=%.2f)",
+                top.capability.name, top.confidence
+            )
+
+        try:
+            response = await self._process_with_intent(intent, expanded_input)
+            response = _sanitize_response(response)
+            logger.info("[Success] Completed request: %s", intent)
+        except Exception as e:
+            logger.error("[Failure] Reason: %s", e)
+            raise
+
+
+        if self._conversation_context is not None:
+            self._conversation_context.add_turn("assistant", response, intent=intent)
+            topic_marker = None
+            if intent == Intent.TOOL_EXECUTION:
+                topic_marker = user_input.split()[0] if user_input.split() else None
+            elif intent == Intent.DESKTOP:
+                words = expanded_input.lower().split()
+                for w in words:
+                    if w not in {"open", "launch", "start", "close", "focus"}:
+                        topic_marker = w
+                        break
+            if topic_marker:
+                self._conversation_context.set_topic(topic_marker)
+
+        memory_facts = self._extract_memory_facts(user_input, response)
+        for key, value, category in memory_facts:
+            with contextlib.suppress(Exception):
+                self.memory.remember(key, value, category)
+
+        self.memory.add_assistant_message(response)
+        return response
+
+    async def _process_with_intent(self, intent: "Intent", user_input: str) -> str:
         if intent == Intent.PROFILE_QUERY:
-            result = await self._handle_profile_query(user_input)
+            return await self._handle_profile_query(user_input)
         elif intent == Intent.MEMORY_STORE:
-            result = await self._handle_memory_store(user_input)
+            return await self._handle_memory_store(user_input)
         elif intent == Intent.MEMORY_RECALL:
-            result = await self._handle_memory_recall(user_input)
+            return await self._handle_memory_recall(user_input)
         elif intent == Intent.RAG_QUERY:
-            result = await self._handle_rag_query(user_input)
+            return await self._handle_rag_query(user_input)
         elif intent == Intent.RESEARCH:
-            result = await self._handle_research(user_input)
+            return await self._handle_research(user_input)
         elif intent == Intent.DESKTOP:
-            result = await self._handle_desktop_automation(user_input)
+            return await self._handle_desktop_automation(user_input)
         elif intent == Intent.VOICE_STATUS:
-            result = await self._handle_voice_status(user_input)
+            return await self._handle_voice_status(user_input)
         elif intent == Intent.VOICE_CONTROL:
-            result = await self._handle_voice_control(user_input)
+            return await self._handle_voice_control(user_input)
         elif intent == Intent.VOICE_CONFIG:
-            result = await self._handle_voice_config(user_input)
+            return await self._handle_voice_config(user_input)
         elif intent == Intent.SPEAK:
-            result = await self._handle_speak(user_input)
+            return await self._handle_tts_request(user_input)
+        elif intent == Intent.IMAGE_GEN:
+            return await self._handle_image_gen(user_input)
+        elif intent == Intent.CAMERA:
+            return await self._handle_camera(user_input)
         elif intent == Intent.REPO_QUERY:
-            result = await self._handle_repo_query(user_input)
+            return await self._handle_repo_query(user_input)
         elif intent == Intent.PROVIDER_QUERY:
-            result = await self._handle_provider_query(user_input)
+            return await self._handle_provider_query(user_input)
         elif intent == Intent.OLLAMA_QUERY:
-            result = await self._handle_ollama_query(user_input)
+            return await self._handle_ollama_query(user_input)
         elif intent == Intent.GROQ_QUERY:
-            result = await self._handle_groq_query(user_input)
+            return await self._handle_groq_query(user_input)
         elif intent == Intent.TOOL_EXECUTION:
-            result = await self.execute_task(user_input)
+            return await self.execute_task(user_input)
         else:
-            # CHAT - answer directly without tools
-            result = await self.answer_query(user_input)
+            return await self.answer_query(user_input)
 
-        result = _sanitize_response(result)
-        self.memory.add_assistant_message(result)
-        return result
+    def _extract_memory_facts(self, user_input: str, response: str) -> list[tuple[str, str, str]]:
+        facts: list[tuple[str, str, str]] = []
+        try:
+            if not user_input or len(user_input) < 5 or user_input.endswith("?"):
+                return facts
+
+            extractions = self.memory.profile.extract_from_text(user_input)
+            if extractions:
+                for (category, key), value in extractions.items():
+                    facts.append((key, value, category))
+
+            lowered = user_input.lower().strip()
+            if lowered.startswith("remember ") or lowered.startswith("note that "):
+                facts.append(("fact", user_input, "notes"))
+        except Exception:
+            pass
+        return facts
 
     async def _handle_profile_query(self, user_input: str) -> str:
         """
@@ -863,7 +1168,7 @@ Example: research about AI, then I'll cite the sources."""
             user_input: The user's query
 
         Returns:
-            RAG response
+            RAG response with citations
         """
         text_lower = user_input.lower()
 
@@ -902,7 +1207,12 @@ Example: research about AI, then I'll cite the sources."""
             )
             if results:
                 summary_parts = [r.get("content", "")[:200] for r in results[:3]]
-                return "Based on your knowledge base:\n\n" + "\n\n".join(summary_parts)
+                citations = self.rag.get_citations(results[:3])
+                base = "Based on your knowledge base:\n\n"
+                base += "\n\n".join(summary_parts)
+                if citations:
+                    base += f"\n\n{citations}"
+                return base
             return "I couldn't find relevant content to summarize. Try ingesting a document first."
 
         # Handle question generation
@@ -913,7 +1223,11 @@ Example: research about AI, then I'll cite the sources."""
             )
             if results:
                 content = " ".join([r.get("content", "")[:300] for r in results])
-                return "Based on your documents, here are some questions:\n\n1. What are the main concepts covered in this topic?\n2. How would you explain the key points?\n3. What examples illustrate this concept?"
+                citations = self.rag.get_citations(results)
+                response = "Based on your documents, here are some questions:\n\n1. What are the main concepts covered in this topic?\n2. How would you explain the key points?\n3. What examples illustrate this concept?"
+                if citations:
+                    response += f"\n\n{citations}"
+                return response
             return "I couldn't find relevant content. Try ingesting a document first."
 
         # Handle revision notes
@@ -924,6 +1238,9 @@ Example: research about AI, then I'll cite the sources."""
                 for i, r in enumerate(results, 1):
                     content = r.get("content", "")[:150]
                     notes.append(f"{i}. {content}...")
+                citations = self.rag.get_citations(results)
+                if citations:
+                    notes.append(f"\n{citations}")
                 return "\n".join(notes)
             return "I couldn't find relevant content for revision notes."
 
@@ -937,6 +1254,9 @@ Example: research about AI, then I'll cite the sources."""
                 if len(content) > 300:
                     response += "..."
                 response += "\n\n"
+            citations = self.rag.get_citations(results)
+            if citations:
+                response += f"{citations}"
             return response
 
         return "I couldn't find relevant information in your knowledge base. Try ingesting some documents first."
@@ -1126,15 +1446,170 @@ Example: research about AI, then I'll cite the sources."""
         except Exception as e:
             return f"Voice config error: {e}"
 
+    # -----------------------------------------------------------------------
+    # Capability Tool Handlers
+    # -----------------------------------------------------------------------
+
+    def _register_capability_tools(self) -> None:
+        """
+        Register TTS, image generation, and camera tools into the ToolRegistry.
+
+        This wires the existing JARVIS voice/vision/camera implementations
+        into the tool registry so they are discoverable by the planner.
+        Does NOT create new TTS engines or duplicate implementations.
+        """
+        from jarvis.tools.camera_tool import CameraTool, ScreenshotTool
+        from jarvis.tools.image_gen_tool import ImageGenerationTool
+        from jarvis.tools.speak_tool import SpeakTool
+
+        try:
+            speak_tool = SpeakTool(speak_callback=self._speak_callback)
+            self.tools.register(speak_tool)
+            logger.debug("[Capability] Registered: speak")
+        except Exception as e:
+            logger.debug("[Capability] SpeakTool registration failed: %s", e)
+
+        try:
+            img_tool = ImageGenerationTool()
+            self.tools.register(img_tool)
+            logger.debug("[Capability] Registered: generate_image")
+        except Exception as e:
+            logger.debug("[Capability] ImageGenerationTool registration failed: %s", e)
+
+        try:
+            cam_tool = CameraTool()
+            self.tools.register(cam_tool)
+            screenshot_tool = ScreenshotTool()
+            self.tools.register(screenshot_tool)
+            logger.debug("[Capability] Registered: open_camera, take_screenshot")
+        except Exception as e:
+            logger.debug("[Capability] CameraTool registration failed: %s", e)
+
+            # Print startup diagnostic (shows all discovered capabilities)
+            with contextlib.suppress(Exception):
+                self.capability_router.print_startup_report()
+
+    async def _handle_tts_request(self, user_input: str) -> str:
+        """
+        Handle TTS / voice output requests via the speak tool.
+        """
+        logger.info("[Planner] Detected intent: SPEAK")
+        logger.info("[Capability Router] Matched capability: speak")
+        logger.info("[Registry] Selected tool: speak")
+
+        text_to_speak = user_input
+        is_explicit = any(
+            re.search(p, user_input, re.IGNORECASE)
+            for p in [r"^\s*say\s+", r"^\s*speak\s+"]
+        )
+
+        if not is_explicit:
+            try:
+                response_text = await self.answer_query(
+                    f"The user requested a voice response: {user_input}. Generate a friendly spoken reply."
+                )
+                text_to_speak = response_text
+            except Exception:
+                text_to_speak = "Hello! I am JARVIS. My voice is active."
+
+        logger.info("[Executor] Executing SpeakTool for text length %d", len(text_to_speak))
+        speak_result = await self.tools.execute("speak", {"text": text_to_speak})
+        if speak_result and speak_result.success:
+            logger.info("[Success] Completed TTS execution")
+            return text_to_speak
+
+        self.speak(text_to_speak)
+        logger.info("[Success] Completed TTS execution (via callback)")
+        return text_to_speak
+
+    async def _handle_image_gen(self, user_input: str) -> str:
+        """
+        Handle image generation requests via the ImageGenerationTool.
+        """
+        logger.info("[Planner] Detected intent: IMAGE_GEN")
+        logger.info("[Capability Router] Matched capability: generate_image")
+        logger.info("[Registry] Selected tool: generate_image")
+
+        prompt = user_input
+        for prefix in [
+            r"^\s*(?:please\s+)?(?:generate|create|draw|make|paint|render|illustrate)\s+(?:an?\s+)?(?:image|picture|photo|art|wallpaper|logo)?\s*(?:of|showing|depicting|with)?\s*",
+            r"^\s*(?:i\s+want|i'd\s+like|can\s+you)\s+(?:an?\s+)?(?:image|picture|photo)?\s*(?:of)?\s*",
+        ]:
+            cleaned = re.sub(prefix, "", prompt, flags=re.IGNORECASE).strip()
+            if cleaned and len(cleaned) > 2:
+                prompt = cleaned
+                break
+
+        logger.info("[Executor] Executing ImageGenerationTool for prompt: %r", prompt[:60])
+        result = await self.tools.execute("generate_image", {"prompt": prompt})
+
+        if result and result.success:
+            output = result.output
+            if isinstance(output, dict):
+                path = output.get("image_path", "")
+                provider = output.get("provider", "unknown")
+                logger.info("[Success] Completed image generation via %s: %s", provider, path)
+                return (
+                    f"Image generated successfully using {provider}.\n"
+                    f"Saved to: {path}\n"
+                    f"Prompt: {prompt}"
+                )
+            return str(output)
+
+        error = result.error if result else "No configured image generation provider is available."
+        logger.warning("[Failure] Reason: %s", error)
+        return f"Image generation failed: {error}"
+
+    async def _handle_camera(self, user_input: str) -> str:
+        """
+        Handle camera / screenshot requests via CameraTool.
+        """
+        is_screenshot = any(
+            re.search(p, user_input, re.IGNORECASE)
+            for p in [r"\bscreenshot\b", r"\bscreen\s+capture\b", r"\bcapture\s+(?:the\s+)?screen\b"]
+        )
+
+        tool_name = "take_screenshot" if is_screenshot else "open_camera"
+        source = "screen" if is_screenshot else "auto"
+
+        logger.info("[Planner] Detected intent: CAMERA")
+        logger.info("[Capability Router] Matched capability: %s", tool_name)
+        logger.info("[Registry] Selected tool: %s", tool_name)
+        logger.info("[Executor] Executing %s (source=%s)", tool_name, source)
+
+        result = await self.tools.execute(tool_name, {"source": source})
+
+        if result and result.success:
+            output = result.output
+            if isinstance(output, dict):
+                path = output.get("image_path", "")
+                source_used = output.get("source", "")
+                analysis = output.get("analysis", "")
+                msg = f"Captured via {source_used}: {path}"
+                if analysis:
+                    msg += f"\n\nAnalysis: {analysis}"
+                logger.info("[Success] Completed camera capture: %s", path)
+                return msg
+            return str(output)
+
+        error = result.error if result else "Unknown error"
+        logger.warning("[Failure] Reason: %s", error)
+        return f"Camera capture failed: {error}"
+
+
     async def _handle_speak(self, user_input: str) -> str:
-        """Handle explicit speak/say commands."""
-        text = user_input.strip()
+        """Handle explicit speak/say commands (backward compatible)."""
         for pattern in SPEAK_PATTERNS:
-            match = re.search(pattern, text, re.IGNORECASE)
+            match = re.search(pattern, user_input, re.IGNORECASE)
             if match:
                 to_speak = match.group(1).strip()
                 if to_speak:
-                    self.speak(to_speak)
+                    # Route through speak tool for consistency
+                    result = await self.tools.execute("speak", {"text": to_speak})
+                    if result and result.success:
+                        logger.info("[Success] SpeakTool: %r", to_speak[:40])
+                    else:
+                        self.speak(to_speak)  # fallback
                     return to_speak
         return "Usage: say <text> | speak <text>"
 
@@ -1482,23 +1957,24 @@ Example: research about AI, then I'll cite the sources."""
 
             # List Groq models
             if "models" in text:
-                return """[Groq Available Models]
-- llama-3.3-70b-versatile (default)
-- llama-3.1-8b-instant
-- mixtral-8x7b-32768
-- gemma2-9b-it
-
-Set Groq model:
-  switch to groq"""
+                try:
+                    from jarvis.api.providers import get_provider_manager
+                    pm = get_provider_manager()
+                    return pm.format_models() or "No models available"
+                except Exception:
+                    return "Use the Model Manager view to see available models"
 
             # API key
             if "api" in text or "key" in text:
-                return """[Groq API Key Setup]
-1. Get a free API key from: https://console.groq.com/keys
-2. Set it in config:
-   - Linux/Mac: export GROQ_API_KEY=your_key
-   - Windows: $env:GROQ_API_KEY = 'your_key'
-3. Or edit config/api_config.json"""
+                return """[Provider API Keys]
+Configure API keys in ~/.jarvis/api_keys.json or set environment variables:
+  - GROQ_API_KEY for Groq
+  - OPENAI_API_KEY for OpenAI
+  - GOOGLE_API_KEY or GEMINI_API_KEY for Gemini
+  - ANTHROPIC_API_KEY for Anthropic
+  - OPENROUTER_API_KEY for OpenRouter
+
+Local models (Ollama, LM Studio, AirLLM) require no API key."""
 
             # Use Groq
             if "use groq" in text or "switch to groq" in text:
@@ -1670,15 +2146,32 @@ Set Groq model:
 
     async def answer_query(self, query: str) -> str:
         """
-        Answer a query using the LLM (no tools).
+        Answer a conversational query using the LLM.
 
-        Args:
-            query: The user's question
-
-        Returns:
-            Answer
+        The LLM's role is to explain, summarize, and format responses.
+        Execution authority belongs strictly to CapabilityRouter / Planner.
         """
         system_prompt = self._build_system_prompt()
+
+
+        # Prefer the ProviderManager if it has a usable provider (e.g. Ollama locally).
+        manager = getattr(self, "provider_manager", None)
+        if manager is not None and manager.primary_provider is None:
+            with contextlib.suppress(Exception):
+                await manager.initialize()
+        if manager is not None and manager.primary_provider is not None:
+            primary = manager.providers.get(manager.primary_provider)
+            if primary is not None and primary.is_available:
+                try:
+                    full_prompt = f"{system_prompt}\n\nUser: {query}"
+                    response = await manager.generate(full_prompt)
+                    content = response.content
+                    if content:
+                        if self.config.voice_enabled:
+                            self.speak(content)
+                        return _sanitize_response(content)
+                except Exception as e:
+                    logger.debug("ProviderManager chat failed, falling back: %s", e)
 
         response = await self.llm.generate_with_history(
             messages=[{"role": "user", "content": query}],
@@ -1688,16 +2181,11 @@ Set Groq model:
         )
 
         if isinstance(response, str) and response.startswith("Error:"):
-            if "401" in response or "Invalid API Key" in response or "invalid_api_key" in response:
-                error_response = (
-                    "I couldn't reach the AI service because the API key is invalid or missing. "
-                    "Please set a valid Groq API key and try again. "
-                    "You can get a free key at https://console.groq.com/keys"
-                )
-                if self.config.voice_enabled:
-                    self.speak(error_response)
-                return error_response
-            error_response = f"I encountered an error: {response}"
+            error_response = (
+                "I couldn't reach any AI provider. "
+                "Please check that Ollama is running or configure a cloud provider API key. "
+                "You can also run 'ollama list' to see installed local models."
+            )
             if self.config.voice_enabled:
                 self.speak(error_response)
             return error_response
@@ -1755,50 +2243,57 @@ def create_jarvis(config: Config | None = None, api_key: str | None = None) -> J
 
     Args:
         config: Optional configuration
-        api_key: Optional API key for LLM
+        api_key: Optional API key for LLM (used for any configured provider)
 
     Returns:
         Configured JarvisAgent
     """
-    # Initialize config
     if config is None:
         config = get_config()
 
-    # Set API key if provided
     if api_key:
         config.set_api_key("groq", api_key)
 
-    # Create LLM client (default to Groq)
-    llm = SimpleLLMClient(backend="groq", api_key=api_key)
+    llm = None
+    try:
+        llm = SimpleLLMClient(backend="groq", api_key=api_key)
+        if not llm.is_available():
+            logger.info("Legacy Groq client unavailable; provider_manager will be primary.")
+            llm = None
+    except Exception:
+        logger.info("Legacy LLM client init skipped; provider_manager will be primary.")
 
-    # Warn if no API key is available
-    if not llm.is_available():
-        logger.warning("No valid Groq API key found. Chat and tool execution may not work.")
-        logger.warning(
-            "Set GROQ_API_KEY env var, use --api-key, or add key to ~/.jarvis/api_keys.json"
-        )
-
-    # Create agent
     agent = JarvisAgent(config=config, llm_client=llm)
 
-    # Wire the provider manager so the premium orchestrator's streaming path
-    # has a real backend. Detect all available providers and models dynamically.
-    # Failover order: Ollama → Groq → OpenAI → Gemini → Anthropic
     try:
         from jarvis.api.providers import (
             AnthropicProvider,
             GoogleProvider,
             GroqProvider,
             LLMConfig,
+            LMStudioProvider,
             OllamaProvider,
             OpenAIProvider,
+            OpenRouterProvider,
             ProviderType,
             get_provider_manager,
         )
 
         manager = get_provider_manager()
 
-        # Ollama: detect installed models automatically.
+        airllm_cfg = LLMConfig(
+            provider=ProviderType.AIRLLM,
+            model=config.get("airllm_model") if hasattr(config, "get") else None,
+            max_tokens=4096,
+            timeout=300.0,
+        )
+        try:
+            from jarvis.providers.airllm.provider import AirLLMProvider
+
+            manager.add_provider(AirLLMProvider(airllm_cfg))
+        except Exception as exc:
+            logger.debug("AirLLM provider init skipped: %s", exc)
+
         ollama_cfg = LLMConfig(
             provider=ProviderType.OLLAMA,
             model=config.get("ollama_model") if hasattr(config, "get") else None,
@@ -1807,14 +2302,12 @@ def create_jarvis(config: Config | None = None, api_key: str | None = None) -> J
         )
         manager.add_provider(OllamaProvider(ollama_cfg))
 
-        # Groq: use configured API key / model.
         groq_key = api_key
-        if not groq_key and hasattr(llm, "_client") and getattr(llm._client, "api_key", None):
-            groq_key = llm._client.api_key
         if not groq_key:
             import os
-
             groq_key = os.environ.get("GROQ_API_KEY")
+        if not groq_key and hasattr(config, "get_api_key"):
+            groq_key = config.get_api_key("groq")
         if groq_key:
             manager.add_provider(
                 GroqProvider(
@@ -1826,13 +2319,11 @@ def create_jarvis(config: Config | None = None, api_key: str | None = None) -> J
                 )
             )
 
-        # OpenAI: use configured API key.
         openai_key = None
         if hasattr(config, "get_api_key"):
             openai_key = config.get_api_key("openai")
         if not openai_key:
             import os
-
             openai_key = os.environ.get("OPENAI_API_KEY")
         if openai_key:
             manager.add_provider(
@@ -1845,13 +2336,11 @@ def create_jarvis(config: Config | None = None, api_key: str | None = None) -> J
                 )
             )
 
-        # Google Gemini: use configured API key.
         google_key = None
         if hasattr(config, "get_api_key"):
             google_key = config.get_api_key("google")
         if not google_key:
             import os
-
             google_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if google_key:
             manager.add_provider(
@@ -1864,13 +2353,11 @@ def create_jarvis(config: Config | None = None, api_key: str | None = None) -> J
                 )
             )
 
-        # Anthropic: use configured API key.
         anthropic_key = None
         if hasattr(config, "get_api_key"):
             anthropic_key = config.get_api_key("anthropic")
         if not anthropic_key:
             import os
-
             anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
         if anthropic_key:
             manager.add_provider(
@@ -1883,10 +2370,44 @@ def create_jarvis(config: Config | None = None, api_key: str | None = None) -> J
                 )
             )
 
-        # The manager is health-checked (and its primary provider selected) in
-        # JarvisApp.initialize(), which runs inside the running loop.
+        openrouter_key = None
+        if hasattr(config, "get_api_key"):
+            openrouter_key = config.get_api_key("openrouter")
+        if not openrouter_key:
+            import os
+            openrouter_key = os.environ.get("OPENROUTER_API_KEY")
+        if openrouter_key:
+            manager.add_provider(
+                OpenRouterProvider(
+                    LLMConfig(
+                        provider=ProviderType.OPENROUTER,
+                        model=config.get("openrouter_model") if hasattr(config, "get") else None,
+                        api_key=openrouter_key,
+                    )
+                )
+            )
+
+        lmstudio_cfg = LLMConfig(
+            provider=ProviderType.LMSTUDIO,
+            model=config.get("lmstudio_model") if hasattr(config, "get") else None,
+            base_url="http://localhost:1234",
+            timeout=300.0,
+        )
+        manager.add_provider(LMStudioProvider(lmstudio_cfg))
+
         agent.provider_manager = manager
-    except Exception as e:  # pragma: no cover - defensive
+    except Exception as e:
         logger.debug(f"Provider manager init skipped: {e}")
 
     return agent
+
+
+def get_llm_client(backend: str = "groq", api_key: str | None = None) -> SimpleLLMClient | None:
+    """Return a ready-to-use SimpleLLMClient, or None if unavailable."""
+    try:
+        client = SimpleLLMClient(backend=backend, api_key=api_key)
+        if client.is_available():
+            return client
+    except Exception:
+        pass
+    return None

@@ -7,6 +7,7 @@ import asyncio
 import contextlib
 import io
 import logging
+import os
 import tempfile
 import threading
 import wave
@@ -42,6 +43,7 @@ def check_audio_availability() -> dict:
         "whisper": False,
         "gtts": False,
         "pyttsx3": False,
+        "fish_audio": False,
         "can_listen": False,
         "can_speak": False,
     }
@@ -97,6 +99,16 @@ def check_audio_availability() -> dict:
             logger.debug("pyttsx3 not installed")
     except ImportError:
         logger.debug("pyttsx3 not installed")
+
+    # Check Fish Audio
+    try:
+        status["fish_audio"] = bool(
+            os.environ.get("FISH_AUDIO_API_KEY") and os.environ.get("FISH_AUDIO_VOICE_ID")
+        )
+        if status["fish_audio"] and not status["can_speak"]:
+            status["can_speak"] = True
+    except Exception:
+        pass
 
     return status
 
@@ -318,8 +330,8 @@ class TextToSpeech:
 
     @engine.setter
     def engine(self, value: str):
-        """Set TTS engine: 'gtts', 'pyttsx3', or 'edge'"""
-        if value in ["gtts", "pyttsx3", "edge"]:
+        """Set TTS engine: 'gtts', 'pyttsx3', 'edge', or 'fish_audio'"""
+        if value in ["gtts", "pyttsx3", "edge", "fish_audio"]:
             self._engine = value
         else:
             print(f"[TTS] Unknown engine '{value}', using 'gtts'")
@@ -334,6 +346,8 @@ class TextToSpeech:
             return None
 
         try:
+            if self._engine == "fish_audio":
+                return await self._speak_fish_audio(text)
             if self._engine == "gtts":
                 return await self._speak_gtts(text)
             elif self._engine == "pyttsx3":
@@ -343,6 +357,34 @@ class TextToSpeech:
 
         except Exception as e:
             print(f"[TTS] Speak error: {e}")
+
+        return None
+
+    async def _speak_fish_audio(self, text: str) -> bytes | None:
+        """Fish Audio TTS implementation."""
+        try:
+            from jarvis.voice.fish_audio_tts import FishAudioConfig, FishAudioTTS
+
+            config = FishAudioConfig.from_env()
+            if not config.is_configured():
+                print("[TTS] Fish Audio not configured (missing API key or voice ID)")
+                return None
+
+            tts = FishAudioTTS(config)
+            result = await tts.initialize()
+            if not result.success:
+                print(f"[TTS] Fish Audio initialization failed: {result.error}")
+                return None
+
+            audio = await tts.speak(text)
+            if audio:
+                await self._play_wav(audio)
+            return audio
+
+        except ImportError:
+            print("[TTS] Fish Audio provider not available")
+        except Exception as e:
+            print(f"[TTS] Fish Audio error: {e}")
 
         return None
 

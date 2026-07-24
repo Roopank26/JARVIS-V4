@@ -127,6 +127,7 @@ class TestDesktopAssistant:
 
             assert success
             assert assistant._initialized
+            assistant.knowledge.close()
 
     @pytest.mark.asyncio
     async def test_start_stop(self):
@@ -134,16 +135,14 @@ class TestDesktopAssistant:
         with tempfile.TemporaryDirectory() as tmpdir:
             config = DesktopConfig(
                 data_dir=Path(tmpdir),
-                minimize_to_tray=False,  # Disable tray for testing
+                minimize_to_tray=False,
             )
             assistant = DesktopAssistant(config)
 
-            # Start
             success = await assistant.start()
             assert success
             assert assistant.is_running
 
-            # Stop
             stopped = await assistant.stop()
             assert stopped
             assert not assistant.is_running
@@ -157,12 +156,12 @@ class TestDesktopAssistant:
 
             await assistant.initialize()
 
-            # Check default tasks
             task_names = [t.name for t in assistant.scheduler.list_tasks()]
 
             assert "daily_summary" in task_names
             assert "index_projects" in task_names
             assert "cleanup_memory" in task_names
+            assistant.knowledge.close()
 
     @pytest.mark.asyncio
     async def test_command_processing(self):
@@ -173,14 +172,13 @@ class TestDesktopAssistant:
 
             await assistant.initialize()
 
-            # Test status command (requires start_time)
             assistant._start_time = datetime.now()
             status = assistant._get_status()
             assert "JARVIS" in status
 
-            # Test help command
             help_text = assistant._get_help()
             assert "Commands" in help_text
+            assistant.knowledge.close()
 
     @pytest.mark.asyncio
     async def test_memory_commands(self):
@@ -191,23 +189,20 @@ class TestDesktopAssistant:
 
             await assistant.initialize()
 
-            # Remember something using direct memory call
             assistant.memory.remember("Python", "Python is a programming language")
             assistant.memory._save()
 
-            # Recall it
             facts = assistant.memory.recall("Python")
             assert len(facts) > 0
+            assistant.knowledge.close()
 
     @pytest.mark.asyncio
     async def test_plugin_loading(self):
         """Test plugin auto-loading."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Create test plugin
             plugin_dir = Path(tmpdir) / "plugins" / "test_plugin"
             plugin_dir.mkdir(parents=True)
 
-            # Create plugin.json
             (plugin_dir / "plugin.json").write_text(
                 json.dumps({"name": "test_plugin", "version": "1.0.0", "commands": ["test"]})
             )
@@ -217,8 +212,8 @@ class TestDesktopAssistant:
 
             await assistant.initialize()
 
-            # Plugin count may be 0 if no valid plugin found
             assert assistant.plugins is not None
+            assistant.knowledge.close()
 
     @pytest.mark.asyncio
     async def test_daily_summary_generation(self):
@@ -229,11 +224,11 @@ class TestDesktopAssistant:
 
             await assistant.initialize()
 
-            # Generate summary
             summary = await assistant._generate_daily_summary()
 
             assert "Daily Summary" in summary
             assert "Activity" in summary
+            assistant.knowledge.close()
 
     def test_status_report(self):
         """Test status report generation."""
@@ -307,7 +302,7 @@ class TestSurviveRestart:
             assistant1.memory.remember("test_key", "test_value")
             assistant1.memory._save()
 
-            # Simulate restart
+            assistant1.knowledge.close()
             del assistant1
 
             # Second session: verify memory
@@ -318,6 +313,7 @@ class TestSurviveRestart:
 
             memories = assistant2.memory.recall("test_key")
             assert len(memories) > 0
+            assistant2.knowledge.close()
 
     def test_scheduler_survives_restart(self):
         """Test scheduled tasks persist across restarts."""
@@ -398,24 +394,19 @@ class TestContinuousOperation:
             config = DesktopConfig(data_dir=Path(tmpdir), minimize_to_tray=False)
             assistant = DesktopAssistant(config)
 
-            # Initialize only (skip voice components)
             await assistant.initialize()
 
-            # Manually call state callbacks
             state = PersistentState(config.data_dir / "state.json")
             await state.on_start()
-
-            # Simulate shutdown
             await state.on_stop()
 
-            # Verify state file exists
             state_file = config.data_dir / "state.json"
             assert state_file.exists()
 
-            # Verify state was saved
             with open(state_file) as f:
                 state_data = json.load(f)
             assert state_data.get("last_stop") is not None
+            assistant.knowledge.close()
 
 
 # Integration test
@@ -442,6 +433,7 @@ class TestFullAutonomousCycle:
             # Use memory directly
             assistant.memory.remember("test", "test value")
             assistant.memory._save()
+            assistant.knowledge.close()
 
             # Verify persistence
             state_file = data_dir / "state.json"
@@ -461,6 +453,7 @@ class TestFullAutonomousCycle:
 
             facts = assistant2.memory.recall("test")
             assert len(facts) > 0
+            assistant2.knowledge.close()
 
 
 class TestBackgroundTaskManagement:

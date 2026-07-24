@@ -10,7 +10,6 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Default model for Groq
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 

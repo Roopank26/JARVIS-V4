@@ -10,12 +10,16 @@ from jarvis.voice.audio import (
     TextToSpeech,
     VoiceAssistant,
 )
+from jarvis.voice.fish_audio_tts import FishAudioConfig, FishAudioTTS, TTSProvider
 
 __all__ = [
     "AudioConfig",
     "AudioLoopback",
     "AudioManager",
+    "FishAudioConfig",
+    "FishAudioTTS",
     "SpeechToText",
     "TextToSpeech",
+    "TTSProvider",
     "VoiceAssistant",
 ]

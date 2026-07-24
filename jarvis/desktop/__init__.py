@@ -256,6 +256,7 @@ class DesktopAssistant:
         self.scheduler.stop()
         await self.plugins.unload_all()
         await self.daemon.stop()
+        self.knowledge.close()
 
         # Stop tray
         if self._tray_icon:

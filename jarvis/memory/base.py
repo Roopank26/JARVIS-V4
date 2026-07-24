@@ -69,6 +69,7 @@ class MemoryCategory:
     RELATIONSHIPS = "relationships"
     WISHES = "wishes"
     NOTES = "notes"
+    GOALS = "goals"
     GENERAL = "general"
 
-    ALL = [IDENTITY, PREFERENCES, PROJECTS, RELATIONSHIPS, WISHES, NOTES, GENERAL]
+    ALL = [IDENTITY, PREFERENCES, PROJECTS, RELATIONSHIPS, WISHES, NOTES, GOALS, GENERAL]

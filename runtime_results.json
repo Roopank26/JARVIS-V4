@@ -1,87 +1,54 @@
 {
-  "1_application_starts": {
+  "1_startup": {
     "pass": true,
-    "evidence": "Loaded http://127.0.0.1:8742/, sidebar + chat view present. Title='JARVIS — AI Operating System'",
-    "shot": "01_app_start.png"
+    "evidence": "Title=JARVIS — AI Operating System; sidebar=True; chat=True; canvas=True; orb=True; errors=0"
   },
-  "2_no_console_errors_initial": {
+  "2_navigation": {
     "pass": true,
-    "evidence": "No console errors at load",
-    "shot": null
+    "evidence": "3 rounds; issues=none"
   },
-  "3_no_failed_requests_initial": {
+  "3_chat": {
     "pass": true,
-    "evidence": "No failed network requests at load",
-    "shot": null
+    "evidence": "user=5; assistant=5; dup=False; errs=[]"
   },
-  "4_websocket_connects": {
+  "4_voice": {
     "pass": true,
-    "evidence": "WS status frame received; model='nurullahunlu/kimik2.5cloud:latest'->'nurullahunlu/kimik2.5cloud:latest', provider='ollama'->'ollama'",
-    "shot": "04_websocket.png"
+    "evidence": "50 cycles; errors=none"
   },
-  "9_provider_panel_updates": {
+  "5_dashboard": {
     "pass": true,
-    "evidence": "Provider pill now shows 'ollama' (updated from WS status frame)",
-    "shot": null
+    "evidence": "metric cards=8"
   },
-  "10_memory_panel_updates": {
+  "6_palette": {
     "pass": true,
-    "evidence": "Right-panel memory element 'session-memory' = '0 entries'",
-    "shot": null
+    "evidence": "10 cycles; errors=none"
   },
-  "12_dashboard_loads": {
+  "7_notifications": {
     "pass": true,
-    "evidence": "Dashboard metric cards rendered: 6",
-    "shot": "12_dashboard.png"
+    "evidence": "generated=30; state_count=30"
   },
-  "7_sidebar_navigation": {
-    "pass": true,
-    "evidence": "Navigated every view: tools=OK, tasks=OK, timeline=OK, activity=OK, chat=OK",
-    "shot": "07_navigation.png"
+  "8_performance": {
+    "pass": false,
+    "evidence": "FPS metric available=False"
   },
-  "11_tool_panel_loads": {
+  "9_memory": {
     "pass": true,
-    "evidence": "Tools view rendered 15 tool cards",
-    "shot": "11_tools.png"
+    "evidence": "detached_nodes=0"
   },
-  "13_command_palette": {
+  "10_responsive": {
     "pass": true,
-    "evidence": "Palette opened=True, results for 'help'=1",
-    "shot": "13_palette.png"
+    "evidence": "innerWidth=390; overflow=False"
   },
-  "14_theme_loads": {
+  "11_accessibility": {
     "pass": true,
-    "evidence": "Initial theme='dark', after toggle='light'",
-    "shot": "14_theme.png"
+    "evidence": "focus_element_tag=BUTTON"
   },
-  "8_aicore_animation": {
+  "12_security": {
     "pass": true,
-    "evidence": "aiCoreCenter gained 'thinking' class during processing",
-    "shot": null
+    "evidence": "console_secrets=0; esc_func=True"
   },
-  "6_streaming_responses": {
+  "13_final_no_errors": {
     "pass": true,
-    "evidence": "Assistant present=True; real local answer=True; sample='JARVIS\nfour'",
-    "shot": "06_chat_stream.png"
-  },
-  "5_chat_sends": {
-    "pass": true,
-    "evidence": "User message bubble appeared in #messages",
-    "shot": null
-  },
-  "15_responsive_layout": {
-    "pass": true,
-    "evidence": "Mobile viewport innerWidth=390; horizontal overflow=False",
-    "shot": "15_responsive.png"
-  },
-  "2_no_console_errors_final": {
-    "pass": true,
-    "evidence": "None",
-    "shot": null
-  },
-  "3_no_failed_requests_final": {
-    "pass": true,
-    "evidence": "None",
-    "shot": null
+    "evidence": "errors=0; warnings=0"
   }
 }

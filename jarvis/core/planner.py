@@ -1,6 +1,10 @@
 """
 JARVIS Planner - LLM-driven plan generation.
 Adapted from Mark-XXXIX-OR's planner.py
+
+Key change: NEVER hardcode tool names.
+The planner dynamically reads the live ToolRegistry (+ CapabilityRouter)
+and injects the actual available tool list into each LLM prompt at call time.
 """
 
 import json
@@ -46,63 +50,129 @@ class Plan:
         }
 
 
-PLANNER_PROMPT = """You are the planning module of JARVIS, a personal AI assistant.
+# Dynamic planner prompt template — tool list is injected at call time
+# from the live ToolRegistry. NEVER hardcode tool names here.
+PLANNER_PROMPT_TEMPLATE = """You are the planning module of JARVIS, a personal AI assistant.
 Your job: break any user goal into a sequence of steps using ONLY the tools listed below.
 
 ABSOLUTE RULES:
-- Use the available tools. Never make up tools.
+- Use ONLY the tools listed in AVAILABLE TOOLS. Never invent tool names.
 - Each step must use a different tool when possible.
 - Max 8 steps. Use the minimum steps needed.
-- Every step needs clear description.
+- Every step needs a clear description and all required parameters.
 - Output ONLY valid JSON, no markdown, no explanation.
 
-AVAILABLE TOOLS:
-- read_file: Read file contents (path)
-- write_file: Create/write files (path, content)
-- list_directory: List directory contents (path)
-- find_files: Search for files (path, pattern)
-- delete_file: Delete files (path, recursive)
-- disk_usage: Get disk usage (path)
-- bash: Execute shell commands (command, timeout)
-- run_script: Run script files (path, args)
-- get_system_info: Get system information
-- open_app: Open apps/files/URLs (target)
-- get_environment: Get env variables (prefix)
-- get_clipboard: Get clipboard contents
-- set_clipboard: Set clipboard contents
+AVAILABLE TOOLS (discovered at runtime — this list is authoritative):
+{tool_list}
 
 OUTPUT FORMAT:
-{
+{{
   "goal": "...",
   "steps": [
-    {
+    {{
       "step": 1,
       "tool": "tool_name",
       "description": "what this step does",
-      "parameters": {"param": "value"},
+      "parameters": {{"param": "value"}},
       "critical": true
-    }
+    }}
   ]
-}
+}}
 """
 
 
 class Planner:
     """
     LLM-driven planner for generating execution plans.
+
+    Tool list is dynamically generated from the live ToolRegistry at every
+    plan creation call. The planner never hardcodes tool names.
     """
 
     def __init__(self, llm_client=None):
         self.llm_client = llm_client
-        self.system_prompt = PLANNER_PROMPT
+        self._tool_registry = None
+        self._capability_router = None
 
     def set_llm_client(self, client):
         """Set the LLM client for plan generation."""
         self.llm_client = client
 
+    def set_tool_registry(self, registry) -> None:
+        """Inject the live ToolRegistry so the planner always sees current tools."""
+        self._tool_registry = registry
+
+    def set_capability_router(self, router) -> None:
+        """Inject the CapabilityRouter for richer tool metadata."""
+        self._capability_router = router
+
+    def _build_tool_list(self) -> str:
+        """
+        Build the authoritative tool list from the live registry.
+
+        Priority:
+          1. CapabilityRouter.discover_all()  — richest metadata
+          2. ToolRegistry.get_tools_for_prompt() — baseline
+          3. Minimal hardcoded fallback (only bash + get_system_info)
+        """
+        # Option 1: CapabilityRouter (preferred)
+        if self._capability_router is not None:
+            try:
+                caps = self._capability_router.discover_all()
+                if caps:
+                    lines = []
+                    for cap in caps:
+                        if cap.available:
+                            lines.append(f"- {cap.name}: {cap.description}")
+                    if lines:
+                        logger.debug("[Planner] Tool list from CapabilityRouter: %d tools", len(lines))
+                        return "\n".join(lines)
+            except Exception as e:
+                logger.debug("[Planner] CapabilityRouter failed: %s", e)
+
+        # Option 2: ToolRegistry.get_tools_for_prompt()
+        if self._tool_registry is not None:
+            try:
+                tools = self._tool_registry.get_tools_for_prompt()
+                if tools:
+                    lines = [f"- {t['name']}: {t['description']}" for t in tools]
+                    logger.debug("[Planner] Tool list from ToolRegistry: %d tools", len(lines))
+                    return "\n".join(lines)
+            except Exception as e:
+                logger.debug("[Planner] ToolRegistry failed: %s", e)
+
+        # Option 3: Probe global registry singleton
+        try:
+            from jarvis.tools.registry import get_registry
+            registry = get_registry()
+            tools = registry.get_tools_for_prompt()
+            if tools:
+                lines = [f"- {t['name']}: {t['description']}" for t in tools]
+                logger.debug("[Planner] Tool list from global registry: %d tools", len(lines))
+                return "\n".join(lines)
+        except Exception as e:
+            logger.debug("[Planner] Global registry probe failed: %s", e)
+
+        # Absolute fallback — minimum viable tools only
+        logger.warning("[Planner] Using minimal fallback tool list")
+        return (
+            "- bash: Execute shell commands (command, timeout)\n"
+            "- get_system_info: Get system information\n"
+            "- speak: Speak text aloud (text)\n"
+            "- generate_image: Generate an image from text (prompt)"
+        )
+
+    def _build_system_prompt(self) -> str:
+        """Build the full planner system prompt with current tool list."""
+        tool_list = self._build_tool_list()
+        return PLANNER_PROMPT_TEMPLATE.format(tool_list=tool_list)
+
     async def create_plan(self, goal: str, context: str = "") -> Plan:
         """
         Create a plan for the given goal.
+
+        The tool list is dynamically built from the live registry at call time
+        so any newly installed plugin or tool is immediately visible.
 
         Args:
             goal: The user's goal
@@ -114,13 +184,18 @@ class Planner:
         if self.llm_client is None:
             return self._fallback_plan(goal)
 
+        logger.debug("[Planner] Creating plan for: %r", goal[:80])
+
         try:
+            # Build prompt with LIVE tool list
+            system_prompt = self._build_system_prompt()
+
             user_input = f"Goal: {goal}"
             if context:
                 user_input += f"\n\nContext:\n{context}"
 
             response = await self.llm_client.generate(
-                system=self.system_prompt, prompt=user_input, temperature=0.2, max_tokens=1024
+                system=system_prompt, prompt=user_input, temperature=0.2, max_tokens=1024
             )
 
             text = response.strip()
@@ -182,8 +257,11 @@ Error: {error}
 
 Create a REVISED plan for the remaining work only. Do not repeat completed steps."""
 
+            # Use dynamic tool list for replan too
+            system_prompt = self._build_system_prompt()
+
             response = await self.llm_client.generate(
-                system=self.system_prompt, prompt=prompt, temperature=0.3, max_tokens=1024
+                system=system_prompt, prompt=prompt, temperature=0.3, max_tokens=1024
             )
 
             text = response.strip()

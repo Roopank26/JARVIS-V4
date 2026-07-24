@@ -9,6 +9,7 @@ task so the rest of the system remains responsive.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import queue
 import threading
@@ -60,11 +61,43 @@ class AudioQueue:
         self._playback_task = asyncio.ensure_future(self._playback_loop(), loop=loop)
 
     def stop(self) -> None:
-        """Stop playback and cancel the background task."""
+        """Stop playback and cancel the background task (best effort).
+
+        Synchronous callers (e.g. ``VoiceRuntime.shutdown``) cannot await the
+        task; they rely on the event loop eventually reaping it. Async callers
+        should prefer :meth:`stop_async` to avoid orphaned tasks.
+        """
         self.cancel()
         if self._playback_task is not None:
-            self._playback_task.cancel()
+            task = self._playback_task
             self._playback_task = None
+            if not task.done():
+                with contextlib.suppress(RuntimeError):
+                    task.cancel()
+            if self._event_loop is not None and self._event_loop.is_closed():
+                # Loop is gone; the task can no longer be awaited.
+                self._playback_task = None
+                return
+            try:
+                loop = self._event_loop or asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.call_soon_threadsafe(lambda: None)
+            except RuntimeError:
+                pass
+
+    async def stop_async(self) -> None:
+        """Cancel and fully await the background playback task.
+
+        Guarantees the task is reaped (no "pending task destroyed" warnings)
+        when called from an async context with a running event loop.
+        """
+        self.cancel()
+        task = self._playback_task
+        self._playback_task = None
+        if task is not None and not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
 
     def enqueue(self, chunk: AudioChunk) -> bool:
         """Append a chunk. Returns False if the queue is cancelled."""
@@ -79,7 +112,15 @@ class AudioQueue:
             return True
 
     def cancel(self) -> None:
-        """Cancel playback and clear the queue."""
+        """Cancel playback and clear the queue.
+
+        Cancellation is instantaneous: pending audio is dropped and the
+        current stream is stopped, but the queue remains usable so the next
+        ``speak`` can enqueue fresh chunks (e.g. after a barge-in the assistant
+        immediately resumes speaking). The ``_cancelled`` flag is therefore
+        reset once the queue has been drained so it does not permanently
+        disable playback.
+        """
         with self._lock:
             self._cancelled = True
             self._paused = False
@@ -89,6 +130,8 @@ class AudioQueue:
             except queue.Empty:
                 break
         self._stop_stream()
+        with self._lock:
+            self._cancelled = False
 
     def pause(self) -> None:
         """Pause playback."""

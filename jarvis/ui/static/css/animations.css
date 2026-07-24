@@ -1,6 +1,95 @@
-/* Animations */
-@keyframes fade { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: none; } }
-@keyframes pop { from { opacity: 0; transform: scale(.96);} to { opacity: 1; transform: none; } }
-@keyframes pulse-dot { 0%,100%{box-shadow:0 0 8px var(--primary)} 50%{box-shadow:0 0 20px var(--primary),0 0 40px rgba(0,229,255,0.3)} }
-@keyframes shimmer { 0%{background-position:100% 0} 100%{background-position:-100% 0} }
-.skeleton { background: linear-gradient(90deg, var(--card) 25%, var(--card-2) 37%, var(--card) 63%); background-size: 400% 100%; animation: shimmer 1.3s infinite; border-radius: 8px; }
+/* ============================================================
+   JARVIS — Animations & Motion
+   Cinematic keyframes for every interactive element
+   ============================================================ */
+
+/* ---------- Shared-element / transition helpers ---------- */
+@keyframes morphIn {
+  0%   { opacity: 0; transform: scale(0.92) translateY(18px); filter: blur(8px); }
+  60%  { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+
+/* ---------- Entrance ---------- */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(18px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.88); } to { opacity: 1; transform: scale(1); } }
+@keyframes scaleInElastic { from { opacity: 0; transform: scale(0.70); } 40% { transform: scale(1.05); } 70% { transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+@keyframes slideInRight { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
+@keyframes slideInLeft { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: none; } }
+@keyframes slideInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: none; } }
+@keyframes msgIn { from { opacity: 0; transform: translateY(16px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes msgInUser { from { opacity: 0; transform: translateX(30px) scale(0.96); } 60% { transform: translateX(-4px) scale(1.01); } to { opacity: 1; transform: none; } }
+@keyframes staggerIn { from { opacity: 0; transform: translateY(20px) scale(0.95); } to { opacity: 1; transform: none; } }
+@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+/* ---------- Exit ---------- */
+@keyframes slideOut { to { opacity: 0; transform: translateX(30px); } }
+
+/* ---------- Continuous ---------- */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulseDot { 0%,100% { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.88), 0 0 0 0 var(--accent-glow); } 50% { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.88), 0 0 16px 4px var(--accent-glow); } }
+@keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+@keyframes breatheGlow { 0%,100% { box-shadow: 0 0 24px var(--accent-glow); } 50% { box-shadow: 0 0 40px var(--accent-glow), 0 0 70px var(--accent-2-glow); } }
+@keyframes blink { 0%,80%,100% { opacity: 0.3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-5px); } }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@keyframes glowPulse { 0%,100% { opacity: 0.65; box-shadow: 0 0 12px var(--accent-glow); } 50% { opacity: 1; box-shadow: 0 0 24px var(--accent-glow), 0 0 44px var(--accent-2-glow); } }
+@keyframes glowPulseCenter { 0%,100% { box-shadow: 0 0 34px var(--accent-glow), 0 0 68px var(--accent-glow); } 50% { box-shadow: 0 0 50px var(--accent-glow), 0 0 90px var(--accent-2-glow); } }
+@keyframes ringPulse { 0% { transform: scale(1); opacity: 0.7; } 100% { transform: scale(1.7); opacity: 0; } }
+@keyframes tiltShine { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+/* ---------- Voice orb states ---------- */
+@keyframes voiceIdle { 0%,100% { box-shadow: 0 0 22px var(--voice-idle-shadow); } 50% { box-shadow: 0 0 36px var(--voice-idle-shadow), 0 0 60px var(--accent-glow); } }
+@keyframes voiceListenPulse { 0% { box-shadow: 0 0 0 0 var(--voice-listen-glow); } 70% { box-shadow: 0 0 0 20px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+@keyframes voiceSpeakWave { 0%,100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+@keyframes voiceRingExpand { 0% { transform: scale(0.8); opacity: 0.75; } 100% { transform: scale(2.4); opacity: 0; } }
+@keyframes scanline { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
+@keyframes energyWave { 0% { transform: scale(1); opacity: 0.65; } 100% { transform: scale(2.8); opacity: 0; } }
+
+/* ---------- Feedback ---------- */
+@keyframes pressBounce { 0% { transform: scale(1); } 40% { transform: scale(0.93); } 70% { transform: scale(1.04); } 100% { transform: scale(1); } }
+@keyframes checkPop { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes rippleOut { to { transform: scale(3); opacity: 0; } }
+
+/* ---------- Typography / streaming ---------- */
+@keyframes wordFadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+@keyframes cursorBlink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* ---------- Dashboard / charts ---------- */
+@keyframes barGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* ---------- Toast / dialog / palette ---------- */
+@keyframes toastIn { from { opacity: 0; transform: translateX(40px) scale(0.94); } to { opacity: 1; transform: none; } }
+@keyframes toastOut { to { opacity: 0; transform: translateX(30px) scale(0.94); } }
+@keyframes notifBadgeBounce { 0%,100% { transform: scale(1); } 30% { transform: scale(1.45); } 60% { transform: scale(0.92); } }
+@keyframes dropdownOpen { from { opacity: 0; transform: translateY(-8px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+/* ---------- Particle burst ---------- */
+@keyframes particleBurst {
+  0% { transform: translate(0,0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--px), var(--py)) scale(0); opacity: 0; }
+}
+
+/* ---------- AI Core state-specific ---------- */
+@keyframes coreListening {
+  0%,100% { box-shadow: 0 0 50px var(--accent-glow), 0 0 90px -12px var(--accent-2-glow); }
+  50% { box-shadow: 0 0 70px var(--accent-glow), 0 0 120px -8px var(--accent-2-glow); }
+}
+@keyframes coreSpeaking {
+  0%,100% { box-shadow: 0 0 50px var(--accent-2-glow), 0 0 90px -12px var(--accent-glow); }
+  50% { box-shadow: 0 0 70px var(--accent-2-glow), 0 0 120px -8px var(--accent-glow); }
+}
+
+/* ---------- Media ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  body { perspective: none !important; }
+  .view, .main, .card, .metric, .tool-card, .plugin-card, .model-card, .stat, .chart-card, .agent-card, .ws-pane {
+    transform-style: flat !important;
+    will-change: auto !important;
+  }
+}

@@ -204,15 +204,80 @@ class DesktopAutomation:
         try:
             if self.is_linux:
                 result = subprocess.run(
-                    ["xdotool", "search", "--name", title, "minimize"],
+                    ["xdotool", "search", "--name", title, "windowminimize"],
                     capture_output=True,
                     timeout=5,
                 )
                 return result.returncode == 0
-            # Similar for other platforms...
+            elif self.is_windows:
+                await self.focus_window(title)
+                await asyncio.sleep(0.2)
+                subprocess.run(
+                    [
+                        "powershell",
+                        "-Command",
+                        "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('% n')",
+                    ],
+                    capture_output=True,
+                    timeout=2,
+                )
+                return True
         except Exception as e:
             logger.error(f"Error minimizing window: {e}")
         return False
+
+    async def maximize_window(self, title: str) -> bool:
+        """Maximize a window."""
+        try:
+            if self.is_windows:
+                await self.focus_window(title)
+                await asyncio.sleep(0.2)
+                subprocess.run(
+                    [
+                        "powershell",
+                        "-Command",
+                        "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('% x')",
+                    ],
+                    capture_output=True,
+                    timeout=2,
+                )
+                return True
+        except Exception as e:
+            logger.error(f"Error maximizing window: {e}")
+        return False
+
+    async def open_folder(self, path: str) -> bool:
+        """Open a folder in the file explorer."""
+        try:
+            expanded = str(Path(path).expanduser().resolve())
+            if self.is_linux:
+                subprocess.Popen(["xdg-open", expanded], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return True
+            elif self.is_macos:
+                subprocess.run(["open", expanded], check=False)
+                return True
+            elif self.is_windows:
+                subprocess.Popen(["explorer", expanded], shell=True, stdout=subprocess.DEVNULL)
+                return True
+        except Exception as e:
+            logger.error(f"Error opening folder: {e}")
+        return False
+
+    async def search_files(self, pattern: str, directory: str | None = None) -> list[str]:
+        """Search for files matching a pattern."""
+        results: list[str] = []
+        try:
+            base = Path(directory) if directory else Path.cwd()
+            for path in base.rglob(pattern):
+                if path.is_file():
+                    results.append(str(path))
+        except Exception as e:
+            logger.error(f"Error searching files: {e}")
+        return results[:50]
+
+    async def switch_window(self, title: str) -> bool:
+        """Switch to a window by title (alias for focus_window)."""
+        return await self.focus_window(title)
 
     async def close_window(self, title: str) -> bool:
         """

@@ -119,8 +119,6 @@ class OllamaProvider(BaseProvider):
                 name="ollama",
                 priority=ProviderPriority.LOCAL,
                 base_url="http://localhost:11434",
-                models=["qwen3", "deepseek-r1", "llama3", "mistral", "gemma"],
-                default_model="qwen3",
             )
         super().__init__(config)
         self._client = None
@@ -278,8 +276,6 @@ class GroqProvider(BaseProvider):
             config = ProviderConfig(
                 name="groq",
                 priority=ProviderPriority.CLOUD,
-                models=["llama-3.1-8b-instant", "mixtral-8x7b-32768"],
-                default_model="llama-3.1-8b-instant",
             )
         super().__init__(config)
         self._client = None
@@ -501,31 +497,29 @@ class IntelligentProviderManager:
         )
 
     def get_best_model_for_task(self, task_type: str) -> str | None:
-        """
-        Get the best model for a task type.
+        task_lower = task_type.lower()
 
-        Args:
-            task_type: Type of task (reasoning, coding, chat, etc.)
+        reason_keywords = ("reason", "code", "analyze", "plan", "complex", "implement", "review")
+        simple_keywords = ("chat", "hello", "simple", "quick", "fast", "greet")
 
-        Returns:
-            Model name or None
-        """
-        # Model recommendations based on task
-        recommendations = {
-            "reasoning": ["deepseek-r1", "llama-3.1-70b-versatile"],
-            "coding": ["qwen3", "deepseek-coder"],
-            "chat": ["qwen3", "llama3"],
-            "fast": ["llama-3.1-8b-instant", "qwen3"],
-            "long_context": ["mixtral-8x7b-32768"],
-        }
+        for provider_name in self._provider_order:
+            provider = self._providers[provider_name]
+            if not provider.is_available or not provider._available_models:
+                continue
 
-        models = recommendations.get(task_type, [])
+            models = provider._available_models
 
-        # Check which models are available
-        for model in models:
-            for provider in self._providers.values():
-                if model in provider._available_models:
-                    return model
+            if any(k in task_lower for k in reason_keywords):
+                for m in models:
+                    if any(k in m.lower() for k in ("70b", "32b", "deepseek", "qwen", "llama3", "r1")):
+                        return m
+
+            if any(k in task_lower for k in simple_keywords):
+                for m in models:
+                    if any(k in m.lower() for k in ("7b", "mini", "small", "fast")):
+                        return m
+
+            return models[0]
 
         return None
 

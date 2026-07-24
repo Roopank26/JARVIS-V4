@@ -15,12 +15,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from jarvis.utils.diagnostics import (
-    DiagnosticCheck,
-    DiagnosticResult,
-    DiagnosticsRunner,
-    run_startup_diagnostics,
-)
 from jarvis.utils.exceptions import (
     ConfigurationError,
     DesktopError,
@@ -97,11 +91,6 @@ __all__ = [
     "LifecycleManager",
     "lifespan_context",
     "StartupDiagnostics",
-    # Diagnostics
-    "DiagnosticResult",
-    "DiagnosticCheck",
-    "DiagnosticsRunner",
-    "run_startup_diagnostics",
 ]
 
 

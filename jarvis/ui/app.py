@@ -13,6 +13,8 @@ from typing import Any
 
 from jarvis.activity import get_activity_center
 from jarvis.events import EventType, get_event_bus
+from jarvis.evolution.v7_orchestrator import get_v7_orchestrator
+from jarvis.monitoring.health_monitor import get_health_monitor
 from jarvis.orchestrator import JarvisOrchestrator
 from jarvis.palette import get_command_palette
 from jarvis.suggestions import get_suggestion_engine
@@ -42,6 +44,7 @@ class JarvisApp:
         self.activity = get_activity_center()
         self.tasks = get_task_manager()
         self.desktop_ui = DesktopUI()
+        self._v7_background_started = False
 
     async def initialize(self) -> None:
         """Lazy init: wire voice, register tools, start task scheduler."""
@@ -54,6 +57,24 @@ class JarvisApp:
             logger.debug(f"Tool registration skipped: {e}")
 
         self.tool_library.refresh()
+
+        try:
+            monitor = get_health_monitor()
+            monitor.register("background_intelligence", starter=self._start_background_intelligence, memory_threshold_bytes=150 * 1024 * 1024, pauseable=True)
+            monitor.register("task_scheduler", starter=self._start_task_scheduler, memory_threshold_bytes=100 * 1024 * 1024, pauseable=True)
+            monitor.register("evolution_engine", starter=self._start_evolution, stopper=self._stop_evolution, memory_threshold_bytes=200 * 1024 * 1024, pauseable=True)
+            monitor.register("research_engine", starter=self._start_research, stopper=self._stop_research, memory_threshold_bytes=200 * 1024 * 1024, pauseable=True)
+            await monitor.start()
+        except Exception as e:
+            logger.debug(f"HealthMonitor init skipped: {e}")
+
+        try:
+            v7 = get_v7_orchestrator()
+            await v7.start_background()
+            self._v7_background_started = True
+            logger.info("V7 background evolution started via UI app")
+        except Exception as e:
+            logger.debug(f"V7 background evolution unavailable: {e}")
 
         # Health-check the provider manager (registered in create_jarvis) so the
         # local Ollama runtime is selected as primary and reported by metrics.
@@ -113,12 +134,34 @@ class JarvisApp:
         self.desktop_ui.set_speaking(False)
         self.desktop_ui.set_listening(True)
 
-    def _on_voice_transcript(self, event: Any) -> None:
+    async def _on_voice_transcript(self, event: Any) -> None:
         """Handle voice transcript."""
         data = event.data if hasattr(event, "data") else {}
         text = data.get("text", "")
         if text and not data.get("partial", False):
             self.desktop_ui.add_message("user", text)
+
+    async def _start_background_intelligence(self) -> None:
+        from jarvis.background.tasks import BackgroundIntelligence
+        bi = BackgroundIntelligence()
+        bi.initialize()
+
+    async def _start_task_scheduler(self) -> None:
+        if not self.tasks._running:
+            await self.tasks.run()
+
+    async def _start_evolution(self) -> None:
+        v7 = get_v7_orchestrator()
+        await v7.start_background()
+
+    async def _stop_evolution(self) -> None:
+        v7 = get_v7_orchestrator()
+        await v7.stop_background()
+
+    async def _start_research(self) -> None:
+        from jarvis.evolution.research_engine import get_research_engine
+        engine = get_research_engine()
+        await engine.start()
 
     async def process(self, text: str) -> str:
         """Process a user request through the orchestrator."""
@@ -126,6 +169,12 @@ class JarvisApp:
         return await self.orchestrator.process(text)
 
     async def shutdown(self) -> None:
+        if self._v7_background_started:
+            try:
+                v7 = get_v7_orchestrator()
+                await v7.stop_background()
+            except Exception:
+                pass
         await self.tasks.stop()
 
 

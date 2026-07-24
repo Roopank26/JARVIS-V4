@@ -1,32 +1,46 @@
-/* Responsive */
-@media (max-width: 1200px) {
-  .right-panel { width: 260px; min-width: 260px; }
+/* ============================================================
+   JARVIS — Responsive (fine-tuning)
+   Responsive breakpoints + graceful reduced motion
+   ============================================================ */
+
+@media (max-width: 1180px) {
+  .chat-container { grid-template-columns: 1fr; }
+  .chat-side { display: none; }
 }
-@media (max-width: 992px) {
-  .right-panel { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; transform: translateX(100%); }
-  .right-panel.mobile-open { transform: translateX(0); }
-  .sidebar { position: absolute; left: 0; top: 0; bottom: 0; z-index: 20; transform: translateX(-100%); }
-  .sidebar.mobile-open { transform: translateX(0); }
+
+@media (max-width: 820px) {
+  .topbar { padding: 0 14px; gap: 10px; }
+  .view { padding: 14px; }
+  .topbar h2 { font-size: var(--fs-lg); }
+  .pill { display: none; }
+  .pill#pillModel, .pill#pillProvider { display: inline-flex; }
+  .notif-panel { right: 14px; left: 14px; width: auto; bottom: 88px; }
+  .toasts { left: 14px; right: 14px; max-width: none; }
+  .palette { width: 96vw; }
+  .voice-orb { right: 16px; bottom: 92px; width: 58px; height: 58px; }
+  .notif-fab { right: 16px; bottom: 18px; width: 48px; height: 48px; }
+
+  .card, .metric, .tool-card, .plugin-card, .model-card, .stat, .chart-card {
+    border-radius: var(--r-md);
+  }
 }
-@media (max-width: 768px) {
-  :root { --sidebar-w: 240px; --right-w: 300px; }
-  .main { min-width: 0; width: 100%; overflow-x: hidden; }
-  .topbar { gap: 8px; padding: 0 10px; overflow-x: auto; flex-wrap: nowrap; }
-  .topbar h2 { font-size: 13px; }
-  .topbar .pill, .topbar .icon-btn { flex-shrink: 0; }
-  .topbar .spacer { min-width: 4px; }
-  .view { padding: 0; }
-  .chat-container { padding: 10px; }
-  .tool-grid { grid-template-columns: 1fr; }
-  .grid.metrics { grid-template-columns: repeat(2, 1fr); }
-  .composer-inner { flex-wrap: wrap; }
-  .composer-input-wrap { flex: 1; min-width: 0; }
-  .sidebar { width: var(--sidebar-w); }
-  .right-panel { width: var(--right-w); }
-  .messages, .stages, .ai-core-section { max-width: 100%; }
+
+@media (min-width: 821px) and (max-width: 1180px) {
+  .notif-panel { right: 22px; }
 }
-@media (max-width: 480px) {
-  .grid.metrics { grid-template-columns: 1fr; }
-  .nav-ico { font-size: 16px; }
-  .brand { font-size: 16px; letter-spacing: 2px; }
+
+@media (min-width: 1600px) {
+  :root {
+    --side-w: 288px;
+    --rp-w: 340px;
+    --fs-md: 15px;
+    --fs-lg: 17px;
+    --fs-xl: 21px;
+  }
+}
+
+/* Ultra-wide: tighter gutters */
+@media (min-width: 2100px) {
+  .view { padding: 32px; }
+  .grid { gap: 22px; }
 }

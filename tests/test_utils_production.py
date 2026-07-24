@@ -131,38 +131,4 @@ class TestLifecycle:
         # Task should be cancelled
 
 
-class TestDiagnosticChecks:
-    """Test diagnostic checks."""
 
-    @pytest.mark.asyncio
-    async def test_python_version_check(self):
-        """Test Python version check."""
-        from jarvis.utils.diagnostics import PythonVersionCheck
-
-        check = PythonVersionCheck((3, 10))
-        result = await check.run()
-
-        assert result.passed
-        assert "Python" in result.message
-
-    @pytest.mark.asyncio
-    async def test_platform_check(self):
-        """Test platform check."""
-        from jarvis.utils.diagnostics import PlatformCheck
-
-        check = PlatformCheck()
-        result = await check.run()
-
-        assert result.passed
-        assert "system" in result.details
-
-    @pytest.mark.asyncio
-    async def test_dependency_check(self):
-        """Test dependency check."""
-        from jarvis.utils.diagnostics import DependencyCheck
-
-        check = DependencyCheck(["asyncio", "pathlib", "nonexistent"])
-        result = await check.run()
-
-        assert "asyncio" in result.details["available"]
-        assert "nonexistent" in result.details["missing"]

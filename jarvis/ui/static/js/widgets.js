@@ -1,31 +1,62 @@
-const overlay=document.getElementById('overlay'); let palSel=0, palItems=[];
-function openPalette(){ overlay.classList.add('show'); const i=document.getElementById('palInput'); i.value=''; i.focus(); searchPalette(); }
-function closePalette(){ overlay.classList.remove('show'); }
-async function searchPalette(){
-  const q=document.getElementById('palInput').value;
-  try{ const r=await fetch('/api/palette?q='+encodeURIComponent(q)); const d=await r.json(); palItems=d.items; palSel=0; renderPalette(); }catch(_){}
+/* ============================================================
+   JARVIS — Widgets (sparklines, progress, context menu)
+   Premium animated sparkline draw, smooth context menu
+   ==================================== */
+"use strict";
+
+function sparkline(el, data, color) {
+  if (!el) return;
+  const old = el.querySelector('canvas');
+  if (old) old.remove();
+
+  const c = document.createElement('canvas');
+  c.width = (el.clientWidth || 200) * (window.devicePixelRatio || 1);
+  c.height = 36 * (window.devicePixelRatio || 1);
+  c.style.width = "100%"; c.style.height = "36px";
+  el.appendChild(c);
+  const ctx = c.getContext("2d");
+  const max = Math.max(...data, 1), pad = 3;
+  const dpr = window.devicePixelRatio || 1;
+  const pts = data.map((d, i) => [pad + (c.width/dpr - 2 * pad) * i / (data.length - 1 || 1), c.height/dpr - pad - (c.height/dpr - 2 * pad) * d / max]);
+
+  ctx.beginPath();
+  pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+  ctx.strokeStyle = color || getCss("--accent"); ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], c.height/dpr);
+  pts.forEach(p => ctx.lineTo(p[0], p[1]));
+  ctx.lineTo(pts[pts.length-1][0], c.height/dpr);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, 0, 0, c.height/dpr);
+  const accent = color || getCss("--accent") || "#00e5ff";
+  grad.addColorStop(0, accent + '30');
+  grad.addColorStop(1, accent + '00');
+  ctx.fillStyle = grad;
+  ctx.fill();
 }
-function renderPalette(){
-  const box=document.getElementById('palResults'); box.innerHTML='';
-  palItems.slice(0,30).forEach((it,idx)=>{
-    const el=document.createElement('div'); el.className='pitem'+(idx===palSel?' sel':'');
-    el.innerHTML=`<div class="ptitle">${it.title}</div><div class="pmeta"><span class="pcat">${it.category}</span><span>${it.subtitle||''}</span></div>`;
-    el.onclick=()=>runPalette(it); el.onmouseenter=()=>{palSel=idx; renderPalette();};
-    box.appendChild(el);
+
+function contextMenu(x, y, items) {
+  closeContext();
+  const m = document.createElement("div");
+  m.className = "ctx-menu";
+  m.style.left = x + "px"; m.style.top = y + "px";
+  m.innerHTML = items.map((it, i) => it.sep ? `<div class="ctx-sep"></div>` : `<div class="ctx-item" data-i="${i}">${it.icon || ""} ${esc(it.label)}</div>`).join("");
+  document.body.appendChild(m);
+  m.querySelectorAll(".ctx-item").forEach(el => el.onclick = () => { closeContext(); items[+el.dataset.i].action && items[+el.dataset.i].action(); });
+
+  m.querySelectorAll('.ctx-item').forEach((item, idx) => {
+    item.style.opacity = '0';
+    item.style.transform = 'translateY(-6px)';
+    requestAnimationFrame(() => {
+      item.style.transition = `opacity 0.22s var(--ease-spring) ${idx * 28}ms, transform 0.22s var(--ease-spring) ${idx * 28}ms`;
+      item.style.opacity = '1';
+      item.style.transform = 'translateY(0)';
+    });
   });
+
+  document.addEventListener("click", closeContext, { once: true });
 }
-function runPalette(it){ closePalette(); const a=it.action||''; if(a.startsWith('send:')){ document.getElementById('chatInput').value=a.slice(5); sendChat(); } else if(a.startsWith('model:')){ sendChat.call(); addMsg('user','switch to '+a.slice(6)); send('chat',{text:'switch to '+a.slice(6)}); } else { showToast(it.title, it.subtitle); } }
-function showSuggestion(s){
-  const box=document.getElementById('suggBox');
-  const el=document.createElement('div'); el.className='sugg';
-  el.innerHTML=`<div class="grow"><div class="stitle">${s.title}</div><div class="sdetail">${s.detail||''}</div></div>`;
-  const b=mkBtn('Do it',()=>{ document.getElementById('chatInput').value=s.action; sendChat(); setTimeout(()=>el.remove(),300); });
-  el.appendChild(b); box.appendChild(el);
-  setTimeout(()=>el.remove(), 20000);
-}
-function showToast(title, detail, cls){
-  const t=document.createElement('div'); t.className='toast '+(cls||'');
-  t.innerHTML=`<div class="tt">${title}</div><div class="td">${detail||''}</div>`;
-  document.getElementById('toasts').appendChild(t);
-  setTimeout(()=>t.remove(), 6000);
-}
+function closeContext() { document.querySelectorAll(".ctx-menu").forEach(m => m.remove()); }
+
+function getCss(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim() || "#00e5ff"; }

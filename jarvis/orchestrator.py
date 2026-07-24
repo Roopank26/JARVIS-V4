@@ -22,6 +22,7 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
+from jarvis.conversation.context import ConversationContext
 from jarvis.errors import handle_error
 from jarvis.events import (
     EventBus,
@@ -29,6 +30,15 @@ from jarvis.events import (
     Stage,
     get_event_bus,
 )
+
+try:
+    from jarvis.notifications.manager import get_notification_manager
+    from jarvis.proactive.monitor import get_proactive_monitor
+    from jarvis.workspace.awareness import WorkspaceAwareness
+except Exception:  # pragma: no cover - graceful fallback
+    WorkspaceAwareness = None  # type: ignore[misc, assignment]
+    get_proactive_monitor = None  # type: ignore[misc, assignment]
+    get_notification_manager = None  # type: ignore[misc, assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -105,13 +115,20 @@ class JarvisOrchestrator:
         self.bus = bus or get_event_bus()
         self._bridge = _ToolEventBridge(self.bus)
         self._wire_tools()
-        # Track whether current request is voice-driven (for interrupt handling)
+
         self.voice_active = False
         self._interrupt_event: asyncio.Event | None = None
 
-        # Tool/plan caches for the UI
         self.last_plan: dict[str, Any] | None = None
         self._request_id: str | None = None
+        self._conversation_context = ConversationContext()
+
+        self.workspace = WorkspaceAwareness() if WorkspaceAwareness else None
+        self.proactive_monitor = get_proactive_monitor(self.bus) if get_proactive_monitor else None
+        self.notifications = get_notification_manager(self.bus) if get_notification_manager else None
+
+        self._register_proactive_rules()
+        self._refresh_workspace_on_start()
 
     def _wire_tools(self) -> None:
         try:
@@ -276,7 +293,7 @@ class JarvisOrchestrator:
             )
 
             try:
-                res = await executor.execute(step["tool"], step["parameters"])
+                res = await executor.execute_step(step["tool"], step.get("parameters") or {})
                 ok = getattr(res, "success", False)
             except Exception as e:
                 ok = False
@@ -325,7 +342,7 @@ class JarvisOrchestrator:
             return False
         try:
             await asyncio.sleep(0.5)
-            res = await executor.execute(step["tool"], step["parameters"])
+            res = await executor.execute_step(step["tool"], step.get("parameters") or {})
             return bool(getattr(res, "success", False))
         except Exception:
             return False
@@ -419,3 +436,33 @@ class JarvisOrchestrator:
             return self._interrupt_event.is_set()
         except Exception:
             return False
+
+    def _register_proactive_rules(self):
+        try:
+            if self.proactive_monitor is None:
+                return
+            from jarvis.proactive.monitor import MonitorRule
+
+            self.proactive_monitor.add_rule(MonitorRule(
+                name="Repository indexing complete",
+                event_types=["tool"],
+                match=lambda d: d.get("tool") == "index_repository" and d.get("phase") == "complete",
+                message="Repository indexing finished.",
+                level="success",
+            ))
+            self.proactive_monitor.add_rule(MonitorRule(
+                name="Tests completed",
+                event_types=["tool"],
+                match=lambda d: "test" in d.get("tool", "").lower() and d.get("phase") == "complete",
+                message="Tests completed.",
+                level="success",
+            ))
+        except Exception:
+            pass
+
+    def _refresh_workspace_on_start(self):
+        try:
+            if self.workspace:
+                self.workspace.refresh()
+        except Exception:
+            pass

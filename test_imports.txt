@@ -1,0 +1,360 @@
+tests\test_agent_registry.py:5	from jarvis.core.agent_registry import AgentRegistry, get_agent_registry, register_builtin_agents
+tests\test_airllm_provider.py:4	from __future__ import annotations
+tests\test_airllm_provider.py:6	import logging
+tests\test_airllm_provider.py:7	from unittest.mock import AsyncMock, patch
+tests\test_airllm_provider.py:9	import pytest
+tests\test_airllm_provider.py:11	from jarvis.api.providers import (
+tests\test_airllm_provider.py:24	from jarvis.providers.airllm.provider import AirLLMProvider
+tests\test_airllm_provider.py:76	from jarvis.api.providers import OllamaProvider
+tests\test_autonomous.py:6	import asyncio
+tests\test_autonomous.py:7	import json
+tests\test_autonomous.py:8	import tempfile
+tests\test_autonomous.py:9	import time
+tests\test_autonomous.py:10	from datetime import datetime, timedelta
+tests\test_autonomous.py:11	from pathlib import Path
+tests\test_autonomous.py:13	import pytest
+tests\test_autonomous.py:15	from jarvis.desktop import DesktopAssistant, DesktopConfig
+tests\test_autonomous.py:16	from jarvis.desktop.state import PersistentState, StartupManager
+tests\test_autonomous.py:262	import os
+tests\test_autonomous.py:324	from jarvis.services.scheduler import TaskScheduler, TaskType
+tests\test_autonomous.py:352	from jarvis.memory.project import ProjectMemory
+tests\test_autonomous.py:562	import time
+tests\test_browser.py:5	from __future__ import annotations
+tests\test_browser.py:7	from pathlib import Path
+tests\test_browser.py:9	import pytest
+tests\test_browser.py:11	from jarvis.browser.config import BrowserConfig
+tests\test_browser.py:12	from jarvis.browser.manager import PersistentBrowserManager
+tests\test_browser.py:13	from jarvis.browser.state import BrowserState
+tests\test_capabilities.py:8	import pytest
+tests\test_capabilities.py:10	from jarvis.core.capabilities import Capabilities, CapabilityDiscovery, get_capability_discovery
+tests\test_coding_agent.py:5	import asyncio
+tests\test_coding_agent.py:6	import tempfile
+tests\test_coding_agent.py:7	from pathlib import Path
+tests\test_coding_agent.py:9	import pytest
+tests\test_coding_agent.py:11	from jarvis.coding.coding_agent import (
+tests\test_context_bus.py:5	from jarvis.core.context_bus import ContextBus, get_context_bus, reset_context_bus
+tests\test_dashboard.py:5	from unittest.mock import patch
+tests\test_dashboard.py:7	from jarvis.core.dashboard import AIOSDashboard, DashboardSnapshot, get_dashboard
+tests\test_dashboard.py:30	from jarvis.core.task_engine import TaskHandle, TaskState
+tests\test_desktop.py:5	import tempfile
+tests\test_desktop.py:6	from pathlib import Path
+tests\test_desktop.py:8	import pytest
+tests\test_desktop.py:16	from jarvis.plugins.base import PluginMetadata
+tests\test_desktop.py:28	from jarvis.plugins.base import PluginMetadata
+tests\test_desktop.py:47	from jarvis.plugins.base import PluginManager
+tests\test_desktop.py:57	from jarvis.plugins.base import PluginManager
+tests\test_desktop.py:67	from jarvis.plugins.base import PluginManager
+tests\test_desktop.py:83	from jarvis.plugins.base import PluginManager
+tests\test_desktop.py:95	from jarvis.voice.wake_word import WakeWordConfig
+tests\test_desktop.py:105	from jarvis.voice.wake_word import WakeWordEngine
+tests\test_desktop.py:113	from jarvis.voice.wake_word import WakeWordEngine
+tests\test_desktop.py:129	from jarvis.voice.wake_word import VoiceStateMachine
+tests\test_desktop.py:138	from jarvis.voice.wake_word import VoiceStateMachine
+tests\test_desktop.py:148	from jarvis.voice.wake_word import VoiceStateMachine
+tests\test_desktop.py:160	from jarvis.services.scheduler import ScheduledTask, TaskType
+tests\test_desktop.py:175	from datetime import datetime, timedelta
+tests\test_desktop.py:177	from jarvis.services.scheduler import ScheduledTask, TaskType
+tests\test_desktop.py:199	from jarvis.services.scheduler import TaskScheduler
+tests\test_desktop.py:208	from jarvis.services.scheduler import TaskScheduler, TaskType
+tests\test_desktop.py:225	from jarvis.services.scheduler import TaskScheduler, TaskType
+tests\test_desktop.py:242	from jarvis.services.scheduler import TaskScheduler, TaskType
+tests\test_desktop.py:262	from datetime import date
+tests\test_desktop.py:264	from jarvis.services.scheduler import DailySummary
+tests\test_desktop.py:276	from jarvis.services.scheduler import TaskScheduler
+tests\test_desktop.py:291	from jarvis.memory.project import ProjectContext
+tests\test_desktop.py:301	from jarvis.memory.project import ProjectContext
+tests\test_desktop.py:314	from jarvis.memory.project import ProjectMemory
+tests\test_desktop.py:323	from jarvis.memory.project import ProjectMemory
+tests\test_desktop.py:337	from jarvis.memory.project import ProjectMemory
+tests\test_desktop.py:350	from jarvis.memory.project import ProjectMemory
+tests\test_desktop.py:365	from jarvis.memory.project import ProjectMemory
+tests\test_desktop.py:382	from jarvis.memory.project import ProjectMemory
+tests\test_desktop.py:397	from jarvis.memory.project import ProjectMemory
+tests\test_desktop.py:417	from jarvis.memory.knowledge import LocalKnowledgeBase
+tests\test_desktop.py:426	from jarvis.memory.knowledge import LocalKnowledgeBase
+tests\test_desktop.py:438	import gc
+tests\test_desktop.py:444	from jarvis.memory.knowledge import LocalKnowledgeBase
+tests\test_desktop.py:456	import gc
+tests\test_desktop.py:462	from jarvis.memory.knowledge import LocalKnowledgeBase
+tests\test_desktop.py:474	import gc
+tests\test_desktop.py:483	from datetime import datetime
+tests\test_desktop.py:485	from jarvis.memory.self_improve import InteractionLog, Outcome
+tests\test_desktop.py:499	from jarvis.memory.self_improve import Outcome, SelfImprovementLogs
+tests\test_desktop.py:510	from jarvis.memory.self_improve import Outcome, SelfImprovementLogs
+tests\test_desktop.py:529	from jarvis.services.daemon import DaemonConfig
+tests\test_desktop.py:537	from jarvis.services.daemon import JarvisDaemon
+tests\test_desktop.py:547	from jarvis.services.daemon import JarvisDaemon
+tests\test_desktop.py:569	from jarvis.voice.listener import ListenerConfig
+tests\test_desktop.py:577	from jarvis.voice.listener import VoiceCommand
+tests\test_desktop.py:586	from jarvis.voice.listener import parse_voice_command
+tests\test_desktop.py:601	from jarvis.integrations.vscode import VSCodeBridge
+tests\test_desktop.py:609	from jarvis.integrations.vscode import EditorContext
+tests\test_desktop.py:617	from jarvis.integrations.vscode import MessageType, VSCodeMessage
+tests\test_features.py:5	import tempfile
+tests\test_features.py:6	from pathlib import Path
+tests\test_features.py:8	import pytest
+tests\test_features.py:16	from jarvis.voice import AudioConfig, SpeechToText, TextToSpeech, VoiceAssistant
+tests\test_features.py:25	from jarvis.voice import TextToSpeech
+tests\test_features.py:32	from jarvis.voice import TextToSpeech
+tests\test_features.py:43	from jarvis.voice import TextToSpeech
+tests\test_features.py:52	from jarvis.voice import AudioConfig
+tests\test_features.py:64	from jarvis.vision import ScreenAnalyzer, ScreenCapture, VisionCapture
+tests\test_features.py:72	from jarvis.vision import ScreenCapture
+tests\test_features.py:79	from jarvis.vision import ScreenCapture
+tests\test_features.py:88	from jarvis.vision.screen import ScreenRegion
+tests\test_features.py:96	from jarvis.vision import ScreenAnalyzer
+tests\test_features.py:103	from jarvis.vision import VisionCapture
+tests\test_features.py:115	from jarvis.tools import BrowserTool, ScrapeWebTool, SearchWebTool
+tests\test_features.py:123	from jarvis.tools import BrowserTool
+tests\test_features.py:131	from jarvis.tools import BrowserTool
+tests\test_features.py:138	from jarvis.tools import BrowserTool
+tests\test_features.py:151	from jarvis.memory import LongTermMemory
+tests\test_features.py:157	from jarvis.memory import LongTermMemory
+tests\test_features.py:165	from jarvis.memory import LongTermMemory
+tests\test_features.py:180	from jarvis.memory import LongTermMemory
+tests\test_features.py:196	from jarvis.memory import LongTermMemory
+tests\test_features.py:209	from jarvis.memory import LongTermMemory
+tests\test_features.py:223	from jarvis.memory import LongTermMemory
+tests\test_features.py:237	from jarvis.memory import LongTermMemory
+tests\test_features.py:251	from jarvis.memory import LongTermMemory
+tests\test_features.py:264	from jarvis.memory import LongTermMemory
+tests\test_features.py:284	from jarvis.tools.file_tools import (
+tests\test_features.py:297	from jarvis.tools.file_tools import ReadFileTool, WriteFileTool
+tests\test_features.py:319	from jarvis.tools.file_tools import ListDirectoryTool
+tests\test_features.py:333	from jarvis.tools.terminal_tools import BashTool, RunScriptTool
+tests\test_features.py:341	from jarvis.tools.terminal_tools import BashTool
+tests\test_features.py:351	from jarvis.tools.terminal_tools import BashTool
+tests\test_features.py:364	from jarvis.memory import LongTermMemory
+tests\test_features.py:365	from jarvis.tools.file_tools import WriteFileTool
+tests\test_features.py:387	from jarvis.voice import AudioConfig, TextToSpeech
+tests\test_features.py:397	from jarvis.memory import LongTermMemory
+tests\test_features.py:398	from jarvis.vision import ScreenCapture
+tests\test_goal_memory.py:8	from pathlib import Path
+tests\test_goal_memory.py:10	import pytest
+tests\test_goal_memory.py:12	from jarvis.core.goal import Goal, GoalPriority
+tests\test_goal_memory.py:13	from jarvis.memory.base import MemoryCategory
+tests\test_goal_memory.py:14	from jarvis.memory.enhanced import EnhancedMemoryManager
+tests\test_goal_memory.py:15	from jarvis.memory.long_term import LongTermMemory
+tests\test_goal_memory.py:16	from jarvis.memory.memory_manager import MemoryManager
+tests\test_goal_memory.py:140	from jarvis.core.master_agent import MasterAgent
+tests\test_goal_memory.py:148	from jarvis.core.master_agent import MasterAgent
+tests\test_goal_memory.py:157	from jarvis.core.master_agent import MasterAgent
+tests\test_goal_memory.py:166	from jarvis.core.master_agent import MasterAgent
+tests\test_intent_classification.py:7	from unittest.mock import AsyncMock, MagicMock
+tests\test_intent_classification.py:9	import pytest
+tests\test_intent_classification.py:11	from jarvis.core.agent import Intent, JarvisAgent, classify_intent
+tests\test_knowledge_graph.py:5	from pathlib import Path
+tests\test_knowledge_graph.py:7	from jarvis.memory.knowledge_graph import KnowledgeGraph
+tests\test_memory.py:5	import tempfile
+tests\test_memory.py:6	from pathlib import Path
+tests\test_memory.py:8	from jarvis.memory.long_term import LongTermMemory
+tests\test_memory.py:9	from jarvis.memory.memory_manager import MemoryManager
+tests\test_memory.py:10	from jarvis.memory.session import SessionMemory
+tests\test_memory_profile.py:5	import tempfile
+tests\test_memory_profile.py:6	from pathlib import Path
+tests\test_memory_profile.py:7	from unittest.mock import patch
+tests\test_memory_profile.py:9	import pytest
+tests\test_memory_profile.py:11	from jarvis.memory.enhanced import EnhancedMemoryManager
+tests\test_memory_profile.py:12	from jarvis.memory.user_profile import UserProfile
+tests\test_memory_profile.py:164	from jarvis.core.agent import Intent, classify_intent
+tests\test_memory_profile.py:174	from jarvis.core.agent import Intent, classify_intent
+tests\test_memory_profile.py:182	from jarvis.core.agent import Intent, classify_intent
+tests\test_phase2_features.py:8	import pytest
+tests\test_phase2_features.py:11	from jarvis.conversation.context import ConversationContext, ConversationState
+tests\test_phase2_features.py:12	from jarvis.conversation.reference import classify_token, expand_token, resolve_token
+tests\test_phase2_features.py:17	from jarvis.notifications.manager import NotificationLevel, get_notification_manager
+tests\test_phase2_features.py:22	from jarvis.proactive.monitor import MonitorRule, ProactiveMonitor
+tests\test_phase2_features.py:23	from jarvis.proactive.suggestions import BehaviorPattern
+tests\test_phase2_features.py:28	from jarvis.workspace.awareness import WorkspaceAwareness
+tests\test_phase2_features.py:33	from jarvis.daily.assistant import DailyAssistant
+tests\test_phase2_features.py:38	from jarvis.background.tasks import BackgroundIntelligence, BackgroundTask, TaskPriority
+tests\test_phase2_features.py:43	from jarvis.personality.manager import PersonalityManager
+tests\test_phase2_features.py:225	from jarvis.core.agent import create_jarvis
+tests\test_phase2_features.py:231	from jarvis.core.agent import create_jarvis
+tests\test_phase2_features.py:239	from jarvis.core.agent import create_jarvis
+tests\test_phase2_features.py:249	from jarvis.desktop.automation import DesktopAutomation
+tests\test_phase2_features.py:256	from jarvis.desktop.automation import DesktopAutomation
+tests\test_phase2_features.py:263	from jarvis.desktop.automation import DesktopAutomation
+tests\test_phase2_features.py:272	from jarvis.workspace.awareness import WorkspaceAwareness
+tests\test_phase2_features.py:282	from datetime import datetime
+tests\test_phase2_features.py:284	from jarvis.daily.assistant import DailyAssistant
+tests\test_phase2_features.py:290	from datetime import datetime
+tests\test_phase2_features.py:292	from jarvis.daily.assistant import DailyAssistant
+tests\test_phase3_collaboration.py:5	import asyncio
+tests\test_phase3_collaboration.py:7	import pytest
+tests\test_phase3_collaboration.py:9	from jarvis.agents.collaboration import AgentCollaboration, CollaborationResult
+tests\test_phase3_dashboard.py:5	import pytest
+tests\test_phase3_dashboard.py:7	from jarvis.core.dashboard import AIOSDashboard, DashboardSnapshot
+tests\test_phase3_learning.py:5	import time
+tests\test_phase3_learning.py:7	import pytest
+tests\test_phase3_learning.py:9	from jarvis.learning.engine import ContinuousLearningEngine, DecisionRecord, Experience
+tests\test_phase3_orchestration.py:5	import asyncio
+tests\test_phase3_orchestration.py:6	import time
+tests\test_phase3_orchestration.py:8	import pytest
+tests\test_phase3_orchestration.py:10	from jarvis.orchestration.engine import OrchestrationEngine, TaskResult
+tests\test_phase3_planner.py:5	import pytest
+tests\test_phase3_planner.py:7	from jarvis.core.planner_v2 import (
+tests\test_phase3_provider_selector.py:5	import pytest
+tests\test_phase3_provider_selector.py:7	from jarvis.providers.selector import ProviderSelector, ProviderScore
+tests\test_phase3_research_pipeline.py:5	import pytest
+tests\test_phase3_research_pipeline.py:7	from jarvis.research.pipeline import ResearchPipeline
+tests\test_phase3_security.py:5	import tempfile
+tests\test_phase3_security.py:6	from pathlib import Path
+tests\test_phase3_security.py:8	import pytest
+tests\test_phase3_security.py:10	from jarvis.security.encryption import (
+tests\test_phase3_skills.py:5	import pytest
+tests\test_phase3_skills.py:7	from jarvis.skills.manager import SkillManager, SkillMetrics
+tests\test_phase3_vision_agent.py:5	import pytest
+tests\test_phase3_vision_agent.py:7	from jarvis.agents.vision_agent import VisionAgent
+tests\test_phase4_api.py:7	from jarvis.api.os import get_unified_api, reset_unified_api
+tests\test_phase4_api.py:14	from jarvis.api.os import UnifiedAPI
+tests\test_phase4_api.py:23	from jarvis.api.os import UnifiedAPI
+tests\test_phase4_approval.py:7	from jarvis.security.approval import get_approval_layer, reset_approval_layer
+tests\test_phase4_approval.py:14	from jarvis.security.approval import ApprovalLayer, ApprovalPolicy
+tests\test_phase4_approval.py:21	from jarvis.security.approval import ApprovalLayer, ApprovalPolicy
+tests\test_phase4_approval.py:29	from jarvis.security.approval import ApprovalLayer, ApprovalPolicy
+tests\test_phase4_approval.py:38	from jarvis.security.approval import ApprovalLayer, ApprovalPolicy
+tests\test_phase4_computer.py:5	import pytest
+tests\test_phase4_computer.py:9	from jarvis.computers.agent import get_computer_agent, reset_computer_agent
+tests\test_phase4_computer.py:17	from jarvis.computers.agent import get_computer_agent
+tests\test_phase4_computer.py:23	from jarvis.computers.agent import get_computer_agent
+tests\test_phase4_computer.py:28	from jarvis.computers.agent import get_computer_agent, reset_computer_agent
+tests\test_phase4_diagnostics.py:5	import pytest
+tests\test_phase4_diagnostics.py:9	from jarvis.monitoring.health import SystemSelfDiagnostics
+tests\test_phase4_diagnostics.py:16	from jarvis.monitoring.health import SystemSelfDiagnostics
+tests\test_phase4_diagnostics.py:17	from jarvis.runtime.manager import RuntimeManager
+tests\test_phase4_goals.py:5	import asyncio
+tests\test_phase4_goals.py:6	from datetime import datetime, timedelta
+tests\test_phase4_goals.py:8	import pytest
+tests\test_phase4_goals.py:12	from jarvis.goals import GoalType, get_goal_engine, reset_goal_engine
+tests\test_phase4_goals.py:21	from jarvis.goals import get_goal_engine, reset_goal_engine
+tests\test_phase4_goals.py:31	from jarvis.goals import get_goal_engine, reset_goal_engine
+tests\test_phase4_goals.py:40	from jarvis.goals import get_goal_engine, reset_goal_engine
+tests\test_phase4_goals.py:50	from jarvis.goals import get_goal_engine, reset_goal_engine
+tests\test_phase4_goals.py:62	from jarvis.goals import get_goal_engine, reset_goal_engine
+tests\test_phase4_marketplace.py:7	from jarvis.plugins.marketplace import get_marketplace
+tests\test_phase4_marketplace.py:13	from jarvis.plugins.marketplace import PluginCapabilities, get_marketplace
+tests\test_phase4_marketplace.py:14	from jarvis.plugins.plugin_manager import PluginInfo
+tests\test_phase4_marketplace.py:25	from jarvis.plugins.marketplace import get_marketplace
+tests\test_phase4_marketplace.py:26	from jarvis.plugins.plugin_manager import PluginInfo
+tests\test_phase4_marketplace.py:35	from jarvis.plugins.marketplace import EnhancedPluginCapability
+tests\test_phase4_marketplace.py:46	from jarvis.plugins.marketplace import PermissionLevel, PluginSandbox
+tests\test_phase4_memory.py:6	from jarvis.memory.intelligent import get_unified_memory
+tests\test_phase4_memory.py:7	from jarvis.memory.intelligent import _unified_memory
+tests\test_phase4_memory.py:15	from jarvis.memory.intelligent import UnifiedMemoryIntelligence
+tests\test_phase4_memory.py:22	from jarvis.memory.intelligent import UnifiedMemoryIntelligence
+tests\test_phase4_optimizer.py:7	from jarvis.performance.optimizer import LRUCache
+tests\test_phase4_optimizer.py:17	from jarvis.performance.optimizer import LRUCache
+tests\test_phase4_optimizer.py:28	from jarvis.performance.optimizer import LRUCache
+tests\test_phase4_optimizer.py:36	from jarvis.performance.optimizer import LRUCache
+tests\test_phase4_optimizer.py:44	from jarvis.performance.optimizer import get_optimizer, reset_optimizer
+tests\test_phase4_optimizer.py:51	from jarvis.performance.optimizer import get_optimizer, reset_optimizer
+tests\test_phase4_runtime.py:5	import asyncio
+tests\test_phase4_runtime.py:6	import time
+tests\test_phase4_runtime.py:8	import pytest
+tests\test_phase4_runtime.py:12	from jarvis.runtime.manager import get_runtime_manager, reset_runtime_manager
+tests\test_phase4_runtime.py:19	from jarvis.runtime.manager import RuntimeManager
+tests\test_phase4_runtime.py:28	from jarvis.runtime.manager import RuntimeManager
+tests\test_phase4_runtime.py:36	from jarvis.runtime.manager import RuntimeManager
+tests\test_phase4_runtime.py:45	from jarvis.runtime.manager import RuntimeManager
+tests\test_phase4_runtime.py:55	from jarvis.runtime.manager import RuntimeManager
+tests\test_premium_ux.py:10	import asyncio
+tests\test_premium_ux.py:12	import pytest
+tests\test_premium_ux.py:14	from jarvis.errors import FriendlyError, handle_error
+tests\test_premium_ux.py:15	from jarvis.events import (
+tests\test_premium_ux.py:21	from jarvis.palette import CommandPalette, reset_command_palette
+tests\test_premium_ux.py:22	from jarvis.suggestions import SuggestionEngine, reset_suggestion_engine
+tests\test_premium_ux.py:23	from jarvis.tasks import (
+tests\test_premium_ux.py:28	from jarvis.tools_library import ToolLibrary, reset_tool_library
+tests\test_premium_ux.py:229	from jarvis.orchestrator import JarvisOrchestrator
+tests\test_provider_discovery.py:5	from unittest.mock import AsyncMock, patch
+tests\test_provider_discovery.py:7	import pytest
+tests\test_provider_discovery.py:9	from jarvis.api.providers import (
+tests\test_rag_integration.py:5	from pathlib import Path
+tests\test_rag_integration.py:7	import pytest
+tests\test_rag_integration.py:9	from jarvis.rag.document_processor import DocumentProcessor, StudyAssistant
+tests\test_rag_integration.py:10	from jarvis.rag.rag_system import RAGSystem
+tests\test_rag_integration.py:64	from jarvis.rag.document_processor import StudyAssistant
+tests\test_rag_integration.py:140	from jarvis.core.agent import RAG_QUERY_PATTERNS
+tests\test_rag_integration.py:146	from jarvis.core.agent import Intent, classify_intent
+tests\test_rag_integration.py:154	from jarvis.core.agent import classify_intent
+tests\test_rag_system.py:5	import tempfile
+tests\test_rag_system.py:6	from pathlib import Path
+tests\test_rag_system.py:8	import pytest
+tests\test_rag_system.py:10	from jarvis.rag.document_processor import (
+tests\test_rag_system.py:15	from jarvis.rag.rag_system import RAGSystem
+tests\test_rag_system.py:223	from jarvis.core.agent import Intent, classify_intent
+tests\test_rag_system.py:230	from jarvis.core.agent import Intent, classify_intent
+tests\test_rag_system.py:237	from jarvis.core.agent import Intent, classify_intent
+tests\test_reflection.py:5	import pytest
+tests\test_reflection.py:7	from jarvis.core.reflection import ReflectionEngine, get_reflection_engine
+tests\test_research_agent.py:5	from unittest.mock import AsyncMock, patch
+tests\test_research_agent.py:7	import pytest
+tests\test_research_agent.py:9	from jarvis.research.research_agent import (
+tests\test_research_agent.py:226	from jarvis.core.agent import Intent, classify_intent
+tests\test_response_sanitizer.py:8	from jarvis.core.agent import _sanitize_response
+tests\test_semantic_memory.py:5	import tempfile
+tests\test_semantic_memory.py:6	from pathlib import Path
+tests\test_semantic_memory.py:8	import pytest
+tests\test_semantic_memory.py:10	from jarvis.memory.semantic import (
+tests\test_system_tools.py:5	import platform
+tests\test_system_tools.py:6	from unittest.mock import Mock, patch
+tests\test_system_tools.py:8	import pytest
+tests\test_system_tools.py:10	from jarvis.tools.system_tools import OpenAppTool
+tests\test_task_engine.py:5	import asyncio
+tests\test_task_engine.py:7	import pytest
+tests\test_task_engine.py:9	from jarvis.core.task_engine import LongRunningTaskEngine, TaskHandle, TaskState
+tests\test_task_engine.py:116	from jarvis.core.task_engine import get_task_engine
+tests\test_tools.py:5	import tempfile
+tests\test_tools.py:6	from pathlib import Path
+tests\test_tools.py:8	import pytest
+tests\test_tools.py:10	from jarvis.tools.base import ToolResult
+tests\test_tools.py:11	from jarvis.tools.file_tools import ListDirectoryTool, ReadFileTool, WriteFileTool
+tests\test_tools.py:12	from jarvis.tools.registry import ToolRegistry
+tests\test_utils_production.py:5	import asyncio
+tests\test_utils_production.py:7	import pytest
+tests\test_utils_production.py:9	from jarvis.utils.exceptions import (
+tests\test_utils_production.py:15	from jarvis.utils.lifecycle import (
+tests\test_utils_production.py:20	from jarvis.utils.logging import configure_logging, get_logger
+tests\test_utils_production.py:140	from jarvis.utils.diagnostics import PythonVersionCheck
+tests\test_utils_production.py:151	from jarvis.utils.diagnostics import PlatformCheck
+tests\test_utils_production.py:162	from jarvis.utils.diagnostics import DependencyCheck
+tests\test_voice_interruptible.py:5	from __future__ import annotations
+tests\test_voice_interruptible.py:7	import asyncio
+tests\test_voice_interruptible.py:8	import time
+tests\test_voice_interruptible.py:9	from unittest.mock import AsyncMock, MagicMock, patch
+tests\test_voice_interruptible.py:11	import pytest
+tests\test_voice_interruptible.py:13	from jarvis.events import EventType, get_event_bus, reset_event_bus
+tests\test_voice_interruptible.py:14	from jarvis.voice.audio_queue import AudioChunk, AudioQueue
+tests\test_voice_interruptible.py:15	from jarvis.voice.conversation_manager import ConversationManager
+tests\test_voice_interruptible.py:16	from jarvis.voice.interrupt_manager import InterruptManager
+tests\test_voice_interruptible.py:17	from jarvis.voice.speech_state import SpeechState, SpeechStateMachine
+tests\test_voice_interruptible.py:18	from jarvis.voice.streaming_stt import StreamingSTT
+tests\test_voice_interruptible.py:19	from jarvis.voice.streaming_tts import StreamingTTS
+tests\test_voice_interruptible.py:20	from jarvis.voice.vad import VAD
+tests\test_voice_interruptible.py:21	from jarvis.voice.voice_events import (
+tests\test_voice_interruptible.py:149	import numpy as np
+tests\test_voice_interruptible.py:156	import numpy as np
+tests\test_voice_interruptible.py:165	import numpy as np
+tests\test_voice_provider.py:5	import pytest
+tests\test_voice_provider.py:7	from jarvis.api.providers import (
+tests\test_voice_provider.py:14	from jarvis.voice.voice_router import VoiceCommandProcessor, VoiceRouter
+tests\test_voice_validation.py:15	from __future__ import annotations
+tests\test_voice_validation.py:17	import asyncio
+tests\test_voice_validation.py:18	import io
+tests\test_voice_validation.py:19	import logging
+tests\test_voice_validation.py:20	import time
+tests\test_voice_validation.py:21	import wave
+tests\test_voice_validation.py:22	from unittest.mock import MagicMock
+tests\test_voice_validation.py:24	import numpy as np
+tests\test_voice_validation.py:25	import pytest
+tests\test_voice_validation.py:27	from jarvis.events import EventType, get_event_bus, reset_event_bus
+tests\test_voice_validation.py:28	from jarvis.voice.audio_queue import AudioChunk, AudioQueue
+tests\test_voice_validation.py:29	from jarvis.voice.conversation_manager import ConversationManager
+tests\test_voice_validation.py:30	from jarvis.voice.speech_state import SpeechState, SpeechStateMachine
+tests\test_voice_validation.py:31	from jarvis.voice.streaming_stt import StreamingSTT
+tests\test_voice_validation.py:32	from jarvis.voice.streaming_tts import StreamingTTS
+tests\test_voice_validation.py:33	from jarvis.voice.vad import VAD
+tests\test_voice_validation.py:34	from jarvis.voice.voice_events import (
+tests\test_voice_validation.py:46	from jarvis.voice.voice_runtime import VoiceConfig, VoiceInitResult, VoiceRuntime
+tests\test_voice_validation.py:208	from jarvis.voice.speech_state import _VALID_TRANSITIONS

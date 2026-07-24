@@ -12,8 +12,10 @@ from jarvis.api.providers import (
     GroqProvider,
     LLMConfig,
     LLMResponse,
+    LMStudioProvider,
     OllamaProvider,
     OpenAIProvider,
+    OpenRouterProvider,
     ProviderManager,
     ProviderType,
 )
@@ -77,6 +79,28 @@ def _make_anthropic(models=None, available=True, api_key="test"):
     return p
 
 
+def _make_openrouter(models=None, available=True, api_key="test"):
+    cfg = LLMConfig(
+        provider=ProviderType.OPENROUTER, api_key=api_key, model=models[0] if models else None
+    )
+    p = OpenRouterProvider(cfg)
+    p._available = available
+    p._available_models = models or []
+    if models:
+        p._model = models[0]
+    return p
+
+
+def _make_lmstudio(models=None, available=True):
+    cfg = LLMConfig(provider=ProviderType.LMSTUDIO, model=models[0] if models else None)
+    p = LMStudioProvider(cfg)
+    p._available = available
+    p._available_models = models or []
+    if models:
+        p._model = models[0]
+    return p
+
+
 class TestProviderDiscovery:
     def test_priority_order(self):
         assert ProviderManager.PROVIDER_PRIORITY == [
@@ -85,6 +109,9 @@ class TestProviderDiscovery:
             ProviderType.OPENAI,
             ProviderType.GOOGLE,
             ProviderType.ANTHROPIC,
+            ProviderType.OPENROUTER,
+            ProviderType.LMSTUDIO,
+            ProviderType.AIRLLM,
         ]
 
     def test_fallback_order(self):
@@ -94,7 +121,14 @@ class TestProviderDiscovery:
         assert (
             ProviderManager.PROVIDER_FALLBACK_ORDER[ProviderType.GOOGLE] == ProviderType.ANTHROPIC
         )
-        assert ProviderManager.PROVIDER_FALLBACK_ORDER[ProviderType.ANTHROPIC] is None
+        assert (
+            ProviderManager.PROVIDER_FALLBACK_ORDER[ProviderType.ANTHROPIC] == ProviderType.OPENROUTER
+        )
+        assert (
+            ProviderManager.PROVIDER_FALLBACK_ORDER[ProviderType.OPENROUTER] == ProviderType.LMSTUDIO
+        )
+        assert ProviderManager.PROVIDER_FALLBACK_ORDER[ProviderType.LMSTUDIO] == ProviderType.AIRLLM
+        assert ProviderManager.PROVIDER_FALLBACK_ORDER[ProviderType.AIRLLM] is None
 
     def test_add_all_provider_types(self):
         manager = ProviderManager()
@@ -103,13 +137,17 @@ class TestProviderDiscovery:
         manager.add_provider(_make_openai(["gpt-4o"]))
         manager.add_provider(_make_google(["gemini-2.0-flash"]))
         manager.add_provider(_make_anthropic(["claude-3-5-sonnet-20240620"]))
-        assert len(manager.providers) == 5
+        manager.add_provider(_make_openrouter(["mistralai/mistral-7b"]))
+        manager.add_provider(_make_lmstudio(["local-model"]))
+        assert len(manager.providers) == 7
         assert set(manager.providers.keys()) == {
             ProviderType.OLLAMA,
             ProviderType.GROQ,
             ProviderType.OPENAI,
             ProviderType.GOOGLE,
             ProviderType.ANTHROPIC,
+            ProviderType.OPENROUTER,
+            ProviderType.LMSTUDIO,
         }
 
 

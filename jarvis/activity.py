@@ -29,15 +29,20 @@ class ActivityEntry:
 
 
 _CATEGORY_MAP = {
-    EventType.VOICE_TRANSCRIPT: "voice",
-    EventType.RESEARCH: "research",
+    EventType.PLAN: "planning",
+    EventType.STEP: "executing",
+    EventType.ERROR: "error",
+    EventType.NOTIFICATION: "notification",
+    EventType.TOAST: "notification",
+    EventType.STAGE: "stage",
     EventType.TOOL: "tool",
+    EventType.RESEARCH: "research",
+    EventType.VOICE_TRANSCRIPT: "voice",
+    EventType.VOICE_STATE: "voice",
     EventType.USER_MESSAGE: "chat",
     EventType.ASSISTANT_MESSAGE: "chat",
-    EventType.PLAN: "plan",
     EventType.PLUGIN: "plugin",
     EventType.TASK: "task",
-    EventType.ERROR: "error",
 }
 
 
@@ -67,10 +72,6 @@ class ActivityCenter:
 
     def _to_entry(self, cat: str, event: Any) -> ActivityEntry | None:
         d = event.data or {}
-        if cat == "voice":
-            return ActivityEntry(
-                str(event.id), "voice", "Voice command", str(d.get("text", ""))[:120]
-            )
         if cat == "chat":
             role = "You" if event.type == EventType.USER_MESSAGE else "JARVIS"
             return ActivityEntry(
@@ -82,12 +83,34 @@ class ActivityCenter:
             return ActivityEntry(
                 str(event.id), "tool", f"Tool: {d.get('tool')}", str(d.get("summary", ""))[:120]
             )
-        if cat == "plan":
+        if cat == "planning":
             return ActivityEntry(
                 str(event.id),
-                "plan",
+                "planning",
                 "Autonomous plan",
                 str(d.get("plan", {}).get("goal", ""))[:120],
+            )
+        if cat == "executing":
+            return ActivityEntry(
+                str(event.id),
+                "executing",
+                f"Step: {d.get('step_id', '')}",
+                str(d.get("result", ""))[:120],
+            )
+        if cat == "error":
+            return ActivityEntry(
+                str(event.id), "error", d.get("title", "Error"), d.get("reason", "")[:120]
+            )
+        if cat == "notification":
+            return ActivityEntry(
+                str(event.id),
+                "notification",
+                d.get("title", "Notification"),
+                str(d.get("message", ""))[:120],
+            )
+        if cat == "stage":
+            return ActivityEntry(
+                str(event.id), "stage", d.get("label", "Stage"), str(d.get("detail", ""))[:120]
             )
         if cat == "research":
             return ActivityEntry(
@@ -103,9 +126,9 @@ class ActivityCenter:
                 f"Task {state}: {d.get('name', '')}",
                 str(d.get("result", ""))[:120],
             )
-        if cat == "error":
+        if cat == "voice":
             return ActivityEntry(
-                str(event.id), "error", d.get("title", "Error"), d.get("reason", "")[:120]
+                str(event.id), "voice", "Voice command", str(d.get("text", ""))[:120]
             )
         return None
 
@@ -121,8 +144,40 @@ class ActivityCenter:
             counts[e.category] = counts.get(e.category, 0) + 1
         return counts
 
+    def filter_by_category(self, category: str) -> list[ActivityEntry]:
+        return [e for e in self._entries if e.category == category]
+
     def clear(self) -> None:
         self._entries.clear()
+
+    def get_timeline(self, limit: int = 50, category: str | None = None) -> list[dict[str, Any]]:
+        items = self._entries
+        if category:
+            items = [e for e in items if e.category == category]
+        items = list(reversed(items[-limit:]))
+        now = time.time()
+        result: list[dict[str, Any]] = []
+        for e in items:
+            delta = now - e.ts
+            if delta < 60:
+                rel = "just now"
+            elif delta < 3600:
+                rel = f"{int(delta / 60)} min ago"
+            elif delta < 86400:
+                rel = f"{int(delta / 3600)} hr ago"
+            else:
+                rel = f"{int(delta / 86400)} days ago"
+            result.append(
+                {
+                    "id": e.id,
+                    "category": e.category,
+                    "title": e.title,
+                    "detail": e.detail,
+                    "timestamp": e.ts,
+                    "relative_time": rel,
+                }
+            )
+        return result
 
 
 # Global default center

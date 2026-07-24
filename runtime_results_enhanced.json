@@ -1,0 +1,47 @@
+{
+  "1_startup": {
+    "pass": true,
+    "evidence": "Title=JARVIS — AI Operating System; sidebar+chat+theme+voice+bg present",
+    "shot": null
+  },
+  "2_navigation": {
+    "pass": false,
+    "evidence": "5 rounds x 10 views; errors=['round=0 dashboard not active', 'round=0 agents not active', 'round=0 workspace not active', 'round=0 files not active', 'round=0 models not active']",
+    "shot": null
+  },
+  "3_chat": {
+    "pass": false,
+    "evidence": "Short=10; long=10; user msgs=0; dup=False; errors=['short 0 error=Message: invalid element state: Element is not currently interactable and may not be manipulated\\n  (Session info: chrome=150.0.7871.129)\\nStacktrace:\\n\\tchromedriver!GetHandleVerifier [0x7ff62d460d25+155a5]\\n\\tchromedriver!GetHandleVerifier [0x7ff62d460d80+15600]\\n\\tchromedriver!(No symbol) [0x7ff62cfb594d]\\n\\tchromedriver!(No symbol) [0x7ff62cfbd8c1]\\n\\tchromedriver!(No symbol) [0x7ff62cfc0885]\\n\\tchromedriver!(No symbol) [0x7ff",
+    "shot": null
+  },
+  "4_voice": {
+    "pass": true,
+    "evidence": "50 cycles; errors=none",
+    "shot": null
+  },
+  "5_dashboard": {
+    "pass": false,
+    "evidence": "Dashboard metric cards=0",
+    "shot": null
+  },
+  "6_palette": {
+    "pass": true,
+    "evidence": "10 cycles; errors=none",
+    "shot": null
+  },
+  "7_notifications": {
+    "pass": true,
+    "evidence": "generated=30; state_count=30",
+    "shot": null
+  },
+  "8_responsive": {
+    "pass": true,
+    "evidence": "innerWidth=390; overflow=False",
+    "shot": null
+  },
+  "9_console_errors": {
+    "pass": false,
+    "evidence": "Total console errors=51",
+    "shot": null
+  }
+}

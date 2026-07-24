@@ -4,13 +4,23 @@ Provides code analysis, architecture overview, and repository intelligence.
 """
 
 import ast
+import asyncio
 import os
 import re
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+
+def _run_sync(coro):
+    try:
+        return asyncio.run(coro)
+    except RuntimeError:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result()
 
 
 @dataclass
@@ -447,3 +457,65 @@ class RepositoryAnalyzer:
             lines.append("⚠️ Security Issues: None found")
 
         return "\n".join(lines)
+
+    def get_llm_insights(self, query: str | None = None, max_tokens: int = 1024) -> dict[str, Any]:
+        """
+        Generate LLM-powered insights about the repository.
+
+        Uses the existing LLM infrastructure to produce actionable
+        architecture and code-quality recommendations.
+
+        Falls back to heuristic insights when no LLM is available.
+        """
+        try:
+            from jarvis.api.gemini import SimpleLLMClient
+
+            client = SimpleLLMClient()
+            if not client.is_available():
+                return self._heuristic_insights()
+
+            stats = self.get_statistics()
+            arch = self.get_architecture()
+            todos = self.find_todos()
+            security = self.scan_security()
+
+            prompt = (
+                "You are a senior code reviewer. Analyze the following repository summary and "
+                "provide concise, actionable insights. "
+                "Focus on architecture, maintainability, testing gaps, and security risks.\n\n"
+                f"Stats: {stats.__dict__}\n"
+                f"Modules: {list(arch.get('modules', {}).keys())[:20]}\n"
+                f"TODOs: {len(todos)}\n"
+                f"Security issues: {len(security)}\n"
+            )
+            if query:
+                prompt += f"\nUser question: {query}\n"
+
+            response = _run_sync(
+                client.generate(system="You are a concise code review assistant.", prompt=prompt, temperature=0.2, max_tokens=max_tokens)
+            )
+            if response and "error" not in response.lower()[:20]:
+                return {"source": "llm", "insights": response}
+        except Exception:
+            pass
+        return self._heuristic_insights()
+
+    def _heuristic_insights(self) -> dict[str, Any]:
+        """Fallback insights without an LLM."""
+        stats = self.get_statistics()
+        todos = self.find_todos()
+        security = self.scan_security()
+        insights = []
+
+        if stats.complexity > 100:
+            insights.append("High cyclomatic complexity detected — consider refactoring complex functions.")
+        if len(todos) > 20:
+            insights.append(f"{len(todos)} TODO comments found — prioritize addressing them.")
+        if security:
+            insights.append(f"{len(security)} potential security issues detected.")
+        if stats.total_files > 0 and stats.total_classes == 0:
+            insights.append("No classes detected — consider introducing modular structure if applicable.")
+        if not insights:
+            insights.append("No immediate structural issues detected from static analysis.")
+
+        return {"source": "heuristic", "insights": "\n".join(insights)}

@@ -7,6 +7,9 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any
 
+import requests
+from bs4 import BeautifulSoup
+
 from jarvis.tools.base import ReadOnlyTool, ToolResult
 
 
@@ -327,6 +330,93 @@ class ScrapeWebTool(ReadOnlyTool):
             "required": ["url"],
         }
 
+    async def scrape_article(self, url: str) -> dict[str, Any]:
+        """Scrape and extract article content from a URL."""
+        try:
+            response = await asyncio.to_thread(requests.get, url, timeout=30)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            for tag in soup(["nav", "aside", "footer", "header", "script", "style", "noscript", "iframe"]):
+                tag.decompose()
+
+            title = ""
+            if soup.title and soup.title.string:
+                title = soup.title.string.strip()
+
+            author = ""
+            author_tag = soup.find(attrs={"name": "author"})
+            if author_tag:
+                author = author_tag.get("content", "").strip()
+            if not author:
+                author_tag = soup.find(class_="author")
+                if author_tag:
+                    author = author_tag.get_text(strip=True)
+
+            publish_date = ""
+            date_tag = soup.find(attrs={"property": "article:published_time"})
+            if date_tag:
+                publish_date = date_tag.get("content", "").strip()
+
+            main_content = soup.find("article")
+            if not main_content:
+                main_content = soup.find(class_="post-content")
+            if not main_content:
+                main_content = soup.find(class_="entry-content")
+            if not main_content:
+                main_content = soup.find("main")
+            if not main_content:
+                main_content = soup.find(id="content")
+            if not main_content:
+                main_content = soup.body
+
+            text = ""
+            if main_content:
+                text = main_content.get_text(separator="\n", strip=True)
+
+            return {
+                "title": title,
+                "author": author,
+                "date": publish_date,
+                "content": text,
+                "url": url,
+            }
+        except Exception as e:
+            return {
+                "title": "",
+                "author": "",
+                "date": "",
+                "content": "",
+                "url": url,
+                "error": str(e),
+            }
+
+    async def summarize_webpage(self, url: str) -> str:
+        """Summarize webpage content using web scraping."""
+        try:
+            article = await self.scrape_article(url)
+            if article.get("error"):
+                return f"Error: {article['error']}"
+            text = article.get("content", "")
+            if not text:
+                return "No content found"
+            if len(text) > 500:
+                text = text[:500] + "..."
+            return text
+        except Exception as e:
+            return f"Error: {e!s}"
+
+    async def save_webpage(self, url: str, output_path: str) -> str:
+        """Fetch full HTML and save to output_path."""
+        try:
+            response = await asyncio.to_thread(requests.get, url, timeout=30)
+            response.raise_for_status()
+            path = __import__("pathlib").Path(output_path)
+            await asyncio.to_thread(path.write_text, response.text, encoding="utf-8")
+            return f"Saved to: {output_path}"
+        except Exception as e:
+            return f"Error saving webpage: {e!s}"
+
     async def execute(self, url: str, selector: str = None) -> ToolResult:
         """Scrape web page."""
         try:
@@ -361,6 +451,18 @@ class ScrapeWebTool(ReadOnlyTool):
             return ToolResult(success=False, output=f"Scraping error: {e!s}")
 
 
-def get_browser_tools() -> list[BrowserTool]:
-    """Get all browser tools."""
-    return [BrowserTool(), SearchWebTool(), ScrapeWebTool()]
+def get_browser_tools() -> list[object]:
+    """Get all browser tools. Prefers persistent Playwright tools when available."""
+    try:
+        from jarvis.browser.manager import get_manager
+
+        get_manager().instance()
+        from jarvis.browser.tools import (
+            PersistentBrowserTool,
+            PersistentScrapeTool,
+            PersistentSearchTool,
+        )
+
+        return [PersistentBrowserTool(), PersistentSearchTool(), PersistentScrapeTool()]
+    except Exception:
+        return [BrowserTool(), SearchWebTool(), ScrapeWebTool()]

@@ -151,7 +151,9 @@ class TestRAGSystem:
     @pytest.fixture
     def rag_system(self, temp_dir):
         """Create a RAGSystem instance."""
-        return RAGSystem(storage_path=temp_dir)
+        rs = RAGSystem(storage_path=temp_dir)
+        yield rs
+        rs.close()
 
     @pytest.fixture
     def temp_txt_file(self):

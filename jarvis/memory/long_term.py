@@ -10,6 +10,8 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
+from jarvis.memory.knowledge_graph import KnowledgeGraph
+
 
 class LongTermMemory:
     """
@@ -20,7 +22,7 @@ class LongTermMemory:
     MAX_VALUE_LENGTH = 380
     MEMORY_MAX_CHARS = 2200
 
-    def __init__(self, memory_path: Path | None = None):
+    def __init__(self, memory_path: Path | None = None, knowledge_graph: KnowledgeGraph | None = None):
         if memory_path is None:
             base_dir = self._get_base_dir()
             memory_dir = base_dir / "memory"
@@ -30,6 +32,7 @@ class LongTermMemory:
             self.memory_path = memory_path
 
         self._lock = Lock()
+        self._knowledge_graph = knowledge_graph
         self._load_or_initialize()
 
     def _get_base_dir(self) -> Path:
@@ -47,6 +50,7 @@ class LongTermMemory:
             "relationships": {},
             "wishes": {},
             "notes": {},
+            "goals": {},
         }
 
     def _load_or_initialize(self):
@@ -73,6 +77,11 @@ class LongTermMemory:
             except Exception as e:
                 print(f"[Memory] Load error: {e}")
                 self._memory = self._empty_memory()
+
+    @property
+    def memories(self) -> dict:
+        """Expose stored memory dict (backward compatibility)."""
+        return self._memory
 
     def load(self) -> dict:
         """Load and return the full memory."""
@@ -164,7 +173,7 @@ class LongTermMemory:
 
         return False
 
-    def recall(self, query: str) -> list:
+    def recall(self, query: str, knowledge_graph: KnowledgeGraph | None = None) -> list:
         """
         Recall memories matching a query.
         Simple keyword matching for now.
@@ -188,7 +197,37 @@ class LongTermMemory:
                             }
                         )
 
-        return results
+        graph = knowledge_graph or self._knowledge_graph
+        if graph is not None:
+            try:
+                graph_results = graph.search(query, limit=10)
+                for gr in graph_results:
+                    data = gr.get("data", {})
+                    label = data.get("label", "")
+                    node_type = data.get("type", "")
+                    props = data.get("properties", {})
+                    text_blob = f"{label} {node_type} {json.dumps(props)}".lower()
+                    if query_lower in text_blob:
+                        results.append(
+                            {
+                                "key": data.get("id", label),
+                                "value": label,
+                                "category": f"graph:{node_type}",
+                                "updated": "",
+                                "source": "knowledge_graph",
+                            }
+                        )
+            except Exception:
+                pass
+
+        seen = set()
+        deduped = []
+        for r in results:
+            k = (r.get("key"), r.get("category"))
+            if k not in seen:
+                seen.add(k)
+                deduped.append(r)
+        return deduped
 
     def semantic_search(self, query: str, limit: int = 5) -> list:
         """
@@ -281,6 +320,88 @@ class LongTermMemory:
         """Get user projects."""
         return self.get_category("projects")
 
+    def _goal_to_dict(self, goal: dict) -> dict:
+        if isinstance(goal, dict):
+            return goal
+        return {"value": str(goal), "updated": datetime.now().strftime("%Y-%m-%d")}
+
+    def save_goal(
+        self,
+        key: str,
+        value: Any,
+        status: str = "active",
+        priority: str = "medium",
+        dependencies: str = "",
+        estimated_completion: str = "",
+        subgoals: str = "",
+    ) -> bool:
+        category = "goals"
+        if category not in self._memory:
+            self._memory[category] = {}
+
+        entry = self._goal_to_dict(value)
+        entry.update({
+            "status": status,
+            "priority": priority,
+            "dependencies": dependencies,
+            "estimated_completion": estimated_completion,
+            "subgoals": subgoals,
+            "updated": datetime.now().strftime("%Y-%m-%d"),
+        })
+
+        existing = self._memory[category].get(key, {})
+        serialized = json.dumps(entry, ensure_ascii=False)
+        existing_serialized = json.dumps(existing, ensure_ascii=False)
+        if existing.get("value") == entry["value"] and existing.get("status") == status and existing_serialized == serialized:
+            return False
+
+        self._memory[category][key] = entry
+        self._save()
+        return True
+
+    def get_goal(self, key: str, category: str = "goals") -> dict[str, Any] | None:
+        goal = self.get_category(category).get(key)
+        if goal is None:
+            return None
+        if isinstance(goal, dict) and "value" in goal:
+            return goal
+        return {"value": str(goal), "updated": ""}
+
+    def get_goals(self) -> dict[str, Any]:
+        """Get all goals."""
+        return self.get_category("goals")
+
+    def get_goals_by_status(self, status: str) -> list[dict[str, Any]]:
+        goals = self.get_category("goals")
+        return [
+            {"key": key, **entry}
+            for key, entry in goals.items()
+            if isinstance(entry, dict) and entry.get("status", "active") == status
+        ]
+
+    def get_current_goal(self) -> dict[str, Any] | None:
+        goals = self.get_category("goals")
+        for key, entry in goals.items():
+            if isinstance(entry, dict) and entry.get("status", "active") == "active":
+                return {"key": key, **entry}
+        return None
+
+    def update_goal_status(self, key: str, status: str, category: str = "goals") -> bool:
+        if category not in self._memory:
+            return False
+        if key not in self._memory[category]:
+            return False
+        entry = self._memory[category][key]
+        if isinstance(entry, dict):
+            entry["status"] = status
+            entry["updated"] = datetime.now().strftime("%Y-%m-%d")
+            self._save()
+            return True
+        return False
+
+    def remove_goal(self, key: str, category: str = "goals") -> bool:
+        return self.forget(key, category)
+
     def format_for_prompt(self, memory: dict | None = None) -> str:
         """
         Format memory for inclusion in a prompt.
@@ -347,6 +468,28 @@ class LongTermMemory:
             result = result[:1997] + "…"
 
         return result + "\n"
+
+    def format_goals_for_prompt(self) -> str:
+        goals = self.get_category("goals")
+        if not goals:
+            return ""
+        lines = ["Current Goals:"]
+        for key, entry in list(goals.items())[:10]:
+            if not isinstance(entry, dict):
+                continue
+            status = entry.get("status", "active")
+            if status == "completed":
+                continue
+            val = entry.get("value", "")
+            priority = entry.get("priority", "medium")
+            deps = entry.get("dependencies", "")
+            parts = [f"  - {key.replace('_', ' ').title()}: {val} [{priority}]"]
+            if deps:
+                parts.append(f"    Depends on: {deps}")
+            lines.extend(parts)
+        if len(lines) <= 1:
+            return ""
+        return "\n".join(lines) + "\n"
 
     def clear(self):
         """Clear all long-term memory."""

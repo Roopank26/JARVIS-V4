@@ -434,6 +434,9 @@ class TestKnowledgeBase:
             assert entry_id is not None
             count = await kb.count()
             assert count >= 1
+            kb.close()
+            import gc
+            gc.collect()
 
     @pytest.mark.asyncio
     async def test_knowledge_base_search(self):
@@ -449,6 +452,9 @@ class TestKnowledgeBase:
 
             results = await kb.search("Python")
             assert len(results) >= 1
+            kb.close()
+            import gc
+            gc.collect()
 
     @pytest.mark.asyncio
     async def test_knowledge_base_get(self):
@@ -464,6 +470,9 @@ class TestKnowledgeBase:
 
             assert entry is not None
             assert entry["content"] == "Test content"
+            kb.close()
+            import gc
+            gc.collect()
 
 
 class TestSelfImprovement:

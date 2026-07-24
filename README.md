@@ -2,8 +2,8 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-362%20passing-brightgreen.svg)]()
-[![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()
+[![Tests](https://img.shields.io/badge/tests-626%20passing-brightgreen.svg)]()
+[![Status](https://img.shields.io/badge/status-v2.0.0-success.svg)]()
 
 **Just A Rather Very Intelligent System** — A cross-platform personal AI assistant with voice, vision, desktop automation, persistent memory, RAG, and multi-provider LLM support.
 
@@ -27,15 +27,16 @@
 
 | Category | Capabilities |
 |----------|-------------|
-| **Multi-Provider LLM** | Groq (primary), Ollama (local), Gemini (fallback) |
-| **Voice I/O** | Wake-word detection, STT (Whisper/faster-whisper), TTS (Piper/Edge-TTS/pyttsx3/gTTS) |
+| **Multi-Provider LLM** | Groq (primary), Ollama (local), Gemini, OpenAI, Anthropic, OpenRouter, LM Studio, AirLLM |
+| **Voice I/O** | Wake-word detection, streaming STT (faster-whisper), streaming TTS (Piper/Edge-TTS/pyttsx3/gTTS), barge-in interrupt |
 | **Memory** | Session, long-term JSON, semantic search, user profiles, self-improvement logs |
 | **RAG** | Document ingestion (PDF, DOCX, HTML), semantic search, study assistant |
 | **Research** | Web research with multi-source monitoring and citation |
 | **Coding** | Repository indexing, AST analysis, security scanning |
-| **Desktop Automation** | Window management, clipboard, app launching, Windows service support |
+| **Desktop Automation** | Window management, clipboard, app launching, Windows service support, file reveal |
 | **Plugins** | Hot-loadable plugins with intent/tool/memory hooks |
-| **Scheduler** | Cron-like scheduled tasks and daily summaries |
+| **Scheduler** | Cron-like scheduled tasks, daily summaries, daily briefing |
+| **Premium UI** | Glassmorphism SPA, command palette, workflow timeline, analytics, activity center, notifications, settings persistence, stop-generation, daily briefing, recent files |
 | **Diagnostics** | `jarvis doctor` — comprehensive system health checks |
 
 ### Voice
@@ -107,6 +108,8 @@ Hot-loadable plugins with hooks for intents, tools, and memory. Drop plugin dire
 
 ## Architecture
 
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the full architectural model, Phase 2 evolution plan, and integration points.
+
 JARVIS uses an **async-first, intent-classification-driven architecture**:
 
 ```
@@ -117,20 +120,20 @@ User Input
 │ Intent Router   │  Pattern-based + LLM classification
 └────────┬────────┘
          │
-    ┌────┴────┬────────┬────────┬────────┬────────┐
-    ▼         ▼        ▼        ▼        ▼        ▼
- Profile   Memory    RAG    Research  Desktop  Tools
-    │         │        │        │        │        │
-    └────┬────┴────────┴────────┴────────┴────────┘
+   ┌─────┴────┬────────┬────────┬────────┬────────┬────────┐
+   ▼          ▼        ▼        ▼        ▼        ▼
+Profile   Memory    RAG    Research  Desktop  Tools
+   │          │        │        │        │        │
+   └────┬─────┴────────┴────────┴────────┴────────┘
          │
          ▼
-   ┌───────────┐
-   │   Agent   │  Planner → Executor → Response
-   └─────┬─────┘
+   ┌────────────┐
+   │   Agent    │  Planner → Executor → Response
+   └─────┬──────┘
          │
-    ┌────┴────┐
-    ▼         ▼
- Memory   Tools
+   ┌────┴────┐
+   ▼         ▼
+Memory   Tools
 ```
 
 **Core components**: `core/agent.py` (orchestrator), `core/planner.py` (LLM-driven planning), `core/executor.py` (tool execution with retry), `memory/` (multi-tier), `tools/` (extensible registry), `voice/` (STT/TTS pipeline), `rag/` (document processing).
@@ -268,7 +271,7 @@ Persistent background assistant with wake-word activation, system tray icon, and
 python -m jarvis ui
 ```
 
-Opens at **http://127.0.0.1:8742**. Adds visible reasoning stages, streaming responses, autonomous planning, live dashboard, command palette, background tasks, activity center, smart suggestions, and dark/light themes.
+Opens at **http://127.0.0.1:8742**. Adds visible reasoning stages, token-by-token streaming, autonomous planning, live dashboard, command palette, background tasks, activity center, smart suggestions, daily briefing, recent files, dark/light themes with accent persistence, stop-generation control, and reconnecting status indicator.
 
 ### Diagnostics
 
@@ -310,12 +313,15 @@ python -c "import sounddevice as sd; print(sd.query_devices())"
 
 ## Future Roadmap
 
+See **[ROADMAP.md](ROADMAP.md)** for detailed planning and phases.
+
 | Milestone | Features |
 |-----------|----------|
-| **v1.1** | Improved voice wake-word accuracy, better RAG chunking |
-| **v1.2** | Docker container, VS Code extension marketplace |
-| **v1.3** | Multi-agent coordinator, remote sessions |
-| **v2.0** | GUI mode, plugin marketplace, self-improvement engine |
+| **v2.1** | Self-improvement engine, plugin marketplace |
+| **v2.2** | Multi-agent coordinator, remote sessions |
+| **v3.0** | GUI mode, cross-device sync, advanced privacy controls |
+
+**Phase 5 — Productization (current focus):** Premium UX polish, streaming cursor enhancements, stop-generation control, persisted settings (accent/reduce-motion), reconnect status indicator, daily briefing view, recent files discovery, provider quality tracking, and expanded desktop integration.
 
 ---
 

@@ -71,5 +71,14 @@ class InterruptManager:
         await self._async_event.wait()
 
     def reset(self) -> None:
-        """Reset the manager to its initial state."""
-        self.clear()
+        """Reset the manager to its initial state.
+
+        Unlike :meth:`clear`, this clears the asyncio event synchronously and
+        unconditionally (without ``call_soon_threadsafe``) so it cannot be lost
+        if called outside a running event loop (e.g. during test teardown or
+        before the runtime loop has started).
+        """
+        with self._lock:
+            self._interrupted = False
+        self._thread_event.clear()
+        self._async_event.clear()

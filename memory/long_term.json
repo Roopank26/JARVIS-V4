@@ -13,5 +13,35 @@
   "projects": {},
   "relationships": {},
   "wishes": {},
-  "notes": {}
+  "notes": {
+    "test_color": {
+      "value": "blue",
+      "updated": "2026-07-20"
+    },
+    "verif_key": {
+      "value": "verif_val",
+      "updated": "2026-07-20"
+    },
+    "speed_test": {
+      "value": "fast_val",
+      "updated": "2026-07-20"
+    },
+    "test_chat_key": {
+      "value": "chat_val_42",
+      "updated": "2026-07-20"
+    },
+    "that my favorite editor": {
+      "value": "vs code",
+      "updated": "2026-07-23"
+    },
+    "fact": {
+      "value": "User prefers Python language for coding tasks",
+      "updated": "2026-07-23"
+    },
+    "project_architecture": {
+      "value": "Capability-Driven Personal AI OS",
+      "updated": "2026-07-23"
+    }
+  },
+  "goals": {}
 }

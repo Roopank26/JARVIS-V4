@@ -106,6 +106,8 @@ class JarvisCLI:
         self.register_tools()
         self.agent = create_jarvis(api_key=api_key)
 
+        await self._start_v7_background()
+
         # Initialize voice runtime for TTS
         try:
             from jarvis.voice.voice_runtime import get_voice_runtime
@@ -126,6 +128,16 @@ class JarvisCLI:
             print(f"[Jarvis] Voice output unavailable: {e}")
 
         await self.agent.start()
+
+    async def _start_v7_background(self) -> None:
+        """Start JARVIS-V7 background evolution if available."""
+        try:
+            from jarvis.evolution.v7_orchestrator import get_v7_orchestrator
+            v7 = get_v7_orchestrator()
+            await v7.start_background()
+            print("[Jarvis-V7] Background evolution engine started")
+        except Exception as e:
+            print(f"[Jarvis-V7] Background evolution unavailable: {e}")
 
     def print_banner(self):
         """Print the JARVIS banner."""
@@ -221,6 +233,57 @@ You can also use tools directly:
             self._print(f"Status: {'Running' if self.agent.is_running else 'Stopped'}")
             self._print(f"Total Messages: {summary.get('total_messages', 0)}")
 
+    def print_evolution_status(self):
+        """Print JARVIS-V7 evolution system status."""
+        try:
+            from jarvis.evolution.v7_orchestrator import get_v7_orchestrator
+            v7 = get_v7_orchestrator()
+            status = v7.get_evolution_status()
+
+            if self.console:
+                table = Table(title="JARVIS-V7 Evolution Status")
+                table.add_column("Metric", style="cyan")
+                table.add_column("Value", style="green")
+
+                evo = status.get("evolution_engine", {})
+                table.add_row("Evolution Running", str(evo.get("running", False)))
+                table.add_row("Total Experiences", str(evo.get("total_experiences", 0)))
+                table.add_row("Total Reflections", str(evo.get("total_reflections", 0)))
+                table.add_row("Candidates Trained", str(evo.get("total_candidates_trained", 0)))
+                table.add_row("CPU Usage", f"{evo.get('cpu_usage', 0):.1f}%")
+                table.add_row("RAM Usage", f"{evo.get('ram_usage', 0):.1f}%")
+
+                registry = status.get("model_registry", {})
+                table.add_row("Total Models", str(registry.get("total_models", 0)))
+                for stage, count in registry.get("by_stage", {}).items():
+                    table.add_row(f"  Models {stage}", str(count))
+
+                kg = status.get("knowledge_graph", {})
+                table.add_row("Graph Nodes", str(kg.get("nodes", 0)))
+                table.add_row("Graph Edges", str(kg.get("edges", 0)))
+
+                insights = status.get("experience_insights", {})
+                table.add_row("Experience Success Rate", f"{insights.get('success_rate', 0):.2%}")
+
+                suggestions = status.get("improvement_suggestions", [])
+                if suggestions:
+                    table.add_row("Improvements", str(len(suggestions)))
+
+                self.console.print(table)
+            else:
+                self._print("=== JARVIS-V7 Evolution Status ===")
+                evo = status.get("evolution_engine", {})
+                self._print(f"Running: {evo.get('running', False)}")
+                self._print(f"Experiences: {evo.get('total_experiences', 0)}")
+                self._print(f"Reflections: {evo.get('total_reflections', 0)}")
+                self._print(f"Candidates Trained: {evo.get('total_candidates_trained', 0)}")
+                registry = status.get("model_registry", {})
+                self._print(f"Models: {registry.get('total_models', 0)}")
+                kg = status.get("knowledge_graph", {})
+                self._print(f"Graph: {kg.get('nodes', 0)} nodes, {kg.get('edges', 0)} edges")
+        except Exception as e:
+            self._print(f"Evolution status unavailable: {e}", style="red")
+
     def print_memory(self):
         """Print stored memory."""
         if not self.agent:
@@ -255,6 +318,10 @@ You can also use tools directly:
             self.print_status()
             return True
 
+        if cmd in ["evolution", "/evolution", "v7"]:
+            self.print_evolution_status()
+            return True
+
         if cmd in ["memory", "/memory"]:
             self.print_memory()
             return True
@@ -277,6 +344,12 @@ You can also use tools directly:
     async def shutdown(self):
         """Shutdown the CLI."""
         self._running = False
+        try:
+            from jarvis.evolution.v7_orchestrator import get_v7_orchestrator
+            v7 = get_v7_orchestrator()
+            await v7.stop_background()
+        except Exception:
+            pass
         if self.agent:
             await self.agent.stop()
         self._print("Goodbye, sir.", style="bold blue")

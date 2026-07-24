@@ -8,12 +8,22 @@ import io
 import logging
 import os
 import platform
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
 logger = logging.getLogger("jarvis.vision")
+
+
+def _run_sync(coro):
+    try:
+        import asyncio
+        return asyncio.run(coro)
+    except RuntimeError:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result()
 
 
 @dataclass
@@ -491,6 +501,51 @@ class ScreenAnalyzer:
 
         return "\n".join(lines)
 
+    def understand_screen(self, image_data: bytes, text: str, layout: dict[str, Any]) -> dict[str, Any]:
+        """
+        Use an LLM to interpret the screen contents.
+
+        Returns a dict with ``description``, ``primary_action``, and ``ui_elements`` keys
+        when an LLM is available; otherwise falls back to the basic summary.
+        """
+        base_summary = self._generate_summary(text, layout)
+        try:
+            from jarvis.api.gemini import SimpleLLMClient
+
+            client = SimpleLLMClient()
+            if not client.is_available():
+                return {"description": base_summary, "primary_action": None, "ui_elements": []}
+
+            prompt = (
+                "You are a screen-understanding assistant. "
+                "Given OCR text and layout metadata from a screenshot, describe what the user is seeing "
+                "and suggest the most useful next action. Keep it concise.\n\n"
+                f"OCR text:\n{text[:2000]}\n\n"
+                f"Layout: {layout}\n\n"
+                "Respond in JSON with keys: description, primary_action, ui_elements (list)."
+            )
+            try:
+                response = _run_sync(client.generate(system="", prompt=prompt, temperature=0.2, max_tokens=512))
+            except Exception:
+                return {"description": base_summary, "primary_action": None, "ui_elements": []}
+            if not response:
+                return {"description": base_summary, "primary_action": None, "ui_elements": []}
+            try:
+                import json
+
+                data = json.loads(response)
+                if isinstance(data, dict):
+                    return {
+                        "description": data.get("description", base_summary),
+                        "primary_action": data.get("primary_action"),
+                        "ui_elements": data.get("ui_elements", []),
+                    }
+            except Exception:
+                pass
+            return {"description": response, "primary_action": None, "ui_elements": []}
+        except Exception:
+            return {"description": base_summary, "primary_action": None, "ui_elements": [], "source": "fallback"}
+
 
 class VisionSystem:
     """
@@ -556,6 +611,24 @@ class VisionSystem:
             return analysis["error"]
 
         return analysis.get("summary", analysis.get("text", "Nothing detected"))
+
+    async def understand_screen(self, region: ScreenRegion | None = None) -> dict[str, Any]:
+        """
+        Capture screen and produce an LLM-augmented understanding.
+
+        Returns:
+            Dict with description, primary_action, ui_elements, and raw analysis.
+        """
+        image_data = await self._capture.capture_screen(region)
+        if not image_data:
+            return {"error": "Failed to capture screenshot", "description": "No screenshot available"}
+
+        analysis = await self._analyzer.analyze_screen(image_data)
+        text = analysis.get("text", "")
+        layout = analysis.get("layout", {})
+        understanding = self._analyzer.understand_screen(image_data, text, layout)
+        analysis.update(understanding)
+        return analysis
 
     async def read_text_from_screen(
         self,

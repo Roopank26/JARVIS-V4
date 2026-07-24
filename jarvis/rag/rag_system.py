@@ -1,5 +1,6 @@
 """
 RAG System for JARVIS - Retrieval Augmented Generation with local knowledge base.
+Enhanced with hybrid search and citation tracking.
 """
 
 import json
@@ -9,7 +10,9 @@ from pathlib import Path
 from typing import Any
 
 from jarvis.memory.knowledge import LocalKnowledgeBase
+from jarvis.rag.citations import Citation, CitationFormatter, CitationResult
 from jarvis.rag.document_processor import DocumentProcessor, StudyAssistant
+from jarvis.rag.hybrid_search import HybridSearchEngine
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +24,10 @@ class RAGSystem:
     Capabilities:
     - Document ingestion (PDF, TXT, MD, DOCX)
     - Semantic search using vector embeddings
+    - Hybrid search with BM25 + vector search + reranking
     - Context retrieval for answering questions
     - Study assistance (summaries, questions, notes)
+    - Citation tracking and formatting
     """
 
     def __init__(
@@ -34,6 +39,25 @@ class RAGSystem:
         self.knowledge_base = LocalKnowledgeBase(self.storage_path)
         self._initialized = False
         self._document_index: dict[str, dict] = {}
+        self._hybrid_search: HybridSearchEngine | None = None
+        self._citation_formatter = CitationFormatter()
+        self._citation_map: dict[str, dict[str, Any]] = {}
+
+    def close(self) -> None:
+        """Release resources held by the RAG system."""
+        try:
+            if self.knowledge_base is not None:
+                self.knowledge_base.close()
+        except Exception:
+            pass
+
+        try:
+            if self._hybrid_search is not None and hasattr(self._hybrid_search, "vector_backend"):
+                backend = self._hybrid_search.vector_backend
+                if hasattr(backend, "_chromadb") and backend._chromadb is not None:
+                    backend._chromadb.close()
+        except Exception:
+            pass
 
     async def initialize(self) -> bool:
         """Initialize the RAG system."""
@@ -41,6 +65,10 @@ class RAGSystem:
             return True
 
         await self.knowledge_base.initialize()
+
+        self._hybrid_search = HybridSearchEngine(self.storage_path)
+        self._hybrid_search.initialize()
+
         self._load_document_index()
         self._initialized = True
         return True
@@ -93,20 +121,43 @@ class RAGSystem:
         # Process document
         doc = await self.processor.process_file(file_path)
 
-        # Add chunks to knowledge base
+        # Add chunks to knowledge base and hybrid search
         added_count = 0
+        hybrid_entries: list[tuple[str, str, dict]] = []
+
         for chunk in doc.chunks:
+            entry_id = chunk.id
+
+            citation_info = {
+                "document_title": doc.title,
+                "page": chunk.page,
+                "chunk_index": chunk.chunk_index,
+                "source_path": str(file_path),
+            }
+            self._citation_map[entry_id] = citation_info
+
+            metadata = {
+                **chunk.metadata,
+                "document_title": doc.title,
+                "chunk_index": chunk.chunk_index,
+                "source_path": str(file_path),
+            }
+
+            hybrid_entries.append((entry_id, chunk.content, metadata))
+
             await self.knowledge_base.add(
                 content=chunk.content,
                 tags=tags or [doc.file_type, doc.title],
-                metadata={
-                    **chunk.metadata,
-                    "document_title": doc.title,
-                    "chunk_index": chunk.chunk_index,
-                },
+                metadata=metadata,
                 source=str(file_path),
             )
             added_count += 1
+
+        if self._hybrid_search is not None:
+            try:
+                self._hybrid_search.index_documents(hybrid_entries)
+            except Exception as e:
+                logger.warning(f"Hybrid search indexing failed: {e}")
 
         # Update document index
         doc_id = str(file_path.resolve())
@@ -140,7 +191,141 @@ class RAGSystem:
             List of relevant chunks
         """
         await self.initialize()
+
+        if self._hybrid_search is not None:
+            try:
+                hybrid_results = self._hybrid_search.search(query, limit=limit, tags=tags)
+                if hybrid_results:
+                    formatted: list[dict] = []
+                    for r in hybrid_results:
+                        formatted.append(
+                            {
+                                "id": r.id,
+                                "content": r.content,
+                                "score": r.score,
+                                "metadata": r.metadata,
+                            }
+                        )
+                    return formatted
+            except Exception as e:
+                logger.warning(f"Hybrid search failed, falling back to knowledge_base.search: {e}")
+
         return await self.knowledge_base.search(query, limit=limit, tags=tags)
+
+    async def hybrid_search(
+        self, query: str, limit: int = 5, tags: list[str] | None = None
+    ) -> list[dict]:
+        """
+        Search using the hybrid search engine.
+
+        Args:
+            query: Search query
+            limit: Maximum results
+            tags: Filter by tags
+
+        Returns:
+            List of relevant chunks with hybrid scores
+        """
+        await self.initialize()
+
+        if self._hybrid_search is None:
+            raise RuntimeError("Hybrid search engine not initialized")
+
+        results = self._hybrid_search.search(query, limit=limit, tags=tags)
+        formatted: list[dict] = []
+        for r in results:
+            formatted.append(
+                {
+                    "id": r.id,
+                    "content": r.content,
+                    "score": r.score,
+                    "bm25_score": r.bm25_score,
+                    "vector_score": r.vector_score,
+                    "rerank_score": r.rerank_score,
+                    "metadata": r.metadata,
+                }
+            )
+        return formatted
+
+    def get_citations(self, results: list[dict]) -> str:
+        """
+        Get formatted citations for search results.
+
+        Args:
+            results: List of search results from search()
+
+        Returns:
+            Formatted citation string
+        """
+        citation_results: list[CitationResult] = []
+
+        for r in results:
+            r_id = r.get("id", "")
+            meta = r.get("metadata", {})
+            citation_info = self._citation_map.get(r_id, {})
+
+            source_path = citation_info.get("source_path", meta.get("source_path", meta.get("source", "Unknown")))
+            document_title = citation_info.get("document_title", meta.get("document_title", meta.get("file_name", "Unknown")))
+            page = citation_info.get("page", meta.get("page"))
+            chunk_index = citation_info.get("chunk_index", meta.get("chunk_index", 0))
+
+            citation = Citation(
+                source_path=source_path,
+                document_title=document_title,
+                page=page,
+                chunk_index=chunk_index,
+                score=r.get("score", 0.0),
+                metadata=meta,
+            )
+            citation_results.append(
+                CitationResult(
+                    content=r.get("content", ""),
+                    citation=citation,
+                    score=r.get("score", 0.0),
+                )
+            )
+
+        return self._citation_formatter.inline(citation_results)
+
+    def get_citations_detailed(self, results: list[dict]) -> list[CitationResult]:
+        """
+        Get citation objects for search results.
+
+        Args:
+            results: List of search results from search()
+
+        Returns:
+            List of CitationResult objects
+        """
+        citation_results: list[CitationResult] = []
+
+        for r in results:
+            r_id = r.get("id", "")
+            meta = r.get("metadata", {})
+            citation_info = self._citation_map.get(r_id, {})
+
+            source_path = citation_info.get("source_path", meta.get("source_path", meta.get("source", "Unknown")))
+            document_title = citation_info.get("document_title", meta.get("document_title", meta.get("file_name", "Unknown")))
+            page = citation_info.get("page", meta.get("page"))
+            chunk_index = citation_info.get("chunk_index", meta.get("chunk_index", 0))
+
+            citation = Citation(
+                source_path=source_path,
+                document_title=document_title,
+                page=page,
+                chunk_index=chunk_index,
+                score=r.get("score", 0.0),
+                metadata=meta,
+            )
+            citation_results.append(
+                CitationResult(
+                    content=r.get("content", ""),
+                    citation=citation,
+                    score=r.get("score", 0.0),
+                )
+            )
+
+        return citation_results
 
     async def get_context(self, query: str, max_chunks: int = 5) -> str:
         """
@@ -158,13 +343,17 @@ class RAGSystem:
         if not results:
             return ""
 
+        citations = self.get_citations(results)
+
         context_parts = []
         for i, result in enumerate(results, 1):
             content = result.get("content", "")
-            source = result.get("metadata", {}).get("file_name", "Unknown")
-            context_parts.append(f"[Source {i}: {source}]\n{content}")
+            context_parts.append(f"[Source {i}]\n{content}")
 
-        return "\n\n".join(context_parts)
+        combined = "\n\n".join(context_parts)
+        if citations:
+            combined += f"\n\n{citations}"
+        return combined
 
     async def list_documents(self) -> list[dict[str, Any]]:
         """List all ingested documents."""
@@ -198,8 +387,6 @@ class RAGSystem:
         del self._document_index[doc_id]
         self._save_document_index()
 
-        # Note: We'd need to track chunk IDs to delete them from knowledge base
-        # For now, we just remove from the index
         logger.info(f"Removed document from index: {file_path}")
         return True
 
@@ -218,8 +405,19 @@ class RAGSystem:
     def get_stats(self) -> dict[str, Any]:
         """Get RAG system statistics."""
         kb_stats = self.knowledge_base.get_stats()
+        hybrid_stats: dict[str, Any] = {}
+        if self._hybrid_search is not None:
+            hybrid_stats = {
+                "hybrid_search_available": True,
+                "bm25_docs": self._hybrid_search.bm25.count(),
+                "vector_search_available": self._hybrid_search.vector_backend.is_available(),
+            }
+        else:
+            hybrid_stats = {"hybrid_search_available": False}
+
         return {
             **kb_stats,
+            **hybrid_stats,
             "documents_indexed": len(self._document_index),
             "storage_path": str(self.storage_path),
         }

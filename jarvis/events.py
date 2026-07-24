@@ -35,6 +35,7 @@ class EventType(Enum):
     # Conversation
     USER_MESSAGE = "user_message"
     ASSISTANT_MESSAGE = "assistant_message"
+    CONTEXT_RESET = "context_reset"
 
     # Voice
     VOICE_STATE = "voice_state"  # listening/speaking/idle changes
@@ -52,6 +53,12 @@ class EventType(Enum):
     # Activity center
     RESEARCH = "research"  # research session events
     ACTIVITY = "activity"  # any activity-center event
+
+    # Proactive / notifications
+    NOTIFICATION = "notification"
+    INTERRUPT = "interrupt"
+    BACKGROUND_COMPLETE = "background_complete"
+    WORKFLOW = "workflow"
 
     # Provider / model lifecycle
     PROVIDER_DISCOVERED = "provider_discovered"  # new provider detected at startup

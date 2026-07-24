@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from jarvis.memory.base import MemoryBase, MemoryCategory
+from jarvis.memory.knowledge_graph import KnowledgeGraph
 from jarvis.memory.long_term import LongTermMemory
 from jarvis.memory.session import SessionMemory
 
@@ -18,9 +19,9 @@ class MemoryManager(MemoryBase):
     - Long-term memory (persistent JSON, across sessions)
     """
 
-    def __init__(self, memory_path: Path | None = None):
+    def __init__(self, memory_path: Path | None = None, knowledge_graph: KnowledgeGraph | None = None):
         self.session = SessionMemory()
-        self.long_term = LongTermMemory(memory_path)
+        self.long_term = LongTermMemory(memory_path, knowledge_graph=knowledge_graph)
 
     def remember(self, key: str, value: Any, category: str = "general") -> None:
         """Store information in long-term memory."""
@@ -60,6 +61,10 @@ class MemoryManager(MemoryBase):
         """Get formatted conversation context."""
         return self.session.get_context_string(max_messages)
 
+    def get_rolling_summary(self) -> str:
+        """Get the rolling summary of older session messages."""
+        return getattr(self.session, "_rolling_summary", "")
+
     def get_history_summary(self) -> dict[str, Any]:
         """Get summary of session history."""
         return self.session.get_history_summary()
@@ -88,6 +93,52 @@ class MemoryManager(MemoryBase):
     def get_projects(self) -> dict[str, Any]:
         """Get user projects."""
         return self.long_term.get_projects()
+
+    # Goal-specific methods
+    def save_goal(
+        self,
+        key: str,
+        value: Any,
+        status: str = "active",
+        priority: str = "medium",
+        dependencies: str = "",
+        estimated_completion: str = "",
+        subgoals: str = "",
+    ) -> bool:
+        """Store a goal in long-term memory."""
+        return self.long_term.save_goal(
+            key=key,
+            value=value,
+            status=status,
+            priority=priority,
+            dependencies=dependencies,
+            estimated_completion=estimated_completion,
+            subgoals=subgoals,
+        )
+
+    def get_goal(self, key: str) -> dict[str, Any] | None:
+        """Get a specific goal."""
+        return self.long_term.get_goal(key)
+
+    def get_goals(self) -> dict[str, Any]:
+        """Get all goals."""
+        return self.long_term.get_goals()
+
+    def get_goals_by_status(self, status: str) -> list[dict[str, Any]]:
+        """Get goals filtered by status."""
+        return self.long_term.get_goals_by_status(status)
+
+    def get_current_goal(self) -> dict[str, Any] | None:
+        """Get the current active goal."""
+        return self.long_term.get_current_goal()
+
+    def update_goal_status(self, key: str, status: str) -> bool:
+        """Update a goal's status."""
+        return self.long_term.update_goal_status(key, status)
+
+    def get_goal_context(self) -> str:
+        """Format goals for inclusion in prompts."""
+        return self.long_term.format_goals_for_prompt()
 
     def get_full_memory(self) -> dict[str, dict]:
         """Get the full long-term memory structure."""

@@ -52,6 +52,9 @@ class Config:
             "max_replans": 2,
             "memory_max_chars": 2200,
             "memory_max_value_length": 380,
+            "tts_provider": "local",
+            "fish_audio_voice_id": "",
+            "fish_audio_api_key": "",
         }
 
         for key, value in defaults.items():
@@ -90,11 +93,11 @@ class Config:
 
     @property
     def model(self) -> str:
-        return self.get("model", "llama-3.3-70b-versatile")
+        return self.get("model") or ""
 
     @property
     def live_model(self) -> str:
-        return self.get("live_model", "llama-3.3-70b-versatile")
+        return self.get("live_model") or ""
 
     @property
     def voice_enabled(self) -> bool:

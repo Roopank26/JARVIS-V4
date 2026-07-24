@@ -26,10 +26,12 @@ class SessionMemory:
 
     MAX_MESSAGES = 100
     MAX_TOKEN_ESTIMATE = 8000
+    SUMMARY_TRIGGER_RATIO = 0.75
 
     def __init__(self):
         self.messages: list[Message] = []
         self._message_count = 0
+        self._rolling_summary: str = ""
 
     def add_user_message(self, content: str) -> None:
         """Add a user message to the session."""
@@ -65,10 +67,14 @@ class SessionMemory:
         """Get a formatted string of recent conversation context."""
         messages = self.get_recent_messages(max_messages)
 
-        if not messages:
-            return ""
+        parts: list[str] = []
+        if self._rolling_summary:
+            parts.append(f"[Earlier conversation summary: {self._rolling_summary}]")
 
-        lines = []
+        if not messages:
+            return "\n".join(parts)
+
+        lines: list[str] = []
         for msg in messages:
             if msg.role == "user":
                 lines.append(f"User: {msg.content}")
@@ -77,31 +83,43 @@ class SessionMemory:
             elif msg.role == "tool":
                 lines.append(f"Tool ({msg.tool_name}): {msg.tool_result}")
 
-        return "\n".join(lines)
+        parts.append("\n".join(lines))
+        return "\n".join(parts)
 
     def _trim_if_needed(self):
         """Trim old messages if memory exceeds limits."""
         self._message_count += 1
 
-        # Trim by count
-        while len(self.messages) > self.MAX_MESSAGES:
-            # Remove oldest non-essential messages
-            for i, msg in enumerate(self.messages):
-                if msg.role != "system":
-                    self.messages.pop(i)
-                    break
+        trigger_count = int(self.MAX_MESSAGES * self.SUMMARY_TRIGGER_RATIO)
 
-        # Simple token estimation (rough: 4 chars = 1 token)
+        if len(self.messages) > trigger_count:
+            excess = self.messages[: len(self.messages) - trigger_count]
+            self._rolling_summary = self._summarize_messages(excess)
+            self.messages = self.messages[len(self.messages) - trigger_count:]
+
         estimated_tokens = sum(len(m.content) for m in self.messages) // 4
         while estimated_tokens > self.MAX_TOKEN_ESTIMATE and len(self.messages) > 10:
-            # Keep first (system) and last few messages
-            self.messages.pop(1)
+            dropped = self.messages.pop(1)
+            self._rolling_summary = self._summarize_messages([dropped])
             estimated_tokens = sum(len(m.content) for m in self.messages) // 4
 
     def clear(self) -> None:
         """Clear all session messages."""
         self.messages.clear()
         self._message_count = 0
+        self._rolling_summary = ""
+
+    @staticmethod
+    def _summarize_messages(messages: list[Message]) -> str:
+        """Produce a concise heuristic summary of older messages."""
+        parts: list[str] = []
+        for m in messages:
+            role = m.role.title()
+            text = m.content.strip().replace("\n", " ")
+            if len(text) > 120:
+                text = text[:117] + "..."
+            parts.append(f"{role}: {text}")
+        return "; ".join(parts)
 
     def get_history_summary(self) -> dict[str, Any]:
         """Get a summary of the session history."""
