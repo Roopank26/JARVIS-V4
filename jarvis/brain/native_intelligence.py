@@ -58,6 +58,7 @@ from jarvis.brain.reasoning_engine import ReasoningChain, ReasoningEngine
 from jarvis.brain.self_evaluation import SelfEvaluator
 from jarvis.brain.self_reflection import SelfReflection
 from jarvis.brain.skill_task_integration import SkillTaskIntegrator, SkillMatch
+from jarvis.brain.strategy_memory import StrategyMemory, StrategyCandidate
 from jarvis.goals.autonomy import AutonomyEngine, AutonomyMode
 from jarvis.goals.goal import Goal
 from jarvis.goals.manager import GoalManager
@@ -182,6 +183,10 @@ class NativeIntelligenceCore:
         self.reflection = SelfReflection(self.confidence)
         self.evaluator = SelfEvaluator()
 
+        # ── V4.2: Strategy Memory (bridges consolidation → planning/decision) ──
+        self.strategy_memory = StrategyMemory()
+        self.planning.set_strategy_memory(self.strategy_memory)
+
         # ── Memory Systems (existing) ──
         self.episodic = EpisodicMemory(
             storage_path=self._storage_dir / "episodes.json" if self._storage_dir else None,
@@ -239,7 +244,7 @@ class NativeIntelligenceCore:
         self._skill_uses: int = 0
         self._traces: list[CognitiveTrace] = []
 
-        # ── Cognitive Metrics (V4.1) ──
+        # ── Cognitive Metrics (V4.1 + V4.2) ──
         self._cognitive_metrics: dict[str, Any] = {
             "task_success_count": 0,
             "task_failure_count": 0,
@@ -254,6 +259,11 @@ class NativeIntelligenceCore:
             "confident_wrong": 0,     # high confidence + failure
             "unconfident_correct": 0, # low confidence + success
             "unconfident_wrong": 0,   # low confidence + failure
+            # V4.2 adaptive metrics
+            "strategy_candidates_found": 0,
+            "strategy_influenced_decisions": 0,
+            "candidate_evaluations": 0,
+            "calibration_adjustments": 0,
         }
 
     # ── Component Wiring ──
@@ -338,11 +348,21 @@ class NativeIntelligenceCore:
         if active_goals:
             goal_context = "; ".join(g.title for g in active_goals[:3])
 
-        # ── STAGE 4.5: FAILURE GUIDANCE LOOKUP ──
+        # ── STAGE 4.5: FAILURE GUIDANCE + STRATEGY LOOKUP ──
         failure_guidance = self.failure_knowledge.get_guidance(user_input)
         if failure_guidance:
             trace.failure_guidance = failure_guidance
             self._cognitive_metrics["failure_guidance_consulted"] += 1
+
+        # V4.2: Find strategy candidates from learned experience
+        strategy_candidates = self.strategy_memory.find_candidates(
+            task=user_input,
+            context=memory_context,
+            failure_guidance=failure_guidance,
+            limit=3,
+        )
+        if strategy_candidates:
+            self._cognitive_metrics["strategy_candidates_found"] += 1
 
         # ── STAGE 5: REASONING (enhanced with failure knowledge + knowledge) ──
         chain = self.reasoning.reason_with_knowledge(
@@ -351,13 +371,26 @@ class NativeIntelligenceCore:
         trace.reasoning = chain
         local_confidence = chain.overall_confidence.value if chain.overall_confidence else 0.0
 
-        # ── STAGE 6: DECISION ──
+        # ── STAGE 6: DECISION (V4.2: candidate evaluation) ──
         has_model = self._model_adapter is not None
         can_reason = self.reasoning.can_reason_locally(user_input)
         decision = self.decision.decide(
-            situation, can_reason_locally=can_reason, has_model=has_model,
+            situation,
+            can_reason_locally=can_reason,
+            has_model=has_model,
+            strategy_candidates=strategy_candidates,
+            failure_guidance=failure_guidance,
         )
         trace.decision = decision
+
+        # V4.2: Track candidate evaluation
+        if decision.candidate_score > 0:
+            self._cognitive_metrics["candidate_evaluations"] += 1
+        if decision.alternatives_rejected > 0:
+            self._cognitive_metrics["strategy_influenced_decisions"] += 1
+
+        # V4.2: Apply calibration to confidence
+        local_confidence = self.confidence.get_calibrated_confidence(local_confidence)
 
         # Apply reflection-based adjustments
         suggestions = self.reflection.get_improvement_suggestions()
@@ -369,8 +402,8 @@ class NativeIntelligenceCore:
                 reasoning="Adjusted by reflection: no model available, using local",
             )
 
-        # ── STAGE 7: PLANNING (failure-aware) ──
-        plan = self.planning.create_plan(decision, situation, user_input)
+        # ── STAGE 7: PLANNING (V4.2: strategy-aware) ──
+        plan = self.planning.create_plan(decision, situation, user_input, failure_guidance)
         # If failure guidance exists, check if plan uses a known-bad strategy
         if failure_guidance and plan.steps:
             avoid = failure_guidance.get("avoid_strategies", [])
@@ -532,9 +565,15 @@ class NativeIntelligenceCore:
                 learning_signal = f"Learning error: {e}"
         trace.learning_signal = learning_signal
 
-        # ── STAGE 13.5: MEMORY CONSOLIDATION ──
+        # ── STAGE 13.5: MEMORY CONSOLIDATION (V4.2: feeds StrategyMemory) ──
         # Run consolidation periodically (every 5 turns with episodes)
-        if self._conversation_turn % 5 == 0 and self.episodic.get_stats().get("total_episodes", 0) > 0:
+        # V4.2: Also triggers on repeated failures or sufficient new episodes
+        should_consolidate = (
+            self._conversation_turn % 5 == 0
+            or self._cognitive_metrics["task_failure_count"] > 0
+            and self._cognitive_metrics["task_failure_count"] % 3 == 0
+        )
+        if should_consolidate and self.episodic.get_stats().get("total_episodes", 0) > 0:
             try:
                 all_episodes = list(self.episodic._episodes.values())
                 if all_episodes:
@@ -553,6 +592,17 @@ class NativeIntelligenceCore:
                     self._cognitive_metrics["patterns_consolidated"] += len(patterns)
                     self._cognitive_metrics["strategies_generalized"] += len(strategies)
                     trace.consolidation_patterns = len(patterns)
+
+                    # V4.2: Feed generalized strategies into StrategyMemory
+                    for strat in strategies:
+                        self.strategy_memory.ingest_from_consolidation(
+                            strategy_key=strat.strategy,
+                            applicability=strat.applicability,
+                            evidence_count=strat.evidence_count,
+                            success_rate=strat.success_rate,
+                            promoted=strat.promoted,
+                            source_episodes=strat.source_episodes,
+                        )
             except Exception as e:
                 logger.debug(f"Consolidation failed: {e}")
 
@@ -608,7 +658,7 @@ class NativeIntelligenceCore:
         else:
             self._local_responses += 1
 
-        # ── COGNITIVE METRICS (V4.1) ──
+        # ── COGNITIVE METRICS (V4.1 + V4.2) ──
         if response_text:
             if is_success:
                 self._cognitive_metrics["task_success_count"] += 1
@@ -625,6 +675,20 @@ class NativeIntelligenceCore:
                 self._cognitive_metrics["unconfident_correct"] += 1
             else:
                 self._cognitive_metrics["unconfident_wrong"] += 1
+
+        # V4.2: Record outcome for confidence calibration
+        self.confidence.record_outcome(local_confidence, is_success)
+
+        # V4.2: Record strategy outcome in StrategyMemory
+        if strategy_candidates:
+            best_candidate = strategy_candidates[0]
+            self.strategy_memory.record_outcome(
+                strategy_id=best_candidate.strategy.id,
+                task=user_input,
+                context=memory_context,
+                success=is_success,
+                duration_ms=duration_ms,
+            )
 
         trace.duration_ms = duration_ms
         self._traces.append(trace)
@@ -898,6 +962,8 @@ class NativeIntelligenceCore:
             "autonomy_mode": self.autonomy.mode.value,
             "cognitive_metrics": self._cognitive_metrics,
             "consolidation": self.consolidation.get_stats(),
+            "strategy_memory": self.strategy_memory.get_stats(),
+            "calibration": self.confidence.get_calibration_stats(),
         }
 
     def get_cognitive_metrics(self) -> dict[str, Any]:
@@ -910,6 +976,9 @@ class NativeIntelligenceCore:
         m["confidence_calibration"] = m["confident_correct"] / max(1, confident_total)
         recovery_total = m["recovery_attempt_count"]
         m["recovery_success_rate"] = m["recovery_success_count"] / max(1, recovery_total)
+        # V4.2 derived metrics
+        m["strategy_influence_rate"] = m["strategy_influenced_decisions"] / max(1, total_tasks)
+        m["candidate_evaluation_rate"] = m["candidate_evaluations"] / max(1, total_tasks)
         return m
 
     def get_trace(self) -> CognitiveTrace | None:
