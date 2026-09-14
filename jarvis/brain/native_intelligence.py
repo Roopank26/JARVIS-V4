@@ -172,8 +172,12 @@ class NativeIntelligenceCore:
         self.evaluator = SelfEvaluator()
 
         # ── Memory Systems (existing) ──
-        self.episodic = EpisodicMemory()
-        self.procedural = ProceduralMemory()
+        self.episodic = EpisodicMemory(
+            storage_path=self._storage_dir / "episodes.json" if self._storage_dir else None,
+        )
+        self.procedural = ProceduralMemory(
+            storage_path=self._storage_dir / "skills.json" if self._storage_dir else None,
+        )
         self.retrieval = MemoryRetrieval()
         self.knowledge = KnowledgeEngine()
         self.failure_knowledge = FailureKnowledge()

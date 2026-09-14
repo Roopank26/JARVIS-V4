@@ -224,6 +224,7 @@ class TestSkillSelection:
     """Multiple skills → choose based on task/context/history."""
 
     def test_skill_discovery(self, tmp_path):
+        """Test A: Unique exact tag + generic tag query → unique skill appears."""
         core = make_intelligence(tmp_path)
         core.procedural.create_skill(
             name="my_unique_read_file_skill",
@@ -240,12 +241,84 @@ class TestSkillSelection:
             confidence=0.6,
         )
 
-        # Should find read skill by unique tag (use only unique tags to avoid
-        # pre-loaded skills with 'file' tag flooding the results)
+        # Mixed query: distinctive tag + generic tag.
+        # The distinctive tag must score high enough that the unique skill
+        # appears despite generic tag 'file' matching many pre-loaded skills.
+        skills = core.procedural.discover("my_unique_read_tag file contents", limit=10)
+        names = [s.name for s in skills]
+        assert "my_unique_read_file_skill" in names, (
+            f"Distinctive tag should not be crowded out. Got: {names[:5]}"
+        )
+
+    def test_skill_discovery_exact_tag_only(self, tmp_path):
+        """Test B: Unique exact tag alone → unique skill appears."""
+        core = make_intelligence(tmp_path)
+        core.procedural.create_skill(
+            name="my_unique_read_file_skill",
+            purpose="Read file contents",
+            steps=[SkillStep(order=1, action="read", tool="read_file")],
+            tags={"my_unique_read_tag", "my_unique_file_tag"},
+            confidence=0.8,
+        )
         skills = core.procedural.discover("my_unique_read_tag", limit=10)
-        assert len(skills) >= 1
         names = [s.name for s in skills]
         assert "my_unique_read_file_skill" in names
+
+    def test_skill_discovery_exact_ranks_above_generic(self, tmp_path):
+        """Test C: Several generic skills + one exact-match → exact ranks first."""
+        core = make_intelligence(tmp_path)
+        core.procedural.create_skill(
+            name="my_unique_read_file_skill",
+            purpose="Read file contents",
+            steps=[SkillStep(order=1, action="read", tool="read_file")],
+            tags={"my_unique_read_tag", "my_unique_file_tag"},
+            confidence=0.8,
+        )
+        # Query with both distinctive and generic; distinctive must rank first
+        skills = core.procedural.discover("my_unique_read_tag file", limit=10)
+        names = [s.name for s in skills]
+        assert names[0] == "my_unique_read_file_skill", (
+            f"Exact distinctive match must rank first. Got: {names[:3]}"
+        )
+
+    def test_skill_discovery_case_insensitive(self, tmp_path):
+        """Test D: Case-insensitive tag matching."""
+        core = make_intelligence(tmp_path)
+        core.procedural.create_skill(
+            name="my_case_test_skill",
+            purpose="Case test",
+            steps=[SkillStep(order=1, action="test")],
+            tags={"my_case_UNIQUE_tag"},
+            confidence=0.8,
+        )
+        # Query with different casing
+        skills = core.procedural.discover("MY_CASE_unique_TAG", limit=10)
+        names = [s.name for s in skills]
+        assert "my_case_test_skill" in names, (
+            f"Case-insensitive match failed. Got: {names[:5]}"
+        )
+
+    def test_skill_discovery_generic_query_still_works(self, tmp_path):
+        """Test E: Existing discovery behavior not broken."""
+        core = make_intelligence(tmp_path)
+        # Create skills that a generic query should find
+        core.procedural.create_skill(
+            name="my_gen_file_reader",
+            purpose="Read file contents",
+            steps=[SkillStep(order=1, action="read", tool="read_file")],
+            tags={"my_gen_file_tag", "my_gen_read_tag"},
+            confidence=0.7,
+        )
+        core.procedural.create_skill(
+            name="my_gen_file_lister",
+            purpose="List files in directory",
+            steps=[SkillStep(order=1, action="list")],
+            tags={"my_gen_file_tag", "my_gen_list_tag"},
+            confidence=0.6,
+        )
+        # Generic query using the shared tag should find both
+        skills = core.procedural.discover("my_gen_file_tag", limit=5)
+        assert len(skills) >= 2, "Generic discovery should still work"
 
     def test_skill_confidence_affects_ranking(self, tmp_path):
         core = make_intelligence(tmp_path)
