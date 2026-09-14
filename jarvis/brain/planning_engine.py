@@ -43,10 +43,17 @@ class ExecutionPlan:
     """A complete execution plan."""
     goal: str
     steps: list[PlanStep] = field(default_factory=list)
-    source: str = "local"  # local, model, hybrid
+    source: str = "local"  # local, model, hybrid, strategy
     created_at: float = field(default_factory=time.time)
     estimated_duration_ms: float = 0.0
     strategy_hint: str = ""  # V4.2: learned strategy suggestion
+    # V4.4: Enhanced plan metadata
+    alternatives_considered: int = 0
+    failure_penalty: float = 0.0
+    expected_success_rate: float = 0.5
+    requires_verification: bool = False
+    constraint_violations: list[str] = field(default_factory=list)
+    dependencies_met: bool = True
 
     def to_dict(self) -> dict:
         return {
@@ -55,6 +62,9 @@ class ExecutionPlan:
             "source": self.source,
             "step_count": len(self.steps),
             "strategy_hint": self.strategy_hint,
+            "expected_success_rate": round(self.expected_success_rate, 3),
+            "constraint_violations": self.constraint_violations,
+            "dependencies_met": self.dependencies_met,
         }
 
 
@@ -278,15 +288,95 @@ class PlanningEngine:
             # Penalize plans using known-bad strategies
             if plan.strategy_hint.lower() in avoid:
                 score -= 0.4
+                plan.failure_penalty = 0.4
             # Prefer strategy-informed plans
             if plan.source == "strategy":
                 score += 0.15
             # Prefer plans with fewer steps (more efficient)
             if plan.steps:
                 score += max(0, 0.1 - len(plan.steps) * 0.02)
+            # V4.4: Penalize constraint violations
+            if plan.constraint_violations:
+                score -= len(plan.constraint_violations) * 0.2
+            # V4.4: Penalize unmet dependencies
+            if not plan.dependencies_met:
+                score -= 0.3
+            plan.expected_success_rate = max(0.0, min(1.0, score))
             return score
 
-        return max(candidates, key=plan_score)
+        best = max(candidates, key=plan_score)
+        best.alternatives_considered = len(candidates)
+        return best
+
+    def check_dependencies(
+        self,
+        plan: ExecutionPlan,
+        completed_tasks: list[str] | None = None,
+        available_capabilities: list[str] | None = None,
+    ) -> bool:
+        """
+        V4.4: Check whether a plan's dependencies are met.
+
+        Returns True if all dependencies are satisfied.
+        """
+        completed = set(completed_tasks or [])
+        capabilities = set(available_capabilities or [])
+        unmet: list[str] = []
+
+        for step in plan.steps:
+            # Check tool availability
+            if step.tool and capabilities and step.tool not in capabilities:
+                # Allow tools that aren't in explicit registry (internal tools)
+                pass
+            # Check depends_on
+            for dep_id in step.depends_on:
+                dep_desc = f"step_{dep_id}"
+                if dep_desc not in completed:
+                    unmet.append(dep_desc)
+
+        plan.dependencies_met = len(unmet) == 0
+        return plan.dependencies_met
+
+    def evaluate_constraints(
+        self,
+        plan: ExecutionPlan,
+        constraints: dict[str, Any] | None,
+    ) -> list[str]:
+        """
+        V4.4: Evaluate a plan against constraints.
+
+        Returns list of constraint violations.
+        """
+        if not constraints:
+            plan.constraint_violations = []
+            return []
+
+        violations: list[str] = []
+
+        # Check max_steps constraint
+        max_steps = constraints.get("max_steps")
+        if max_steps and len(plan.steps) > max_steps:
+            violations.append(f"Plan has {len(plan.steps)} steps, max is {max_steps}")
+
+        # Check required_capabilities
+        required = constraints.get("required_capabilities", [])
+        plan_tools = {s.tool for s in plan.steps}
+        for cap in required:
+            if cap not in plan_tools:
+                violations.append(f"Required capability '{cap}' not in plan")
+
+        # Check forbidden_strategies
+        forbidden = constraints.get("forbidden_strategies", [])
+        if plan.strategy_hint.lower() in [f.lower() for f in forbidden]:
+            violations.append(f"Plan uses forbidden strategy '{plan.strategy_hint}'")
+
+        # Check deadline (if plan takes too long)
+        max_duration = constraints.get("max_duration_ms")
+        if max_duration and plan.estimated_duration_ms > max_duration:
+            violations.append(f"Plan duration exceeds limit")
+
+        plan.constraint_violations = violations
+        return violations
 
     def _consult_strategies(self, goal: str, situation: Situation) -> str:
         """

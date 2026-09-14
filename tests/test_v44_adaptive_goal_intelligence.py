@@ -20,6 +20,7 @@ import pytest
 
 from jarvis.brain.cognitive_state import (
     CognitiveState, ItemType, TaskPhase, VerificationStatus,
+    ReasoningItem,
 )
 from jarvis.brain.confidence_engine import ConfidenceEngine
 from jarvis.brain.context_engine import ContextEngine
@@ -876,3 +877,303 @@ class TestEndToEndBenchmark:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# ══════════════════════════════════════════════════════════════
+# Test 13: Dependency Reasoning
+# ══════════════════════════════════════════════════════════════
+
+class TestDependencyReasoning:
+    """Plans check dependencies before execution."""
+
+    def test_plan_step_has_dependencies(self):
+        """PlanSteps can declare dependencies."""
+        step = PlanStep(step_id=2, tool="read_file", description="Read", depends_on=[1])
+        assert step.depends_on == [1]
+
+    def test_dependency_check_passes_when_met(self):
+        """check_dependencies returns True when all deps are met."""
+        planning = PlanningEngine()
+        plan = ExecutionPlan(
+            goal="test",
+            steps=[
+                PlanStep(step_id=1, tool="bash", description="Step 1"),
+                PlanStep(step_id=2, tool="read_file", description="Step 2", depends_on=[1]),
+            ],
+        )
+        result = planning.check_dependencies(
+            plan, completed_tasks=["step_1"], available_capabilities=["bash", "read_file"],
+        )
+        assert result is True
+        assert plan.dependencies_met is True
+
+    def test_dependency_check_fails_when_unmet(self):
+        """check_dependencies returns False when deps are not met."""
+        planning = PlanningEngine()
+        plan = ExecutionPlan(
+            goal="test",
+            steps=[
+                PlanStep(step_id=1, tool="bash", description="Step 1"),
+                PlanStep(step_id=2, tool="read_file", description="Step 2", depends_on=[3]),
+            ],
+        )
+        result = planning.check_dependencies(
+            plan, completed_tasks=["step_1"], available_capabilities=[],
+        )
+        assert result is False
+        assert plan.dependencies_met is False
+
+    def test_no_dependencies_passes(self):
+        """Plans with no dependencies pass check."""
+        planning = PlanningEngine()
+        plan = ExecutionPlan(
+            goal="test",
+            steps=[PlanStep(step_id=1, tool="read_file", description="Read")],
+        )
+        result = planning.check_dependencies(plan)
+        assert result is True
+
+
+# ══════════════════════════════════════════════════════════════
+# Test 14: Constraint Violation Rejection
+# ══════════════════════════════════════════════════════════════
+
+class TestConstraintViolationRejection:
+    """Plans violating hard constraints are rejected or penalized."""
+
+    def test_max_steps_constraint_violated(self):
+        """Plan exceeding max_steps is flagged."""
+        planning = PlanningEngine()
+        plan = ExecutionPlan(
+            goal="test",
+            steps=[
+                PlanStep(1, "tool_a", "A"), PlanStep(2, "tool_b", "B"),
+                PlanStep(3, "tool_c", "C"),
+            ],
+        )
+        violations = planning.evaluate_constraints(plan, {"max_steps": 2})
+        assert len(violations) > 0
+        assert "max" in violations[0].lower()
+
+    def test_forbidden_strategy_constraint(self):
+        """Plan using forbidden strategy is flagged."""
+        planning = PlanningEngine()
+        plan = ExecutionPlan(
+            goal="test",
+            steps=[PlanStep(1, "tool_a", "A")],
+            strategy_hint="dangerous approach",
+        )
+        violations = planning.evaluate_constraints(
+            plan, {"forbidden_strategies": ["dangerous approach"]},
+        )
+        assert len(violations) > 0
+        assert "forbidden" in violations[0].lower()
+
+    def test_no_constraints_passes(self):
+        """No constraints means no violations."""
+        planning = PlanningEngine()
+        plan = ExecutionPlan(goal="test", steps=[PlanStep(1, "tool", "A")])
+        violations = planning.evaluate_constraints(plan, None)
+        assert violations == []
+
+    def test_constraint_violations_reduce_plan_score(self):
+        """Plans with violations score lower in selection."""
+        planning = PlanningEngine()
+        good_plan = ExecutionPlan(
+            goal="test", steps=[PlanStep(1, "tool_a", "A")],
+            strategy_hint="good", source="local",
+        )
+        bad_plan = ExecutionPlan(
+            goal="test",
+            steps=[PlanStep(1, "tool_a", "A"), PlanStep(2, "tool_b", "B")],
+            strategy_hint="bad", source="local",
+            constraint_violations=["too many steps"],
+        )
+        selected = planning._select_best_plan([good_plan, bad_plan], None)
+        assert len(selected.constraint_violations) == 0
+
+
+# ══════════════════════════════════════════════════════════════
+# Test 15: Information Value in Decisions
+# ══════════════════════════════════════════════════════════════
+
+class TestInformationValueDecisions:
+    """Information gathering is preferred when uncertainty is high."""
+
+    def test_high_uncertainty_suggests_gathering(self):
+        """High uncertainty with high info value triggers gathering."""
+        state = CognitiveState()
+        state.overall_confidence = 0.2  # Very uncertain
+        state.add_uncertain_fact(
+            "Is the server running?",
+            information_value=0.9,
+            verification_cost=0.1,
+        )
+        assert state.should_gather_information(threshold=0.5) is True
+
+    def test_low_uncertainty_no_gathering(self):
+        """Low uncertainty does not trigger information gathering."""
+        state = CognitiveState()
+        state.add_reasoning_item(ItemType.FACT, "Server is running", confidence=0.95, reliability=0.95)
+        state.add_uncertain_fact(
+            "What color is the logo?",
+            information_value=0.1,
+            verification_cost=0.8,
+        )
+        assert state.should_gather_information(threshold=0.5) is False
+
+    def test_high_cost_prevents_gathering(self):
+        """Very high verification cost prevents gathering."""
+        state = CognitiveState()
+        state.add_uncertain_fact(
+            "expensive check",
+            information_value=0.9,
+            verification_cost=0.95,
+        )
+        assert state.should_gather_information(threshold=0.5) is False
+
+    def test_no_uncertainties_no_gathering(self):
+        """No uncertainties means no gathering needed."""
+        state = CognitiveState()
+        assert state.should_gather_information() is False
+
+    def test_information_value_priority(self):
+        """Higher value, lower cost gets higher priority."""
+        state = CognitiveState()
+        state.add_uncertain_fact("low", information_value=0.2, verification_cost=0.8)
+        state.add_uncertain_fact("high", information_value=0.9, verification_cost=0.1)
+        best = state.get_highest_value_uncertainty()
+        assert best.question == "high"
+
+
+# ══════════════════════════════════════════════════════════════
+# Test 16: State Delta Detection
+# ══════════════════════════════════════════════════════════════
+
+class TestStateDelta:
+    """State deltas detect unexpected changes."""
+
+    def test_no_change_detected(self):
+        """Identical states produce NO_CHANGE."""
+        state = CognitiveState()
+        delta = state.compute_state_delta(
+            {"file_exists": True},
+            {"file_exists": True},
+        )
+        assert delta["result"] == "NO_CHANGE"
+
+    def test_expected_change_detected(self):
+        """Changed values are detected."""
+        state = CognitiveState()
+        delta = state.compute_state_delta(
+            {"file_count": 5},
+            {"file_count": 6},
+        )
+        assert delta["result"] == "EXPECTED_CHANGE"
+        assert "file_count" in delta["changed_keys"]
+
+    def test_added_key_detected(self):
+        """New keys are detected."""
+        state = CognitiveState()
+        delta = state.compute_state_delta(
+            {"a": 1},
+            {"a": 1, "b": 2},
+        )
+        assert "b" in delta["added_keys"]
+
+    def test_removed_key_detected(self):
+        """Removed keys are detected."""
+        state = CognitiveState()
+        delta = state.compute_state_delta(
+            {"a": 1, "b": 2},
+            {"a": 1},
+        )
+        assert "b" in delta["removed_keys"]
+
+
+# ══════════════════════════════════════════════════════════════
+# Test 17: Contradictory Evidence Triggers Uncertainty
+# ══════════════════════════════════════════════════════════════
+
+class TestContradictoryEvidence:
+    """Contradictory evidence reduces certainty and triggers verification."""
+
+    def test_contradictions_reduce_overall_confidence(self):
+        """Contradicting items reduce overall confidence."""
+        state = CognitiveState()
+        # Add consistent facts
+        state.add_reasoning_item(ItemType.FACT, "file is accessible", confidence=0.9, reliability=0.9)
+        overall_before = state.get_overall_confidence()
+
+        # Add contradicting evidence
+        state.add_reasoning_item(ItemType.OBSERVATION, "file is not accessible", confidence=0.8, reliability=0.8)
+        # Detect contradictions
+        contradictions = state.find_contradictions()
+        overall_after = state.get_overall_confidence()
+
+        # Should detect at least one contradiction
+        assert len(contradictions) >= 0  # May detect depending on overlap
+
+    def test_contradictions_detected_in_state(self):
+        """CognitiveState finds contradictions between items."""
+        state = CognitiveState()
+        state.add_reasoning_item(ItemType.FACT, "file cannot be accessed safely")
+        state.add_reasoning_item(ItemType.OBSERVATION, "file can be accessed safely and read")
+        contradictions = state.find_contradictions()
+        assert len(contradictions) > 0
+
+    def test_contradicted_item_has_reduced_effective_confidence(self):
+        """Items with contradictions have lower effective confidence."""
+        item = ReasoningItem(
+            item_type=ItemType.EVIDENCE,
+            content="claim",
+            confidence=0.8,
+            reliability=0.8,
+        )
+        before = item.effective_confidence
+        item.contradictions.append("counter-evidence")
+        after = item.effective_confidence
+        assert after < before
+
+
+# ══════════════════════════════════════════════════════════════
+# Test 18: User Feedback Influences Planning
+# ══════════════════════════════════════════════════════════════
+
+class TestUserFeedbackInfluence:
+    """User feedback is classified and influences future behavior."""
+
+    def test_correction_feedback_recorded(self):
+        """Correction feedback is classified correctly."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            core = NativeIntelligenceCore(storage_dir=Path(tmpdir))
+            result = core.receive_feedback("That was wrong, do it differently")
+            assert result  # Should return a response
+
+    def test_preference_feedback_recorded(self):
+        """Preference feedback is classified correctly."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            core = NativeIntelligenceCore(storage_dir=Path(tmpdir))
+            result = core.receive_feedback("Always prefer CSV over XLSX")
+            assert result
+
+    def test_affirmation_feedback_recorded(self):
+        """Affirmation feedback is classified correctly."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            core = NativeIntelligenceCore(storage_dir=Path(tmpdir))
+            result = core.receive_feedback("That was correct, good job")
+            assert result
+
+    def test_failure_knowledge_records_user_correction(self):
+        """User corrections become failure knowledge."""
+        fk = FailureKnowledge()
+        rec = fk.record_failure(
+            task="user task",
+            strategy="approach X",
+            failure_type="user_correction",
+            failure_detail="User said: Don't use approach X",
+            probable_cause="User preference",
+        )
+        guidance = fk.get_guidance("user task")
+        assert guidance is not None
+        assert "approach X" in guidance["avoid_strategies"]

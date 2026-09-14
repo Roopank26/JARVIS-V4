@@ -1123,6 +1123,14 @@ class NativeIntelligenceCore:
             return "TOOL_FAILURE"
         if "security denied" in el:
             return "AUTHORIZATION_FAILURE"
+        if "invalid" in el and ("input" in el or "argument" in el or "parameter" in el):
+            return "INVALID_INPUT"
+        if "missing" in el and ("information" in el or "required" in el):
+            return "MISSING_INFORMATION"
+        if "blocked" in el or "blocker" in el:
+            return "PLAN_ERROR"
+        if "changed" in el and "environment" in el:
+            return "ENVIRONMENT_CHANGE"
         return "UNKNOWN_FAILURE"
 
     def _select_recovery(
@@ -1176,6 +1184,33 @@ class NativeIntelligenceCore:
             return {
                 "action": "retry",
                 "reason": "Timeout — retrying",
+            }
+
+        if failure_class == "INVALID_INPUT":
+            return {
+                "action": "skip",
+                "reason": "Invalid input — skipping task",
+            }
+
+        if failure_class == "MISSING_INFORMATION":
+            return {
+                "action": "alternative",
+                "alternative_task": f"gather information for: {task.description}",
+                "reason": "Missing information — gathering before retry",
+            }
+
+        if failure_class == "PLAN_ERROR":
+            return {
+                "action": "alternative",
+                "alternative_task": f"replan: {task.description}",
+                "reason": "Plan error — regenerating plan",
+            }
+
+        if failure_class == "ENVIRONMENT_CHANGE":
+            return {
+                "action": "alternative",
+                "alternative_task": f"reassess then {task.description}",
+                "reason": "Environment changed — reassessing",
             }
 
         if suggested_recovery:
@@ -1269,6 +1304,16 @@ class NativeIntelligenceCore:
         # V4.3 derived metrics
         verification_total = m["verification_success_count"] + m["verification_failure_count"]
         m["verification_success_rate"] = m["verification_success_count"] / max(1, verification_total)
+        # V4.4 derived metrics
+        m["partial_progress_preservation_rate"] = (
+            m["partial_progress_preserved_count"] / max(1, recovery_total)
+        )
+        m["plan_adaptation_rate"] = (
+            m["plan_change_count"] / max(1, total_tasks)
+        )
+        m["known_failure_avoidance_rate"] = (
+            m["failure_guidance_prevented"] / max(1, m["failure_guidance_consulted"])
+        )
         return m
 
     def get_trace(self) -> CognitiveTrace | None:

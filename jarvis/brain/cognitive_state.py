@@ -280,6 +280,67 @@ class CognitiveState:
             return None
         return max(self.uncertain_facts, key=lambda u: u.priority)
 
+    def should_gather_information(self, threshold: float = 0.6) -> bool:
+        """
+        V4.4: Determine whether JARVIS should gather information before acting.
+
+        Returns True when the highest-value uncertainty exceeds the threshold
+        and the acquisition cost is reasonable.
+        """
+        best = self.get_highest_value_uncertainty()
+        if best is None:
+            return False
+        # Only gather if uncertainty is significant AND information value is high
+        if best.information_value < threshold:
+            return False
+        # Don't gather if verification cost is prohibitive
+        if best.verification_cost > 0.9:
+            return False
+        # Gather if overall confidence is low and information would help
+        if self.get_overall_confidence() < 0.4 and best.priority > 0.5:
+            return True
+        return best.priority > threshold
+
+    def compute_state_delta(
+        self,
+        before: dict[str, Any],
+        after: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        V4.4: Compute the delta between before and after states.
+
+        Returns a structured delta showing expected vs actual changes.
+        """
+        delta: dict[str, Any] = {
+            "changed_keys": [],
+            "added_keys": [],
+            "removed_keys": [],
+            "unchanged_keys": [],
+            "result": "UNKNOWN",
+        }
+
+        all_keys = set(before.keys()) | set(after.keys())
+        for key in all_keys:
+            in_before = key in before
+            in_after = key in after
+            if in_before and in_after:
+                if before[key] != after[key]:
+                    delta["changed_keys"].append(key)
+                else:
+                    delta["unchanged_keys"].append(key)
+            elif in_after and not in_before:
+                delta["added_keys"].append(key)
+            elif in_before and not in_after:
+                delta["removed_keys"].append(key)
+
+        # Determine result
+        if not delta["changed_keys"] and not delta["added_keys"] and not delta["removed_keys"]:
+            delta["result"] = "NO_CHANGE"
+        elif delta["changed_keys"] or delta["added_keys"]:
+            delta["result"] = "EXPECTED_CHANGE"
+
+        return delta
+
     def get_certain_facts(self) -> list[ReasoningItem]:
         """Get only facts/observations that are certain."""
         return [item for item in self.reasoning_items if item.is_certain]
