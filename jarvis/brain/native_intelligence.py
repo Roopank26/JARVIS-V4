@@ -276,6 +276,12 @@ class NativeIntelligenceCore:
             "plan_change_count": 0,
             "hypotheses_formed": 0,
             "contradictions_detected": 0,
+            # V4.4 adaptive goal metrics
+            "recovery_alternative_count": 0,
+            "recovery_skip_count": 0,
+            "failure_classifications": {},
+            "plan_candidates_generated": 0,
+            "partial_progress_preserved_count": 0,
         }
 
     # ── Component Wiring ──
@@ -975,10 +981,15 @@ class NativeIntelligenceCore:
         """Procedural memory is always available as a skill fallback."""
         return True
 
-    # ── Goal Management ──
+    # ── Goal Management (V4.4: hierarchical, adaptive) ──
 
     def pursue_goal(self, description: str) -> IntelligenceResponse:
-        """Create and pursue a multi-step goal through the cognitive loop."""
+        """
+        Create and pursue a multi-step goal through the cognitive loop.
+
+        V4.4: Enhanced with hierarchical decomposition, failure classification,
+        partial progress preservation, and adaptive recovery.
+        """
         goal = self.goal_manager.create_goal(
             title=description[:200],
             description=description,
@@ -990,11 +1001,17 @@ class NativeIntelligenceCore:
             goal, self.task_manager, context=description,
         )
 
-        results_text = []
+        results_text: list[str] = []
         tasks_completed = 0
         tasks_failed = 0
+        recovery_plans: list[dict[str, Any]] = []  # V4.4: track recovery history
+        task_outcomes: list[dict[str, Any]] = []   # V4.4: track all outcomes
 
-        for _ in range(len(tasks) * 2):
+        max_iterations = len(tasks) * 3  # V4.4: bounded, not infinite
+        iteration = 0
+
+        while iteration < max_iterations:
+            iteration += 1
             next_task = self.task_manager.get_next_task()
             if next_task is None:
                 break
@@ -1002,39 +1019,84 @@ class NativeIntelligenceCore:
             if all(t.state in (TaskState.SUCCEEDED, TaskState.CANCELLED) for t in remaining):
                 break
 
+            # V4.4: Check failure guidance before execution
+            guidance = self.failure_knowledge.get_guidance(next_task.description)
+
             # Process each task through the cognitive loop
             response = self.process(next_task.description)
+
             if response.text and not response.text.startswith("Error"):
                 tasks_completed += 1
                 results_text.append(response.text)
+                task_outcomes.append({
+                    "task": next_task.description,
+                    "success": True,
+                    "strategy": response.action_taken,
+                    "step_index": tasks_completed,
+                })
             else:
                 tasks_failed += 1
                 self._cognitive_metrics["recovery_attempt_count"] += 1
-                # Check failure knowledge before retrying
-                guidance = self.failure_knowledge.get_guidance(next_task.description)
+                error_text = response.text or "unknown error"
+
+                # V4.4: Classify failure
+                failure_class = self._classify_failure(error_text)
+                task_outcomes.append({
+                    "task": next_task.description,
+                    "success": False,
+                    "failure_class": failure_class,
+                    "error": error_text[:100],
+                    "step_index": tasks_completed + tasks_failed,
+                })
+
+                # V4.4: Consult failure knowledge
                 if guidance and guidance.get("avoid_strategies"):
-                    # Record that we consulted failure knowledge
                     self._cognitive_metrics["failure_guidance_consulted"] += 1
-                # Attempt recovery
-                recovery_decision = self.recovery.decide_recovery(
-                    next_task, response.text or "unknown error",
+
+                # V4.4: Adaptive recovery based on failure classification
+                recovery_plan = self._select_recovery(
+                    next_task, error_text, failure_class, guidance, task_outcomes,
                 )
-                if recovery_decision.action == RecoveryAction.RETRY:
+                recovery_plans.append(recovery_plan)
+
+                if recovery_plan["action"] == "retry":
                     if next_task.attempts < next_task.max_attempts:
                         self.task_manager.retry_task(next_task.id)
                         self._cognitive_metrics["recovery_success_count"] += 1
+                elif recovery_plan["action"] == "alternative":
+                    # V4.4: Try alternative strategy (not blind retry)
+                    alt_response = self.process(recovery_plan["alternative_task"])
+                    if alt_response.text and not alt_response.text.startswith("Error"):
+                        tasks_completed += 1
+                        tasks_failed -= 1  # Recovered
+                        results_text.append(f"[recovered] {alt_response.text}")
+                        self._cognitive_metrics["recovery_success_count"] += 1
+                    elif next_task.attempts < next_task.max_attempts:
+                        self.task_manager.retry_task(next_task.id)
+                elif recovery_plan["action"] == "skip":
+                    # V4.4: Skip non-critical task, preserve partial progress
+                    results_text.append(f"[skipped] {next_task.description}: {error_text[:50]}")
+                else:
+                    # Default: bounded retry
+                    if next_task.attempts < next_task.max_attempts:
+                        self.task_manager.retry_task(next_task.id)
 
+        # V4.4: Goal completion assessment
         if tasks_failed == 0 and tasks_completed > 0:
             self.goal_manager.complete(goal.id)
         elif tasks_completed > 0:
+            # V4.4: Partial progress is still progress
             self.goal_manager.update_goal(
                 goal.id, progress=tasks_completed / max(1, len(tasks)),
             )
         else:
             self.goal_manager.fail(goal.id, reason="All tasks failed")
 
+        # V4.4: Build summary with recovery information
         summary = f"Goal: {description}\n"
         summary += f"Completed: {tasks_completed}/{len(tasks)}, Failed: {tasks_failed}\n"
+        if recovery_plans:
+            summary += f"Recoveries attempted: {len(recovery_plans)}\n"
         if results_text:
             summary += "\n".join(results_text[:5])
 
@@ -1045,6 +1107,88 @@ class NativeIntelligenceCore:
             used_tools=tasks_completed > 0,
             duration_ms=0,
         )
+
+    def _classify_failure(self, error_text: str) -> str:
+        """V4.4: Classify failure type to guide recovery."""
+        el = error_text.lower()
+        if "permission" in el or "denied" in el or "authorization" in el:
+            return "AUTHORIZATION_FAILURE"
+        if "not found" in el or "no such" in el:
+            return "MISSING_DEPENDENCY"
+        if "timeout" in el:
+            return "TIMEOUT"
+        if "network" in el or "connection" in el:
+            return "RESOURCE_FAILURE"
+        if "unknown capability" in el:
+            return "TOOL_FAILURE"
+        if "security denied" in el:
+            return "AUTHORIZATION_FAILURE"
+        return "UNKNOWN_FAILURE"
+
+    def _select_recovery(
+        self,
+        task: Any,
+        error: str,
+        failure_class: str,
+        guidance: dict[str, Any] | None,
+        task_outcomes: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """
+        V4.4: Select recovery strategy based on failure classification.
+
+        Instead of blindly retrying, selects the appropriate recovery:
+        - AUTHORIZATION_FAILURE → request approval or skip
+        - MISSING_DEPENDENCY → try alternative approach
+        - TOOL_FAILURE → try alternative tool
+        - TIMEOUT → retry with simpler approach
+        - UNKNOWN_FAILURE → bounded retry
+        """
+        suggested_recovery = ""
+        if guidance:
+            suggested_recovery = guidance.get("suggested_recovery", "")
+
+        if failure_class == "AUTHORIZATION_FAILURE":
+            return {
+                "action": "skip",
+                "reason": "Authorization required — skipping to preserve progress",
+            }
+
+        if failure_class == "TOOL_FAILURE":
+            return {
+                "action": "alternative",
+                "alternative_task": f"alternative approach: {task.description}",
+                "reason": "Tool unavailable — trying alternative",
+            }
+
+        if failure_class == "MISSING_DEPENDENCY":
+            return {
+                "action": "alternative",
+                "alternative_task": f"verify then {task.description}",
+                "reason": "Missing dependency — verifying prerequisites",
+            }
+
+        if failure_class == "TIMEOUT":
+            if task.attempts >= 2:
+                return {
+                    "action": "skip",
+                    "reason": "Repeated timeout — skipping to preserve progress",
+                }
+            return {
+                "action": "retry",
+                "reason": "Timeout — retrying",
+            }
+
+        if suggested_recovery:
+            return {
+                "action": "alternative",
+                "alternative_task": suggested_recovery,
+                "reason": f"Using known recovery: {suggested_recovery[:50]}",
+            }
+
+        # Default: bounded retry
+        if task.attempts < task.max_attempts:
+            return {"action": "retry", "reason": "Default bounded retry"}
+        return {"action": "skip", "reason": "Max attempts reached"}
 
     # ── Feedback Loop ──
 

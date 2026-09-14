@@ -131,6 +131,7 @@ class PlanningEngine:
         Prioritizes local templates; model is only for complex multi-step plans.
 
         V4.2: Consults strategy memory for strategy-aware planning.
+        V4.4: Generates alternatives and selects best plan.
         """
         goal = user_input or situation.user_input
         start = time.time()
@@ -138,10 +139,19 @@ class PlanningEngine:
         # V4.2: Consult strategy memory for plan optimization
         strategy_hint = self._consult_strategies(goal, situation)
 
+        # V4.4: Generate alternative plans and select best
+        candidates = self._generate_plan_candidates(
+            decision, situation, goal, user_input, failure_guidance, strategy_hint,
+        )
+        if candidates and len(candidates) > 1:
+            best = self._select_best_plan(candidates, failure_guidance)
+            self._plan_history.append(best)
+            return best
+
         # Direct tool execution
         if decision.action == Action.USE_TOOL:
             plan = self._plan_from_tool(decision, goal, situation)
-            plan.strategy_hint = strategy_hint  # Attach strategy hint
+            plan.strategy_hint = strategy_hint
             self._plan_history.append(plan)
             return plan
 
@@ -160,7 +170,7 @@ class PlanningEngine:
         # Complex plans — try local templates first
         if decision.action in (Action.EXECUTE_PLAN, Action.COMPOUND):
             plan = self._plan_complex(goal, situation, user_input)
-            plan.strategy_hint = strategy_hint  # Attach strategy hint
+            plan.strategy_hint = strategy_hint
             self._plan_history.append(plan)
             return plan
 
@@ -168,7 +178,7 @@ class PlanningEngine:
         if decision.action == Action.CONSULT_MODEL:
             plan = ExecutionPlan(
                 goal=goal,
-                steps=[],  # No tool steps — model handles this
+                steps=[],
                 source="model",
             )
             self._plan_history.append(plan)
@@ -178,6 +188,105 @@ class PlanningEngine:
         plan = ExecutionPlan(goal=goal, steps=[], source="local")
         self._plan_history.append(plan)
         return plan
+
+    def _generate_plan_candidates(
+        self,
+        decision: Decision,
+        situation: Situation,
+        goal: str,
+        user_input: str,
+        failure_guidance: dict[str, Any] | None,
+        strategy_hint: str,
+    ) -> list[ExecutionPlan]:
+        """V4.4: Generate multiple candidate plans for comparison."""
+        candidates: list[ExecutionPlan] = []
+
+        if decision.action == Action.USE_TOOL:
+            # Primary: direct tool plan
+            plan_a = self._plan_from_tool(decision, goal, situation)
+            plan_a.strategy_hint = strategy_hint
+            plan_a.source = "local"
+            candidates.append(plan_a)
+
+        elif decision.action in (Action.EXECUTE_PLAN, Action.COMPOUND):
+            # Plan A: template-based
+            plan_a = self._plan_complex(goal, situation, user_input)
+            plan_a.strategy_hint = strategy_hint
+            if plan_a.steps:
+                candidates.append(plan_a)
+
+            # Plan B: strategy-informed (if strategy memory has suggestions)
+            if strategy_hint and not failure_guidance:
+                alt_steps = self._strategy_informed_steps(goal, situation, strategy_hint)
+                if alt_steps and alt_steps != plan_a.steps:
+                    plan_b = ExecutionPlan(
+                        goal=goal, steps=alt_steps, source="strategy",
+                        strategy_hint=strategy_hint,
+                    )
+                    candidates.append(plan_b)
+
+        return candidates
+
+    def _strategy_informed_steps(
+        self, goal: str, situation: Situation, strategy_hint: str,
+    ) -> list[PlanStep]:
+        """Generate steps informed by a learned strategy."""
+        # Use the strategy hint to modify plan generation
+        goal_lower = goal.lower()
+        hint_lower = strategy_hint.lower()
+
+        # If strategy suggests a specific approach, try it
+        steps: list[PlanStep] = []
+
+        # Extract tools from strategy hint
+        for template_name, template_steps in self._templates.items():
+            name_words = set(template_name.replace("_", " ").split())
+            hint_words = set(hint_lower.split())
+            if name_words & hint_words:
+                for i, ts in enumerate(template_steps, 1):
+                    steps.append(PlanStep(
+                        step_id=i,
+                        tool=ts["tool"],
+                        description=ts["description"],
+                        parameters=ts.get("parameters", {}),
+                    ))
+                break
+
+        return steps
+
+    def _select_best_plan(
+        self,
+        candidates: list[ExecutionPlan],
+        failure_guidance: dict[str, Any] | None,
+    ) -> ExecutionPlan:
+        """V4.4: Select the best plan from candidates."""
+        if not candidates:
+            return ExecutionPlan(goal="", steps=[], source="local")
+        if len(candidates) == 1:
+            return candidates[0]
+
+        avoid = set()
+        if failure_guidance:
+            for s in failure_guidance.get("avoid_strategies", []):
+                avoid.add(s.lower())
+
+        def plan_score(plan: ExecutionPlan) -> float:
+            score = 0.5  # base
+            # Prefer plans with steps (more complete)
+            if plan.steps:
+                score += 0.1
+            # Penalize plans using known-bad strategies
+            if plan.strategy_hint.lower() in avoid:
+                score -= 0.4
+            # Prefer strategy-informed plans
+            if plan.source == "strategy":
+                score += 0.15
+            # Prefer plans with fewer steps (more efficient)
+            if plan.steps:
+                score += max(0, 0.1 - len(plan.steps) * 0.02)
+            return score
+
+        return max(candidates, key=plan_score)
 
     def _consult_strategies(self, goal: str, situation: Situation) -> str:
         """
