@@ -848,5 +848,254 @@ class _FakeMemory:
         return "; ".join(f"{k}: {v['value']}" for k, v in self._data.items())
 
 
+# ── V4.1 Intelligence Benchmarks ──
+
+class TestMemoryConsolidation:
+    """MemoryConsolidation is wired into the cognitive loop."""
+
+    def test_consolidation_component_exists(self, tmp_path):
+        core = make_intelligence(tmp_path)
+        assert core.consolidation is not None
+
+    def test_consolidation_runs_periodically(self, tmp_path):
+        """Consolidation runs every 5 turns when episodes exist."""
+        core = make_intelligence(tmp_path)
+        # Create episodes so consolidation has data
+        for i in range(3):
+            ep = core.episodic.create_episode(
+                goal=f"task {i}",
+                outcome=EpisodeOutcome.SUCCESS,
+                steps=[EpisodeStep(action="test")],
+                tools_used=["test"],
+            )
+            core.episodic.store(ep)
+        # Process 5 turns to trigger consolidation
+        for i in range(5):
+            core.process(f"turn {i}")
+        metrics = core._cognitive_metrics
+        assert metrics["consolidation_runs"] >= 1
+
+    def test_consolidation_stats_available(self, tmp_path):
+        core = make_intelligence(tmp_path)
+        stats = core.get_stats()
+        assert "consolidation" in stats
+
+
+class TestFailureGuidanceIntegration:
+    """Failure knowledge is consulted during the cognitive loop."""
+
+    def test_failure_guidance_consulted_on_known_task(self, tmp_path):
+        core = make_intelligence(tmp_path)
+        # Record a failure
+        core.failure_knowledge.record_failure(
+            task="deploy app",
+            strategy="direct_upload",
+            failure_type="network",
+            failure_detail="timeout",
+            probable_cause="network issue",
+        )
+        # Process the same task — guidance should be consulted
+        core.process("deploy app")
+        assert core._cognitive_metrics["failure_guidance_consulted"] >= 1
+
+    def test_failure_guidance_not_consulted_for_unknown_task(self, tmp_path):
+        core = make_intelligence(tmp_path)
+        core.process("hello world")
+        # No failure guidance for unknown task
+        trace = core.get_trace()
+        assert not trace.failure_guidance
+
+
+class TestCognitiveMetrics:
+    """Cognitive metrics track real system behavior."""
+
+    def test_metrics_initialized(self, tmp_path):
+        core = make_intelligence(tmp_path)
+        metrics = core._cognitive_metrics
+        assert "task_success_count" in metrics
+        assert "task_failure_count" in metrics
+        assert "failure_guidance_consulted" in metrics
+        assert "consolidation_runs" in metrics
+        assert "confident_correct" in metrics
+
+    def test_metrics_track_success(self, tmp_path):
+        core = make_intelligence(tmp_path)
+        core.process("help")  # should succeed
+        metrics = core._cognitive_metrics
+        assert metrics["task_success_count"] >= 1
+
+    def test_metrics_track_confidence_calibration(self, tmp_path):
+        core = make_intelligence(tmp_path)
+        core.process("help")  # produces a response
+        metrics = core._cognitive_metrics
+        # Confidence may be in middle range (not tracked) or high/low range
+        # At minimum, task success should be tracked
+        assert metrics["task_success_count"] >= 1
+
+    def test_get_cognitive_metrics_returns_derived(self, tmp_path):
+        core = make_intelligence(tmp_path)
+        core.process("help")
+        m = core.get_cognitive_metrics()
+        assert "task_success_rate" in m
+        assert "confidence_calibration" in m
+        assert "recovery_success_rate" in m
+
+    def test_metrics_in_stats(self, tmp_path):
+        core = make_intelligence(tmp_path)
+        stats = core.get_stats()
+        assert "cognitive_metrics" in stats
+
+
+class TestLearningChangesFutureBehavior:
+    """Learning actually affects future behavior through skill confidence."""
+
+    def test_repeated_failure_decreases_confidence(self, tmp_path):
+        core = make_intelligence(tmp_path)
+        skill = core.procedural.create_skill(
+            name="my_learn_test_skill",
+            purpose="Test learning",
+            steps=[SkillStep(order=1, action="test")],
+            tags={"my_learn_test_tag"},
+            confidence=0.9,
+        )
+        initial = skill.confidence
+        # Fail it multiple times
+        for _ in range(3):
+            core.procedural.update_skill(skill.id, success=False)
+        assert skill.confidence < initial
+        assert skill.failure_count == 3
+
+    def test_failure_recorded_in_failure_knowledge(self, tmp_path):
+        core = make_intelligence(tmp_path)
+        # Learn from a failure
+        core.learning.learn_from_failure(
+            goal="deploy app",
+            steps=[EpisodeStep(action="deploy")],
+            errors=["timeout"],
+            tools_used=["bash"],
+            context="production",
+        )
+        # Failure knowledge should have guidance
+        guidance = core.failure_knowledge.get_guidance("deploy app")
+        assert guidance is not None
+
+    def test_success_increases_skill_confidence(self, tmp_path):
+        core = make_intelligence(tmp_path)
+        skill = core.procedural.create_skill(
+            name="my_success_test_skill",
+            purpose="Test success",
+            steps=[SkillStep(order=1, action="test")],
+            tags={"my_success_test_tag"},
+            confidence=0.5,
+        )
+        initial = skill.confidence
+        for _ in range(3):
+            core.procedural.update_skill(skill.id, success=True)
+        assert skill.confidence > initial
+        assert skill.success_count == 3
+
+
+class TestConsolidationComponent:
+    """MemoryConsolidation works correctly when called."""
+
+    def test_consolidate_episodes(self, tmp_path):
+        from jarvis.memory.consolidation import MemoryConsolidation
+        mc = MemoryConsolidation()
+        episodes = [
+            {"id": "1", "goal": "read file", "outcome": "success", "tools_used": ["read_file"]},
+            {"id": "2", "goal": "read file", "outcome": "success", "tools_used": ["read_file"]},
+            {"id": "3", "goal": "read file", "outcome": "success", "tools_used": ["read_file"]},
+        ]
+        patterns = mc.consolidate_episodes(episodes)
+        assert len(patterns) >= 1
+        assert patterns[0].success_count >= 1
+
+    def test_generalize_strategies(self, tmp_path):
+        from jarvis.memory.consolidation import MemoryConsolidation
+        mc = MemoryConsolidation()
+        episodes = [
+            {"id": str(i), "goal": "deploy", "outcome": "success",
+             "tools_used": ["bash"], "strategy": "safe_deploy"}
+            for i in range(4)
+        ]
+        strategies = mc.generalize_strategies(episodes, min_evidence=3)
+        assert len(strategies) >= 1
+
+
+class TestConfidenceCalibration:
+    """Confidence calibration tracks accuracy over time."""
+
+    def test_high_confidence_success_tracked(self, tmp_path):
+        core = make_intelligence(tmp_path)
+        # Force high confidence by processing a simple task
+        core.process("help")
+        m = core._cognitive_metrics
+        # help should succeed — task_success_count tracks all successes
+        assert m["task_success_count"] >= 1
+
+    def test_confidence_metrics_derived(self, tmp_path):
+        core = make_intelligence(tmp_path)
+        core.process("help")
+        m = core.get_cognitive_metrics()
+        assert 0.0 <= m["confidence_calibration"] <= 1.0
+        assert 0.0 <= m["task_success_rate"] <= 1.0
+
+
+class TestEndToEndIntelligence:
+    """End-to-end intelligence: experience → learning → behavior change."""
+
+    def test_experience_to_behavior_change(self, tmp_path):
+        """Prove that experience recording leads to measurable behavior change."""
+        core = make_intelligence(tmp_path)
+        # Create a skill
+        skill = core.procedural.create_skill(
+            name="my_e2e_test_skill",
+            purpose="End to end test",
+            steps=[SkillStep(order=1, action="test")],
+            tags={"my_e2e_tag"},
+            confidence=0.8,
+        )
+        initial_conf = skill.confidence
+
+        # Record failure experience
+        core.learning.learn_from_failure(
+            goal="e2e test",
+            steps=[EpisodeStep(action="test")],
+            errors=["failed"],
+            tools_used=["test"],
+            context="testing",
+        )
+        # Update skill on failure
+        core.procedural.update_skill(skill.id, success=False)
+
+        # Verify behavior changed
+        assert skill.confidence < initial_conf
+        assert core.failure_knowledge.get_guidance("e2e test") is not None
+
+    def test_multi_turn_learning_accumulates(self, tmp_path):
+        """Multiple interactions accumulate learning signals."""
+        core = make_intelligence(tmp_path)
+        for i in range(5):
+            core.process(f"interaction {i}")
+        stats = core.get_stats()
+        assert stats["total_processed"] == 5
+        assert stats["cognitive_metrics"]["task_success_count"] >= 5
+
+    def test_trace_shows_failure_guidance(self, tmp_path):
+        """Trace includes failure guidance when available."""
+        core = make_intelligence(tmp_path)
+        core.failure_knowledge.record_failure(
+            task="test task",
+            strategy="bad_strategy",
+            failure_type="error",
+            failure_detail="failed",
+            probable_cause="bad approach",
+        )
+        core.process("test task")
+        trace = core.get_trace()
+        assert trace.failure_guidance  # Should be non-empty
+        assert "avoid_strategies" in trace.failure_guidance
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

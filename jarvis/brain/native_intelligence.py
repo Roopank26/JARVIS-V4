@@ -1,9 +1,13 @@
 """
-JARVIS Native Intelligence Core — V4.0
+JARVIS Native Intelligence Core — V4.1
 
 NOT a replacement for CognitiveCore or JarvisOrchestrator.
 IS the integration layer that wires existing components into ONE canonical
 cognitive loop.
+
+V4.0: Canonical 17-stage cognitive loop, component wiring.
+V4.1: Memory consolidation, learning→behavior, cognitive metrics,
+      failure-aware planning, adaptive recovery, strategy learning.
 
 Architecture:
     USER/ENVIRONMENT INPUT
@@ -13,9 +17,10 @@ Architecture:
     → Unified Memory Retrieval (MemoryRetrieval)
     → Knowledge Retrieval (KnowledgeEngine)
     → Goal Identification (GoalManager)
+    → Failure Guidance Lookup (FailureKnowledge)
     → Reasoning (ReasoningEngine + failure knowledge + knowledge engine)
-    → Planning (PlanningEngine + adaptive planning)
-    → Decision (DecisionEngine + confidence)
+    → Planning (PlanningEngine + failure-aware planning)
+    → Decision (DecisionEngine + confidence + learning guidance)
     → Confidence Assessment (ConfidenceEngine)
     → Security / Authorization (SecurityPolicy + AutonomyEngine)
     → Skill / Capability Selection (SkillTaskIntegrator + CapabilityRegistry)
@@ -27,6 +32,7 @@ Architecture:
     → Learning (LearningEngine)
     → Skill / Strategy Improvement (ProceduralMemory + SkillVersioning)
     → Memory Consolidation (MemoryConsolidation)
+    → Cognitive Metrics Update
     → Future Decision Improvement
 
 Design principle: COORDINATE existing components, never duplicate them.
@@ -66,6 +72,7 @@ from jarvis.learning.learning_engine import LearningEngine
 from jarvis.memory.episodic import EpisodeOutcome, EpisodeStep, EpisodicMemory
 from jarvis.memory.procedural import ProceduralMemory
 from jarvis.memory.retrieval import MemoryRetrieval
+from jarvis.memory.consolidation import MemoryConsolidation
 from jarvis.security.policy import ActionRisk, SecurityContext, SecurityPolicy
 
 logger = logging.getLogger(__name__)
@@ -80,6 +87,7 @@ class CognitiveTrace:
     perception: Situation | None = None
     memory_results: list[str] = field(default_factory=list)
     knowledge_results: list[str] = field(default_factory=list)
+    failure_guidance: dict[str, Any] = field(default_factory=dict)
     reasoning: ReasoningChain | None = None
     decision: Decision | None = None
     plan: ExecutionPlan | None = None
@@ -90,6 +98,7 @@ class CognitiveTrace:
     confidence: float = 0.0
     episode_id: str = ""
     learning_signal: str = ""
+    consolidation_patterns: int = 0
     duration_ms: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
@@ -97,6 +106,7 @@ class CognitiveTrace:
             "perception": self.perception.to_dict() if self.perception else None,
             "memory_count": len(self.memory_results),
             "knowledge_count": len(self.knowledge_results),
+            "has_failure_guidance": bool(self.failure_guidance),
             "reasoning_steps": len(self.reasoning.steps) if self.reasoning else 0,
             "decision": self.decision.action.value if self.decision else None,
             "plan_steps": len(self.plan.steps) if self.plan else 0,
@@ -104,6 +114,7 @@ class CognitiveTrace:
             "security_allowed": self.security_check[0],
             "success": self.outcome_success,
             "confidence": round(self.confidence, 3),
+            "consolidation_patterns": self.consolidation_patterns,
             "duration_ms": round(self.duration_ms, 2),
         }
 
@@ -181,6 +192,7 @@ class NativeIntelligenceCore:
         self.retrieval = MemoryRetrieval()
         self.knowledge = KnowledgeEngine()
         self.failure_knowledge = FailureKnowledge()
+        self.consolidation = MemoryConsolidation()
 
         # ── Learning (existing) ──
         self.learning = LearningEngine(
@@ -226,6 +238,23 @@ class NativeIntelligenceCore:
         self._local_responses: int = 0
         self._skill_uses: int = 0
         self._traces: list[CognitiveTrace] = []
+
+        # ── Cognitive Metrics (V4.1) ──
+        self._cognitive_metrics: dict[str, Any] = {
+            "task_success_count": 0,
+            "task_failure_count": 0,
+            "recovery_attempt_count": 0,
+            "recovery_success_count": 0,
+            "failure_guidance_consulted": 0,
+            "failure_guidance_prevented": 0,
+            "consolidation_runs": 0,
+            "patterns_consolidated": 0,
+            "strategies_generalized": 0,
+            "confident_correct": 0,   # high confidence + success
+            "confident_wrong": 0,     # high confidence + failure
+            "unconfident_correct": 0, # low confidence + success
+            "unconfident_wrong": 0,   # low confidence + failure
+        }
 
     # ── Component Wiring ──
 
@@ -309,6 +338,12 @@ class NativeIntelligenceCore:
         if active_goals:
             goal_context = "; ".join(g.title for g in active_goals[:3])
 
+        # ── STAGE 4.5: FAILURE GUIDANCE LOOKUP ──
+        failure_guidance = self.failure_knowledge.get_guidance(user_input)
+        if failure_guidance:
+            trace.failure_guidance = failure_guidance
+            self._cognitive_metrics["failure_guidance_consulted"] += 1
+
         # ── STAGE 5: REASONING (enhanced with failure knowledge + knowledge) ──
         chain = self.reasoning.reason_with_knowledge(
             user_input, memory_context, memory_data,
@@ -334,8 +369,24 @@ class NativeIntelligenceCore:
                 reasoning="Adjusted by reflection: no model available, using local",
             )
 
-        # ── STAGE 7: PLANNING ──
+        # ── STAGE 7: PLANNING (failure-aware) ──
         plan = self.planning.create_plan(decision, situation, user_input)
+        # If failure guidance exists, check if plan uses a known-bad strategy
+        if failure_guidance and plan.steps:
+            avoid = failure_guidance.get("avoid_strategies", [])
+            if avoid:
+                plan_steps_before = len(plan.steps)
+                # Filter out steps whose tool matches a known-bad strategy
+                filtered_steps = []
+                for step in plan.steps:
+                    tool_name = step.tool or ""
+                    if any(bad.lower() in tool_name.lower() for bad in avoid):
+                        self._cognitive_metrics["failure_guidance_prevented"] += 1
+                        logger.debug(f"Avoiding known-bad strategy: {tool_name}")
+                    else:
+                        filtered_steps.append(step)
+                if filtered_steps:
+                    plan.steps = filtered_steps
         trace.plan = plan
 
         # ── STAGE 8: CONFIDENCE / SECURITY CHECK ──
@@ -481,6 +532,30 @@ class NativeIntelligenceCore:
                 learning_signal = f"Learning error: {e}"
         trace.learning_signal = learning_signal
 
+        # ── STAGE 13.5: MEMORY CONSOLIDATION ──
+        # Run consolidation periodically (every 5 turns with episodes)
+        if self._conversation_turn % 5 == 0 and self.episodic.get_stats().get("total_episodes", 0) > 0:
+            try:
+                all_episodes = list(self.episodic._episodes.values())
+                if all_episodes:
+                    ep_dicts = []
+                    for ep in all_episodes[-20:]:  # last 20
+                        ep_dicts.append({
+                            "id": ep.id,
+                            "goal": ep.goal,
+                            "outcome": ep.outcome.value if hasattr(ep.outcome, 'value') else str(ep.outcome),
+                            "tools_used": ep.tools_used,
+                            "strategy": getattr(ep, 'strategy', ''),
+                        })
+                    patterns = self.consolidation.consolidate_episodes(ep_dicts)
+                    strategies = self.consolidation.generalize_strategies(ep_dicts)
+                    self._cognitive_metrics["consolidation_runs"] += 1
+                    self._cognitive_metrics["patterns_consolidated"] += len(patterns)
+                    self._cognitive_metrics["strategies_generalized"] += len(strategies)
+                    trace.consolidation_patterns = len(patterns)
+            except Exception as e:
+                logger.debug(f"Consolidation failed: {e}")
+
         # ── STAGE 14: SKILL UPDATE ──
         if skill_match:
             self.procedural.update_skill(skill_match.skill.id, is_success, episode_id)
@@ -532,6 +607,24 @@ class NativeIntelligenceCore:
             self._model_calls += 1
         else:
             self._local_responses += 1
+
+        # ── COGNITIVE METRICS (V4.1) ──
+        if response_text:
+            if is_success:
+                self._cognitive_metrics["task_success_count"] += 1
+            else:
+                self._cognitive_metrics["task_failure_count"] += 1
+        # Confidence calibration: was confidence appropriate?
+        if local_confidence >= 0.7:
+            if is_success:
+                self._cognitive_metrics["confident_correct"] += 1
+            else:
+                self._cognitive_metrics["confident_wrong"] += 1
+        elif local_confidence < 0.4:
+            if is_success:
+                self._cognitive_metrics["unconfident_correct"] += 1
+            else:
+                self._cognitive_metrics["unconfident_wrong"] += 1
 
         trace.duration_ms = duration_ms
         self._traces.append(trace)
@@ -709,12 +802,20 @@ class NativeIntelligenceCore:
                 results_text.append(response.text)
             else:
                 tasks_failed += 1
+                self._cognitive_metrics["recovery_attempt_count"] += 1
+                # Check failure knowledge before retrying
+                guidance = self.failure_knowledge.get_guidance(next_task.description)
+                if guidance and guidance.get("avoid_strategies"):
+                    # Record that we consulted failure knowledge
+                    self._cognitive_metrics["failure_guidance_consulted"] += 1
                 # Attempt recovery
                 recovery_decision = self.recovery.decide_recovery(
                     next_task, response.text or "unknown error",
                 )
                 if recovery_decision.action == RecoveryAction.RETRY:
-                    self.task_manager.retry_task(next_task.id)
+                    if next_task.attempts < next_task.max_attempts:
+                        self.task_manager.retry_task(next_task.id)
+                        self._cognitive_metrics["recovery_success_count"] += 1
 
         if tasks_failed == 0 and tasks_completed > 0:
             self.goal_manager.complete(goal.id)
@@ -795,7 +896,21 @@ class NativeIntelligenceCore:
             "retrieval_config": "unified",
             "security_approvals": len(self.security._session_approvals),
             "autonomy_mode": self.autonomy.mode.value,
+            "cognitive_metrics": self._cognitive_metrics,
+            "consolidation": self.consolidation.get_stats(),
         }
+
+    def get_cognitive_metrics(self) -> dict[str, Any]:
+        """Return cognitive metrics for intelligence benchmarking."""
+        m = self._cognitive_metrics.copy()
+        # Derived metrics
+        total_tasks = m["task_success_count"] + m["task_failure_count"]
+        m["task_success_rate"] = m["task_success_count"] / max(1, total_tasks)
+        confident_total = m["confident_correct"] + m["confident_wrong"]
+        m["confidence_calibration"] = m["confident_correct"] / max(1, confident_total)
+        recovery_total = m["recovery_attempt_count"]
+        m["recovery_success_rate"] = m["recovery_success_count"] / max(1, recovery_total)
+        return m
 
     def get_trace(self) -> CognitiveTrace | None:
         """Get the most recent cognitive trace."""
