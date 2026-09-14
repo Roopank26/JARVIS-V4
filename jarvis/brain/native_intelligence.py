@@ -59,6 +59,9 @@ from jarvis.brain.self_evaluation import SelfEvaluator
 from jarvis.brain.self_reflection import SelfReflection
 from jarvis.brain.skill_task_integration import SkillTaskIntegrator, SkillMatch
 from jarvis.brain.strategy_memory import StrategyMemory
+from jarvis.brain.cognitive_state import (
+    CognitiveState, ItemType, TaskPhase, VerificationStatus,
+)
 from jarvis.goals.autonomy import AutonomyEngine, AutonomyMode
 from jarvis.goals.goal import Goal
 from jarvis.goals.manager import GoalManager
@@ -134,6 +137,7 @@ class IntelligenceResponse:
     reasoning_summary: str = ""
     duration_ms: float = 0.0
     trace: CognitiveTrace | None = None
+    cognitive_state: CognitiveState | None = None  # V4.3
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -146,6 +150,7 @@ class IntelligenceResponse:
             "used_memory": self.used_memory,
             "used_knowledge": self.used_knowledge,
             "duration_ms": round(self.duration_ms, 2),
+            "cognitive_state": self.cognitive_state.to_dict() if self.cognitive_state else None,
         }
 
 
@@ -264,6 +269,13 @@ class NativeIntelligenceCore:
             "strategy_influenced_decisions": 0,
             "candidate_evaluations": 0,
             "calibration_adjustments": 0,
+            # V4.3 unified intelligence metrics
+            "verification_success_count": 0,
+            "verification_failure_count": 0,
+            "information_gathering_count": 0,
+            "plan_change_count": 0,
+            "hypotheses_formed": 0,
+            "contradictions_detected": 0,
         }
 
     # ── Component Wiring ──
@@ -313,10 +325,22 @@ class NativeIntelligenceCore:
         self._conversation_turn += 1
         trace = CognitiveTrace()
 
+        # ── STAGE 0: COGNITIVE STATE INITIALIZATION ──
+        state = CognitiveState(
+            current_task=user_input[:200],
+            turn_number=self._conversation_turn,
+        )
+
         # ── STAGE 1: PERCEPTION ──
         memory_context = self._get_memory_context()
         situation = self.context.understand(user_input, memory_context)
         trace.perception = situation
+
+        # Populate state from perception
+        state.observations.append(f"User input: {user_input[:100]}")
+        for e in situation.entities:
+            state.relevant_entities.append(f"{e.kind}:{e.name}")
+        state.task_phase = TaskPhase.REASONING
 
         # ── STAGE 2: UNIFIED MEMORY RETRIEVAL ──
         retrieval_results = self.retrieval.retrieve(user_input, context=memory_context)
@@ -325,6 +349,14 @@ class NativeIntelligenceCore:
             memory_data.append({"key": r.source, "value": r.content, "category": r.source})
             trace.memory_results.append(r.content[:100])
         used_memory = bool(memory_data)
+
+        # Populate state from memory
+        for m in memory_data[:5]:
+            state.add_reasoning_item(
+                ItemType.MEMORY,
+                str(m.get("value", ""))[:100],
+                source=str(m.get("category", "memory")),
+            )
 
         # ── STAGE 3: KNOWLEDGE RETRIEVAL ──
         knowledge_results = []
@@ -341,6 +373,17 @@ class NativeIntelligenceCore:
         except Exception:
             pass
         used_knowledge = bool(knowledge_results)
+
+        # Populate state from knowledge
+        for kr in knowledge_results[:3]:
+            conf = kr.get("confidence", 0.5)
+            item_type = ItemType.FACT if conf > 0.8 else ItemType.EVIDENCE
+            state.add_reasoning_item(
+                item_type,
+                f"{kr.get('subject', '')} {kr.get('predicate', '')} {kr.get('value', '')}",
+                source="knowledge_graph",
+                confidence=conf,
+            )
 
         # ── STAGE 4: GOAL IDENTIFICATION ──
         active_goals = self.goal_manager.list_goals()
@@ -369,6 +412,17 @@ class NativeIntelligenceCore:
         trace.reasoning = chain
         local_confidence = chain.overall_confidence.value if chain.overall_confidence else 0.0
 
+        # Populate state from reasoning
+        if chain.conclusion:
+            state.add_reasoning_item(
+                ItemType.INFERENCE,
+                chain.conclusion[:200],
+                source="reasoning_engine",
+                confidence=local_confidence,
+            )
+        state.overall_confidence = local_confidence
+        state.task_phase = TaskPhase.DECISION
+
         # ── STAGE 6: DECISION (V4.2: candidate evaluation) ──
         has_model = self._model_adapter is not None
         can_reason = self.reasoning.can_reason_locally(user_input)
@@ -380,6 +434,10 @@ class NativeIntelligenceCore:
             failure_guidance=failure_guidance,
         )
         trace.decision = decision
+
+        # Populate state from decision
+        state.selected_action = decision.action.value
+        state.task_phase = TaskPhase.PLANNING
 
         # V4.2: Track candidate evaluation
         if decision.candidate_score > 0:
@@ -419,6 +477,12 @@ class NativeIntelligenceCore:
                 if filtered_steps:
                     plan.steps = filtered_steps
         trace.plan = plan
+
+        # Populate state from planning
+        state.current_plan_description = f"{decision.action.value}: {len(plan.steps)} steps"
+        state.pending_steps = [s.description for s in plan.steps]
+        state.strategy_hint = plan.strategy_hint
+        state.task_phase = TaskPhase.EXECUTION
 
         # ── STAGE 8: CONFIDENCE / SECURITY CHECK ──
         trace.confidence = local_confidence
@@ -504,7 +568,7 @@ class NativeIntelligenceCore:
                 user_input, situation, chain, memory_context,
             )
 
-        # ── STAGE 11: OBSERVATION ──
+        # ── STAGE 11: OBSERVATION + VERIFICATION ──
         duration_ms = (time.time() - start) * 1000
         is_success = bool(
             response_text
@@ -515,6 +579,19 @@ class NativeIntelligenceCore:
             errors.append(response_text[:200])
         trace.execution_result = response_text[:200]
         trace.outcome_success = is_success
+
+        # V4.3: Active verification
+        verification_status = self._verify_execution(
+            decision, plan, response_text, is_success,
+        )
+        state.task_phase = TaskPhase.VERIFICATION
+        state.action_result = response_text[:200] if response_text else ""
+        state.execution_status = "success" if is_success else "failure"
+        state.verification_status = verification_status
+        state.errors = errors
+        state.completed_steps = [s.description for s in plan.steps] if is_success else []
+        if not is_success:
+            state.task_phase = TaskPhase.LEARNING
 
         # ── STAGE 12: EPISODE CREATION ──
         episode_id = ""
@@ -562,6 +639,21 @@ class NativeIntelligenceCore:
                 logger.debug(f"Learning failed: {e}")
                 learning_signal = f"Learning error: {e}"
         trace.learning_signal = learning_signal
+
+        # V4.3: Populate learning state
+        state.task_phase = TaskPhase.LEARNING
+        if learning_signal:
+            state.add_reasoning_item(
+                ItemType.EVIDENCE,
+                f"Learning: {learning_signal[:100]}",
+                source="learning_engine",
+                confidence=0.7,
+            )
+        if failure_guidance:
+            for s in failure_guidance.get("avoid_strategies", []):
+                state.failed_strategies.append(s)
+            if failure_guidance.get("suggested_recovery"):
+                state.recovery_options.append(failure_guidance["suggested_recovery"])
 
         # ── STAGE 13.5: MEMORY CONSOLIDATION (V4.2: feeds StrategyMemory) ──
         # Run consolidation periodically (every 5 turns with episodes)
@@ -686,6 +778,11 @@ class NativeIntelligenceCore:
                 duration_ms=duration_ms,
             )
 
+        # V4.3: Update state completion
+        state.task_phase = TaskPhase.COMPLETE
+        state.duration_ms = duration_ms
+        state.overall_confidence = state.get_overall_confidence()
+
         trace.duration_ms = duration_ms
         self._traces.append(trace)
         if len(self._traces) > 100:
@@ -703,7 +800,57 @@ class NativeIntelligenceCore:
             reasoning_summary=chain.conclusion if chain else "",
             duration_ms=duration_ms,
             trace=trace,
+            cognitive_state=state,
         )
+
+    # ── V4.3: Active Verification ──
+
+    def _verify_execution(
+        self,
+        decision: Decision,
+        plan: ExecutionPlan,
+        result: str,
+        is_success: bool,
+    ) -> VerificationStatus:
+        """
+        V4.3: Actively verify execution results.
+
+        Does NOT assume success just because a function returned.
+        Checks for error indicators, validates expected outcomes.
+        """
+        if not plan.steps:
+            # No steps to verify
+            return VerificationStatus.VERIFICATION_SKIPPED
+
+        if not result:
+            return VerificationStatus.VERIFIED_FAILURE
+
+        # Check for explicit error indicators
+        error_indicators = [
+            "Error", "error:", "Traceback", "Exception",
+            "Permission denied", "Not found", "No such file",
+            "failed", "FAILED", "command not found",
+        ]
+        has_error = any(indicator in result for indicator in error_indicators)
+
+        if has_error:
+            return VerificationStatus.VERIFIED_FAILURE
+
+        # Check for empty/useless output where content was expected
+        if decision.action in (Action.USE_TOOL, Action.EXECUTE_PLAN):
+            tool_names = [s.tool for s in plan.steps]
+            # File reads should produce content
+            if "read_file" in tool_names and len(result.strip()) < 5:
+                return VerificationStatus.VERIFIED_FAILURE
+            # List operations should produce output
+            if "list_directory" in tool_names and not result.strip():
+                return VerificationStatus.VERIFIED_FAILURE
+
+        if is_success:
+            self._cognitive_metrics["verification_success_count"] += 1
+            return VerificationStatus.VERIFIED_SUCCESS
+        else:
+            return VerificationStatus.VERIFIED_FAILURE
 
     # ── Execution Helpers ──
 
@@ -975,6 +1122,9 @@ class NativeIntelligenceCore:
         # V4.2 derived metrics
         m["strategy_influence_rate"] = m["strategy_influenced_decisions"] / max(1, total_tasks)
         m["candidate_evaluation_rate"] = m["candidate_evaluations"] / max(1, total_tasks)
+        # V4.3 derived metrics
+        verification_total = m["verification_success_count"] + m["verification_failure_count"]
+        m["verification_success_rate"] = m["verification_success_count"] / max(1, verification_total)
         return m
 
     def get_trace(self) -> CognitiveTrace | None:
