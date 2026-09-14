@@ -58,7 +58,7 @@ from jarvis.brain.reasoning_engine import ReasoningChain, ReasoningEngine
 from jarvis.brain.self_evaluation import SelfEvaluator
 from jarvis.brain.self_reflection import SelfReflection
 from jarvis.brain.skill_task_integration import SkillTaskIntegrator, SkillMatch
-from jarvis.brain.strategy_memory import StrategyMemory, StrategyCandidate
+from jarvis.brain.strategy_memory import StrategyMemory
 from jarvis.goals.autonomy import AutonomyEngine, AutonomyMode
 from jarvis.goals.goal import Goal
 from jarvis.goals.manager import GoalManager
@@ -355,10 +355,8 @@ class NativeIntelligenceCore:
             self._cognitive_metrics["failure_guidance_consulted"] += 1
 
         # V4.2: Find strategy candidates from learned experience
-        strategy_candidates = self.strategy_memory.find_candidates(
-            task=user_input,
-            context=memory_context,
-            failure_guidance=failure_guidance,
+        strategy_candidates = self.strategy_memory.find_relevant(
+            task_context=user_input,
             limit=3,
         )
         if strategy_candidates:
@@ -683,9 +681,7 @@ class NativeIntelligenceCore:
         if strategy_candidates:
             best_candidate = strategy_candidates[0]
             self.strategy_memory.record_outcome(
-                strategy_id=best_candidate.strategy.id,
-                task=user_input,
-                context=memory_context,
+                strategy_id=best_candidate.id,
                 success=is_success,
                 duration_ms=duration_ms,
             )

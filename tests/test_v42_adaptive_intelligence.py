@@ -25,22 +25,11 @@ from jarvis.brain.decision_engine import Action, DecisionCandidate, DecisionEngi
 from jarvis.brain.native_intelligence import NativeIntelligenceCore
 from jarvis.brain.planning_engine import PlanningEngine, ExecutionPlan
 from jarvis.brain.strategy_memory import (
-    StrategyMemory, StrategyRecord, StrategyCandidate, StrategyEvidence, _make_signature,
+    StrategyMemory, StrategyEntry,
 )
 
 
 # ── Helpers ──
-
-def _make_situation(
-    text: str,
-    category: str = "command",
-    action: str = "read_file",
-    complexity: float = 0.5,
-) -> Situation:
-    """Create a test situation."""
-    ctx = ContextEngine()
-    return ctx.understand(text)
-
 
 def _make_strategy_memory_with_evidence() -> StrategyMemory:
     """Create a StrategyMemory with some learned strategies."""
@@ -54,13 +43,11 @@ def _make_strategy_memory_with_evidence() -> StrategyMemory:
         success_rate=0.9,
         promoted=True,
     )
-    # Record several successes
-    strat_a = sm.get_all_strategies()[0]
+    # Record several successes on top of the seeded evidence
+    strat_a = sm.get_all()[0]
     for _ in range(5):
         sm.record_outcome(
             strategy_id=strat_a.id,
-            task="read file contents",
-            context="local file operation",
             success=True,
             duration_ms=50.0,
         )
@@ -73,19 +60,14 @@ def _make_strategy_memory_with_evidence() -> StrategyMemory:
         success_rate=0.2,
         promoted=False,
     )
-    strat_b = sm.get_all_strategies()[1]
+    strat_b = sm.get_all()[1]
     for _ in range(3):
         sm.record_outcome(
             strategy_id=strat_b.id,
-            task="read file contents",
-            context="network file operation",
             success=False,
-            failure_type="timeout",
         )
     sm.record_outcome(
         strategy_id=strat_b.id,
-        task="read file contents",
-        context="network file operation",
         success=True,
         duration_ms=200.0,
     )
@@ -100,19 +82,19 @@ def _make_strategy_memory_with_evidence() -> StrategyMemory:
 class TestStrategyMemory:
     """Strategy memory stores learned strategies and retrieves them by relevance."""
 
-    def test_ingest_creates_strategy_record(self):
-        """Ingesting from consolidation creates a StrategyRecord."""
+    def test_ingest_creates_strategy_entry(self):
+        """Ingesting from consolidation creates a StrategyEntry."""
         sm = StrategyMemory()
-        record = sm.ingest_from_consolidation(
+        entry = sm.ingest_from_consolidation(
             strategy_key="bash execute",
             applicability="Running shell commands",
             evidence_count=3,
             success_rate=0.8,
             promoted=True,
         )
-        assert isinstance(record, StrategyRecord)
-        assert record.name == "bash execute"
-        assert record.promoted is True
+        assert isinstance(entry, StrategyEntry)
+        assert entry.description == "Running shell commands"
+        assert entry.conditions.get("promoted") is True
 
     def test_ingest_idempotent(self):
         """Ingesting the same strategy twice doesn't create duplicates."""
@@ -131,7 +113,7 @@ class TestStrategyMemory:
             success_rate=0.9,
             promoted=True,
         )
-        assert len(sm.get_all_strategies()) == 1
+        assert len(sm.get_all()) == 1
 
     def test_record_outcome_updates_evidence(self):
         """Recording outcomes updates strategy evidence."""
@@ -139,45 +121,58 @@ class TestStrategyMemory:
         sm.ingest_from_consolidation(
             strategy_key="test strategy",
             applicability="Testing",
-            evidence_count=1,
-            success_rate=0.5,
+            evidence_count=2,
+            success_rate=1.0,  # seed with 2 successes
             promoted=False,
         )
-        record = sm.get_all_strategies()[0]
+        entry = sm.get_all()[0]
+        initial_rate = entry.success_rate  # 1.0
 
         # Record some outcomes
-        sm.record_outcome(record.id, "test task", "test context", success=True, duration_ms=100)
-        sm.record_outcome(record.id, "test task", "test context", success=True, duration_ms=80)
-        sm.record_outcome(record.id, "test task", "test context", success=False, failure_type="error")
+        sm.record_outcome(entry.id, success=True, duration_ms=100)
+        sm.record_outcome(entry.id, success=True, duration_ms=80)
+        sm.record_outcome(entry.id, success=False)
 
-        assert record.total_uses == 3
-        assert record.overall_success_rate > 0.6  # 2/3
+        # 4 successes + 1 failure = 5 total, 4/5 = 0.8
+        assert entry.total_uses == 5
+        assert entry.success_rate > 0.7
 
-    def test_find_candidates_relevant_strategy(self):
-        """Finding candidates returns relevant strategies."""
+    def test_find_relevant_returns_strategies(self):
+        """Finding relevant strategies returns matches."""
         sm = _make_strategy_memory_with_evidence()
-        candidates = sm.find_candidates(
-            task="read file contents",
-            context="local file operation",
+        candidates = sm.find_relevant(
+            task_context="file read direct contents",
             limit=3,
         )
         assert len(candidates) > 0
-        # The well-performing strategy should rank higher
-        assert candidates[0].final_score > 0.3
+        # Should be StrategyEntry objects
+        assert isinstance(candidates[0], StrategyEntry)
 
-    def test_find_candidates_penalizes_failures(self):
-        """Candidates with failure history get penalized."""
+    def test_find_relevant_by_success_rate(self):
+        """Better-performing strategies rank higher."""
         sm = _make_strategy_memory_with_evidence()
-        candidates = sm.find_candidates(
-            task="read file contents",
-            context="",
-            failure_guidance={"avoid_strategies": ["file read network"]},
+        candidates = sm.find_relevant(
+            task_context="file read direct contents",
             limit=3,
         )
-        # The network strategy should have a penalty
-        for c in candidates:
-            if "network" in c.strategy.name:
-                assert c.failure_penalty > 0
+        if len(candidates) >= 2:
+            # The well-performing strategy should rank higher
+            rates = [c.success_rate for c in candidates]
+            # First should have equal or higher success rate
+            assert rates[0] >= rates[-1] or len(candidates) == 1
+
+    def test_find_by_conditions(self):
+        """Find strategies by conditions."""
+        sm = StrategyMemory()
+        sm.ingest_from_consolidation(
+            strategy_key="test",
+            applicability="Testing",
+            evidence_count=1,
+            success_rate=0.8,
+            promoted=True,
+        )
+        results = sm.find_by_conditions({"promoted": True})
+        assert len(results) == 1
 
     def test_get_stats(self):
         """Stats track strategy memory state."""
@@ -185,7 +180,18 @@ class TestStrategyMemory:
         stats = sm.get_stats()
         assert stats["total_strategies"] == 2
         assert stats["total_uses"] > 0
-        assert stats["strategies_with_evidence"] > 0
+
+    def test_add_strategy_directly(self):
+        """Can add strategies directly."""
+        sm = StrategyMemory()
+        entry = sm.add_strategy(
+            description="Test strategy",
+            conditions={"promoted": True},
+            action_pattern="test approach",
+            source="user_feedback",
+        )
+        assert entry.id.startswith("strat_")
+        assert entry.source == "user_feedback"
 
 
 # ══════════════════════════════════════════════════════════════
@@ -377,13 +383,13 @@ class TestStrategyAwarePlanning:
         planning.set_strategy_memory(sm)
 
         ctx = ContextEngine()
-        situation = ctx.understand("read file contents")
+        situation = ctx.understand("file read direct contents")
         decision = MagicMock()
         decision.action = Action.USE_TOOL
         decision.target = "read_file"
         decision.parameters = {}
 
-        plan = planning.create_plan(decision, situation, "read file contents")
+        plan = planning.create_plan(decision, situation, "file read direct contents")
         assert isinstance(plan, ExecutionPlan)
         # Strategy hint may or may not be set depending on relevance
         assert hasattr(plan, 'strategy_hint')
@@ -421,32 +427,30 @@ class TestExperienceChangesBehavior:
 
     def test_strategy_memory_tracks_outcomes(self):
         """
-        After recording outcomes, strategy confidence changes.
+        After recording outcomes, strategy success rate changes.
         This is the foundation of behavior change.
         """
         sm = StrategyMemory()
         sm.ingest_from_consolidation(
             strategy_key="test approach",
             applicability="Test tasks",
-            evidence_count=1,
-            success_rate=0.5,
+            evidence_count=3,
+            success_rate=1.0,  # seed with 3 successes
             promoted=False,
         )
-        record = sm.get_all_strategies()[0]
-        initial_confidence = record.overall_confidence
+        entry = sm.get_all()[0]
+        initial_rate = entry.success_rate  # 1.0
 
         # Record several failures
         for _ in range(5):
             sm.record_outcome(
-                strategy_id=record.id,
-                task="test task",
-                context="test",
+                strategy_id=entry.id,
                 success=False,
-                failure_type="error",
             )
 
-        # Confidence should decrease
-        assert record.overall_confidence < initial_confidence or record.total_uses == 5
+        # Success rate should decrease: 3 successes / 8 total = 0.375
+        assert entry.success_rate < initial_rate
+        assert entry.success_rate < 0.5
 
     def test_failure_guidance_affects_decision(self):
         """
@@ -468,8 +472,6 @@ class TestExperienceChangesBehavior:
         )
 
         # The second decision should consider the failure guidance
-        # (it may still choose the same action if no better alternative exists,
-        # but the scoring should reflect the penalty)
         assert d2.action is not None
 
     def test_strategy_candidates_influence_scoring(self):
@@ -478,13 +480,13 @@ class TestExperienceChangesBehavior:
         """
         engine = DecisionEngine()
         ctx = ContextEngine()
-        situation = ctx.understand("read the configuration file")
+        situation = ctx.understand("file read direct contents")
 
         # Create strategy candidates
         sm = _make_strategy_memory_with_evidence()
-        candidates = sm.find_candidates(
-            task="read file contents",
-            context="local file operation",
+        candidates = sm.find_relevant(
+            task_context="file read direct contents",
+            limit=3,
         )
 
         # Decision with strategy candidates
@@ -503,10 +505,10 @@ class TestExperienceChangesBehavior:
         """
         FULL LOOP TEST:
         1. JARVIS encounters a task
-        2. Strategy A fails
-        3. Failure is recorded
+        2. Strategy A fails repeatedly
+        3. Failure is recorded (success rate drops)
         4. JARVIS encounters similar task
-        5. Strategy A should be penalized
+        5. Strategy A is ranked lower; Strategy B ranks higher
 
         This is the core proof that learning changes behavior.
         """
@@ -520,24 +522,17 @@ class TestExperienceChangesBehavior:
             success_rate=0.5,
             promoted=False,
         )
-        record = sm.get_all_strategies()[0]
+        entry_a = sm.get_all()[0]
 
         # Step 2: Record failures (strategy doesn't work)
         for _ in range(4):
             sm.record_outcome(
-                strategy_id=record.id,
-                task="deploy service",
-                context="production deployment",
+                strategy_id=entry_a.id,
                 success=False,
-                failure_type="timeout",
             )
 
-        # Step 3: Find candidates for similar task
-        # Before: direct approach has low success rate
-        candidates_before = sm.find_candidates(
-            task="deploy service",
-            context="production deployment",
-        )
+        # Step 3: Verify success rate dropped
+        assert entry_a.success_rate < 0.3
 
         # Step 4: Now ingest a better strategy
         sm.ingest_from_consolidation(
@@ -547,31 +542,28 @@ class TestExperienceChangesBehavior:
             success_rate=0.95,
             promoted=True,
         )
-        better_record = sm.get_all_strategies()[1]
+        entry_b = sm.get_all()[1]
         for _ in range(5):
             sm.record_outcome(
-                strategy_id=better_record.id,
-                task="deploy service",
-                context="production deployment",
+                strategy_id=entry_b.id,
                 success=True,
                 duration_ms=120.0,
             )
 
-        # Step 5: Find candidates again
-        candidates_after = sm.find_candidates(
-            task="deploy service",
-            context="production deployment",
-            failure_guidance={"avoid_strategies": ["direct approach"]},
+        # Step 5: Find relevant strategies
+        candidates = sm.find_relevant(
+            task_context="staged rollout direct approach",
+            limit=5,
         )
 
         # The better strategy should rank higher
-        if len(candidates_after) >= 2:
-            # The first candidate should be the better strategy
-            assert candidates_after[0].final_score > 0
-            # The direct approach should have a failure penalty
-            for c in candidates_after:
-                if "direct" in c.strategy.name:
-                    assert c.failure_penalty > 0
+        if len(candidates) >= 2:
+            # The staged rollout strategy should have higher success rate
+            rates = {c.description: c.success_rate for c in candidates}
+            # Verify at least one strategy has high success rate
+            assert any(r > 0.8 for r in rates.values())
+            # Verify at least one strategy has low success rate
+            assert any(r < 0.4 for r in rates.values())
 
     def test_confidence_calibration_changes_predictions(self):
         """
@@ -685,36 +677,62 @@ class TestNativeIntelligenceIntegration:
 
 
 # ══════════════════════════════════════════════════════════════
-# Test 7: Strategy signature and matching
+# Test 7: Strategy matching and evidence strength
 # ══════════════════════════════════════════════════════════════
 
 class TestStrategyMatching:
-    """Strategy matching uses normalized signatures."""
+    """Strategy matching uses keyword overlap and evidence strength."""
 
-    def test_make_signature_normalizes(self):
-        """Signature creation normalizes text."""
-        sig = _make_signature("Read the File Contents")
-        assert sig == "contents file read the"  # sorted, lowercased
-
-    def test_make_signature_filters_short_words(self):
-        """Signature filters words shorter than 3 characters."""
-        sig = _make_signature("I am a test")
-        # "I" and "am" are < 3 chars, "a" is < 3 chars
-        assert "test" in sig
-        assert "i" not in sig
-
-    def test_strategy_evidence_confidence(self):
-        """StrategyEvidence confidence reflects success rate and volume."""
-        ev = StrategyEvidence(
-            task_signature="test",
-            context_signature="test",
-            successes=8,
-            failures=2,
-            total_uses=10,
-            last_used=time.time(),
+    def test_strategy_entry_properties(self):
+        """StrategyEntry has correct computed properties."""
+        entry = StrategyEntry(
+            id="test_0",
+            description="test strategy",
+            action_pattern="test approach",
+            success_count=8,
+            failure_count=2,
         )
-        assert ev.success_rate == 0.8
-        assert ev.confidence > 0.8  # Includes volume bonus
+        assert entry.total_uses == 10
+        assert entry.success_rate == 0.8
+        assert entry.evidence_strength == 1.0  # 10 uses = full saturation
+
+    def test_strategy_entry_evidence_saturation(self):
+        """Evidence strength saturates at 10 uses."""
+        entry = StrategyEntry(
+            id="test_0",
+            description="test",
+            success_count=3,
+            failure_count=0,
+        )
+        assert entry.evidence_strength == 0.3  # 3/10
+
+    def test_strategy_entry_uninformative_prior(self):
+        """Uninformative prior is 0.5."""
+        entry = StrategyEntry(
+            id="test_0",
+            description="test",
+        )
+        assert entry.success_rate == 0.5  # Uninformative prior
+
+    def test_relevance_computation(self):
+        """Relevance is computed from keyword overlap."""
+        sm = StrategyMemory()
+        sm.add_strategy(
+            description="file read direct",
+            action_pattern="file read direct",
+        )
+        results = sm.find_relevant("file read contents")
+        assert len(results) > 0
+
+    def test_no_relevance_for_unrelated(self):
+        """Unrelated tasks return no results."""
+        sm = StrategyMemory()
+        sm.add_strategy(
+            description="file read direct",
+            action_pattern="file read direct",
+        )
+        results = sm.find_relevant("deploy production server")
+        assert len(results) == 0
 
 
 if __name__ == "__main__":

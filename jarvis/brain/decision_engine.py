@@ -312,8 +312,13 @@ class DecisionEngine:
         # V4.2: Strategy-informed candidates
         if strategy_candidates:
             for strat in strategy_candidates[:2]:  # Top 2 strategy candidates
-                strat_name = strat.strategy.name if hasattr(strat, 'strategy') else str(strat)
-                score = strat.final_score if hasattr(strat, 'final_score') else 0.5
+                # Handle both StrategyEntry and StrategyCandidate types
+                if hasattr(strat, 'final_score'):
+                    score = strat.final_score
+                elif hasattr(strat, 'success_rate'):
+                    score = strat.success_rate
+                else:
+                    score = 0.5
                 if score > 0.3:
                     # Strategy suggests a specific approach — boost compatible candidates
                     for c in candidates:

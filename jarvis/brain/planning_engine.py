@@ -182,18 +182,17 @@ class PlanningEngine:
     def _consult_strategies(self, goal: str, situation: Situation) -> str:
         """
         V4.2: Consult strategy memory for planning hints.
-        Returns a strategy name if a good strategy is found, empty string otherwise.
+        Returns a strategy description if a good strategy is found, empty string otherwise.
         """
         if not self._strategy_memory:
             return ""
         try:
-            candidates = self._strategy_memory.find_candidates(
-                task=goal,
-                context=situation.user_input,
+            candidates = self._strategy_memory.find_relevant(
+                task_context=goal,
                 limit=1,
             )
-            if candidates and candidates[0].final_score > 0.4:
-                return candidates[0].strategy.name
+            if candidates and candidates[0].success_rate > 0.4:
+                return candidates[0].description
         except Exception:
             pass
         return ""
