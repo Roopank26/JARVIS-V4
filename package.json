@@ -1,0 +1,31 @@
+{
+  "name": "jarvis-v4",
+  "version": "1.0.0",
+  "description": "[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Tests](https://img.shields.io/badge/tests-362%20passing-brightgreen.svg)]() [![Status](https://img.shields.io/badge/status-production%20ready-success.svg)]()",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 3000"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Roopank26/JARVIS-V4.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Roopank26/JARVIS-V4/issues"
+  },
+  "homepage": "https://github.com/Roopank26/JARVIS-V4#readme",
+  "dependencies": {
+    "three": "^0.186.0",
+    "vite": "^8.3.0"
+  },
+  "type": "module"
+}
