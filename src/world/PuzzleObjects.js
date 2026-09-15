@@ -587,6 +587,7 @@ export class TeleportPortal {
     this.type = 'portal';
     this.position = position.clone();
     this.isWorldExit = options.isWorldExit || false;
+    this.isFinalPortal = options.isFinalPortal || false;
     this.destinationWorld = options.destinationWorld || null;
     this.destinationLevel = options.destinationLevel || null;
     this.scene = scene;

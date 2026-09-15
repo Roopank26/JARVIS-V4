@@ -30,6 +30,57 @@ body, html {
   color: var(--text-main);
 }
 
+.hud-toast {
+  position: absolute;
+  top: 140px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 24px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  z-index: 25;
+  animation: toast-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+@keyframes toast-pop {
+  from { opacity: 0; transform: translate(-50%, -10px) scale(0.9); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1.0); }
+}
+
+.cyan-toast {
+  background: rgba(8, 20, 36, 0.92);
+  border: 1px solid var(--cyan-primary);
+  color: #ffffff;
+  box-shadow: 0 0 20px var(--cyan-glow);
+}
+
+.violet-toast {
+  background: rgba(22, 10, 36, 0.92);
+  border: 1px solid var(--violet-primary);
+  color: #ffffff;
+  box-shadow: 0 0 20px var(--violet-glow);
+}
+
+.white-flash-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  z-index: 99;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.white-flash-overlay.active {
+  opacity: 1;
+}
+
 #canvas-container {
   position: absolute;
   top: 0;

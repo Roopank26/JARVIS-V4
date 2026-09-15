@@ -110,6 +110,9 @@ export class UIManager {
         </div>
       </div>
 
+      <!-- WHITE SCREEN FLASH FOR ENDING & CINEMATICS -->
+      <div id="white-flash-overlay" class="white-flash-overlay hidden"></div>
+
       <!-- MAIN MENU OVERLAY -->
       <div id="main-menu" class="menu-overlay">
         <div class="menu-backdrop-art" style="background-image: url('/assets/echobound_keyart.png');"></div>
@@ -537,6 +540,23 @@ export class UIManager {
     }
   }
 
+  showToast(text, isCyan = true) {
+    let toast = document.getElementById('hud-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'hud-toast';
+      this.container.appendChild(toast);
+    }
+    toast.className = `hud-toast ${isCyan ? 'cyan-toast' : 'violet-toast'}`;
+    toast.textContent = text;
+    toast.classList.remove('hidden');
+
+    clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => {
+      toast.classList.add('hidden');
+    }, 2200);
+  }
+
   showInteractionPrompt(text, key = 'E') {
     const prompt = document.getElementById('floating-prompt');
     document.getElementById('prompt-label').textContent = text;
@@ -565,6 +585,22 @@ export class UIManager {
     setTimeout(() => {
       banner.classList.add('hidden');
     }, 2400);
+  }
+
+  flashWhite(callback = null) {
+    const flash = document.getElementById('white-flash-overlay');
+    flash.classList.remove('hidden');
+    flash.classList.add('active');
+
+    setTimeout(() => {
+      if (callback) callback();
+      setTimeout(() => {
+        flash.classList.remove('active');
+        setTimeout(() => {
+          flash.classList.add('hidden');
+        }, 800);
+      }, 400);
+    }, 1100);
   }
 
   showEndingScreen(stats = {}) {

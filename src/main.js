@@ -51,6 +51,12 @@ class EchoboundGame {
     this.cameraController = new CameraController(this.camera, this.renderer.domElement);
     this.player = new PlayerController(this.scene, this.particleManager, this.cameraController);
     this.echoSystem = new EchoSystem(this.scene, this.particleManager);
+    this.echoSystem.onEchoCreatedCallback = (count, max) => {
+      this.ui.showToast(`✦ ECHO ${count}/${max} SUMMONED • TIMELINE REWOUND`, true);
+    };
+    this.echoSystem.onEchoesResetCallback = () => {
+      this.ui.showToast(`✦ ALL ECHOES CLEARED`, false);
+    };
     this.worldBuilder = new WorldBuilder(this.scene);
 
     // 3. Game State
@@ -60,6 +66,7 @@ class EchoboundGame {
     this.islandMeshes = [];
     this.triggerStates = {};
     this.isGameActive = false;
+    this.isTransitioningLevel = false;
     this.firstEchoNPC = null;
     this.hasEncounteredFirstEcho = false;
 
@@ -208,6 +215,7 @@ class EchoboundGame {
   loadLevel(index) {
     if (index < 0 || index >= LEVELS.length) return;
 
+    this.isTransitioningLevel = false;
     this.currentLevelIndex = index;
     const lvl = LEVELS[index];
     this.currentLevel = lvl;
@@ -221,6 +229,8 @@ class EchoboundGame {
       this.scene.remove(this.firstEchoNPC);
       this.firstEchoNPC = null;
     }
+    this.hasEncounteredFirstEcho = false;
+    this.firstEchoWalking = false;
 
     // 1. Apply World theme colors and audio
     this.worldBuilder.applyWorldTheme(lvl.worldIndex);
@@ -326,13 +336,6 @@ class EchoboundGame {
     // 11. Update UI
     this.ui.updateHUD(lvl, { activeEchoCount: 0 });
     this.ui.populateLevelSelect(WORLDS_DATA, LEVELS, lvl.id);
-
-    // Initial cinematic sweep when awakening
-    if (lvl.id === 'w1_l1') {
-      const camStart = new THREE.Vector3(0, 12, -18);
-      const lookAt = new THREE.Vector3(0, 1, 10);
-      this.cameraController.playCinematic(camStart, lookAt, 3.2);
-    }
   }
 
   // Spawns the legendary First Echo NPC in the Final Sanctuary
@@ -379,6 +382,67 @@ class EchoboundGame {
     this.isGameActive = true;
     soundManager.ensureContext();
     this.loadLevel(0);
+    this.playIntroCutscene();
+  }
+
+  playIntroCutscene() {
+    // 1. Position camera high above clouds looking down at the world
+    const highCamPos = new THREE.Vector3(0, 16, -24);
+    const islandFocus = new THREE.Vector3(0, 1.2, 10);
+    this.camera.position.copy(highCamPos);
+    this.cameraController.target.copy(islandFocus);
+
+    // 2. Neo crouched / waking up pose
+    this.player.neo.parts.torso.position.y = 0.35;
+    this.player.neo.parts.head.rotation.x = -0.4;
+    this.player.neo.setEyeMood('alert');
+
+    // 3. Spawn a mysterious distant Echo near the ancient archway (z: 20)
+    const teaserEchoGroup = new THREE.Group();
+    teaserEchoGroup.position.set(0, 0.5, 20);
+    teaserEchoGroup.rotation.y = Math.PI;
+
+    const teaserMat = new THREE.MeshBasicMaterial({
+      color: 0x00f3ff,
+      transparent: true,
+      opacity: 0.8
+    });
+    const tHead = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 12), teaserMat);
+    tHead.position.y = 0.9;
+    teaserEchoGroup.add(tHead);
+    const tBody = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.16, 0.5, 12), teaserMat);
+    tBody.position.y = 0.5;
+    teaserEchoGroup.add(tBody);
+
+    this.scene.add(teaserEchoGroup);
+    this.particleManager.spawnEchoSummonBurst(teaserEchoGroup.position);
+
+    // 4. Smooth camera swoop to Neo over 3.2 seconds
+    const behindNeoCam = new THREE.Vector3(0, 3.0, -8);
+    const neoLookAt = new THREE.Vector3(0, 1.0, 0);
+
+    this.cameraController.playCinematic(behindNeoCam, neoLookAt, 3.2, () => {
+      // Stand up Neo
+      this.player.neo.parts.torso.position.y = 0.62;
+      this.player.neo.parts.head.rotation.x = 0;
+      this.player.neo.setEyeMood('curious');
+
+      // Flare chest rune
+      if (this.player.neo.parts.chestRune) {
+        this.player.neo.parts.chestRune.material.opacity = 1.0;
+      }
+      this.particleManager.spawnVictoryBurst(this.player.position);
+
+      // Distant Echo dissolves in cyan motes
+      setTimeout(() => {
+        this.particleManager.spawnEchoSummonBurst(teaserEchoGroup.position);
+        this.scene.remove(teaserEchoGroup);
+        this.ui.showDialogue(
+          "Where am I...? The world remembers my steps. The glowing portal lies beyond the ancient archway.",
+          "NEO — THE TRAVELER"
+        );
+      }, 800);
+    });
   }
 
   restartLevel() {
@@ -418,7 +482,11 @@ class EchoboundGame {
   triggerGameEnding() {
     this.isGameActive = false;
     this.cameraController.addTrauma(0.5);
-    this.ui.showEndingScreen(this.stats);
+    soundManager.playLevelComplete();
+
+    this.ui.flashWhite(() => {
+      this.ui.showEndingScreen(this.stats);
+    });
   }
 
   animate() {
@@ -462,7 +530,8 @@ class EchoboundGame {
           obj.update(delta);
 
           // Check if player enters portal
-          if (obj.isPlayerEntering(this.player.position)) {
+          if (!this.isTransitioningLevel && obj.isPlayerEntering(this.player.position)) {
+            this.isTransitioningLevel = true;
             if (obj.isFinalPortal) {
               this.triggerGameEnding();
             } else {
@@ -510,6 +579,18 @@ class EchoboundGame {
             "THE FIRST ECHO: 'You were never alone. Every step you took through this shattered reality was guided by the first version of yourself that dreamed of reaching this place. Walk with me into eternity.'",
             "THE FIRST ECHO"
           );
+          setTimeout(() => {
+            this.firstEchoWalking = true;
+          }, 1500);
+        }
+
+        if (this.firstEchoWalking && this.firstEchoNPC.position.z < 17.5) {
+          this.firstEchoNPC.position.z += delta * 1.6;
+          this.firstEchoNPC.rotation.y = 0; // face toward portal
+          // Spawn trail motes
+          if (Math.random() > 0.4) {
+            this.particleManager.spawnTrail(this.firstEchoNPC.position, 0x00f3ff, 0.35);
+          }
         }
       }
 
